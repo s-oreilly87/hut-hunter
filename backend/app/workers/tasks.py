@@ -1,10 +1,13 @@
 import json
 import logging
+import os
+from contextlib import asynccontextmanager
 from typing import cast
 
 from arq.connections import RedisSettings
 
 from app.adapters.base import AvailabilityStatus, BookingResult
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notify import notify_gotify
 from app.models.job import WatchJob, utcnow
@@ -12,6 +15,54 @@ from app.adapters import get_adapter
 from playwright.async_api import async_playwright, ViewportSize
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _browser_page(
+    storage_state: dict | None,
+    *,
+    headless: bool,
+    display: str | None = None,
+):
+    """Open a Playwright Chromium page with the requested mode.
+
+    When ``headless=False`` and ``display`` is set, Chromium is launched against
+    that X display (e.g. ":99" inside the Docker image with Xvfb). On dev
+    machines leave ``display`` unset and the host's default display is used.
+    Falls back to a plain headed launch if the display-targeted launch fails.
+    """
+    launch_kwargs: dict = {"headless": headless}
+    if not headless and display:
+        # Playwright replaces the subprocess env when this is set, so merge.
+        launch_kwargs["env"] = {**os.environ, "DISPLAY": display}
+
+    async with async_playwright() as pw:
+        try:
+            browser = await pw.chromium.launch(**launch_kwargs)
+        except Exception as e:
+            if not headless and display:
+                logger.warning(
+                    f"Headed Chromium launch with DISPLAY={display} failed ({e}); "
+                    "retrying with default display"
+                )
+                browser = await pw.chromium.launch(headless=False)
+            else:
+                raise
+
+        try:
+            context = await browser.new_context(
+                viewport=ViewportSize(width=1440, height=900),
+                user_agent=(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                storage_state=storage_state,  # type: ignore[arg-type]
+            )
+            page = await context.new_page()
+            yield page
+        finally:
+            await browser.close()
 
 
 async def check_availability(ctx: dict, job_id: str) -> dict:
@@ -33,57 +84,74 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             await _save_error(job_id, str(e))
             return {"error": str(e)}
 
-        # --- 2. Fetch storage state while session is open ---
+        # Fetch storage state while session is open
         storage_state = await adapter.get_storage_state(session)
         logger.info(f"Storage state loaded for {job.adapter_id}: {storage_state is not None}")
         auto_book = job.auto_book
 
-    # --- 3. Run Playwright (no DB session open during browser work) ---
     results = []
-    fully_available = []
-    partially_available = []
+    fully_available: list = []
+    partially_available: list = []
     booking: BookingResult | None = None
+    availability_dropped = False
 
+    # --- 2. Detect phase (headless) ---
     try:
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True)
-            context = await browser.new_context(
-                viewport=ViewportSize(width=1440, height=900),
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                ),
-                storage_state=storage_state,  # type: ignore[arg-type]
-            )
-            page = await context.new_page()
-
-            # --- 3a. Fill form and detect availability ---
+        async with _browser_page(
+            storage_state, headless=settings.browser_headless_detect
+        ) as page:
             await adapter.fill_form(page, params)
             results = await adapter.detect_availability(page, params)
-            logger.info(f"Raw results for job {job_id}: {results}")
-
-            fully_available = [r for r in results if r.status == AvailabilityStatus.AVAILABLE]
-            partially_available = [r for r in results if r.status == AvailabilityStatus.PARTIALLY_AVAILABLE]
-
-            # --- 3b. Attempt hold if fully available and auto_book enabled ---
-            if fully_available and auto_book:
-                try:
-                    params["_job_id"] = job_id
-                    booking = await adapter.attempt_hold(page, params)
-                    logger.info(
-                        f"Hold result for job {job_id}: "
-                        f"held={booking.held} url={booking.reservation_url} msg={booking.message}"
-                    )
-                except NotImplementedError:
-                    logger.info(f"Adapter {adapter.adapter_id} does not support holds yet")
-
-            await browser.close()
-
+            logger.info(f"Detect results for job {job_id}: {results}")
     except Exception as e:
-        logger.error(f"Adapter error for job {job_id}: {e}", exc_info=True)
+        logger.error(f"Detect phase error for job {job_id}: {e}", exc_info=True)
         await _save_error(job_id, str(e))
         return {"error": str(e)}
+
+    fully_available = [r for r in results if r.status == AvailabilityStatus.AVAILABLE]
+    partially_available = [
+        r for r in results if r.status == AvailabilityStatus.PARTIALLY_AVAILABLE
+    ]
+
+    # --- 3. Hold phase (headed) — only if there's something to book ---
+    if fully_available and auto_book:
+        try:
+            async with _browser_page(
+                storage_state,
+                headless=False,
+                display=settings.browser_display,
+            ) as page:
+                await adapter.fill_form(page, params)
+                hold_results = await adapter.detect_availability(page, params)
+                logger.info(f"Hold-phase recheck for job {job_id}: {hold_results}")
+
+                hold_fully = [
+                    r for r in hold_results if r.status == AvailabilityStatus.AVAILABLE
+                ]
+
+                if not hold_fully:
+                    logger.warning(
+                        f"Availability dropped between phases for job {job_id}; skipping hold"
+                    )
+                    availability_dropped = True
+                else:
+                    params["_job_id"] = job_id
+                    try:
+                        booking = await adapter.attempt_hold(page, params)
+                        logger.info(
+                            f"Hold result for job {job_id}: "
+                            f"held={booking.held} url={booking.reservation_url} "
+                            f"msg={booking.message}"
+                        )
+                    except NotImplementedError:
+                        logger.info(
+                            f"Adapter {adapter.adapter_id} does not support holds yet"
+                        )
+        except Exception as e:
+            logger.error(f"Hold phase error for job {job_id}: {e}", exc_info=True)
+            booking = BookingResult(
+                success=False, held=False, message=f"Hold phase error: {e}"
+            )
 
     # --- 4. Notifications ---
     if fully_available:
@@ -97,6 +165,17 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                             f"25 mins to complete payment:\n{booking.reservation_url}"
                         ),
                         priority=10,
+                    )
+            elif availability_dropped:
+                for r in fully_available:
+                    await notify_gotify(
+                        title="🏕️ Just missed it",
+                        message=(
+                            f"{r.site} showed {r.total_available} spot(s) on "
+                            f"{params.get('date')} during the check, but availability "
+                            f"dropped before the hold could be placed."
+                        ),
+                        priority=7,
                     )
             else:
                 msg = booking.message if booking else "Hold not attempted"

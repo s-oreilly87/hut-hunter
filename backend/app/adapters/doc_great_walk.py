@@ -289,7 +289,7 @@ class DocGreatWalkAdapter(BaseAdapter):
                 page, "#great-walk-direction-dropdown-button", direction
             )
 
-    async def _click_search_and_wait(self, page: Page) -> None:
+    async def _click_search_and_wait(self, page: Page, params: dict) -> None:
         search_btn = page.get_by_role("button", name="Search")
         for attempt in range(1, 4):
             await search_btn.scroll_into_view_if_needed()
@@ -303,7 +303,7 @@ class DocGreatWalkAdapter(BaseAdapter):
             except PlaywrightTimeoutError:
                 logger.warning(f"Search attempt {attempt} timed out, retrying...")
                 await page.reload(wait_until="domcontentloaded", timeout=60_000)
-                await self.fill_form(page, {}) # refill after reload
+                await self.fill_form(page, params)  # refill after reload
 
         raise TimeoutError("Search results table never appeared after 3 attempts")
 
@@ -312,7 +312,7 @@ class DocGreatWalkAdapter(BaseAdapter):
         people_wanted = int(params.get("people", 2))
         sites = [s.strip() for s in params.get("sites", "").split(",") if s.strip()]
 
-        await self._click_search_and_wait(page)
+        await self._click_search_and_wait(page, params)
 
         results = []
         for site in sites:

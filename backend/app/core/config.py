@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     gotify_token: str | None = None
     encryption_key: str
 
+    # Browser control
+    # Phase 1 (availability detection) is always headless when this is True.
+    # Phase 2 (hold/payment) launches headed so the user can observe/interact via noVNC.
+    browser_headless_detect: bool = True
+    # X display to point headed Chromium at (e.g. ":99" for Xvfb inside Docker).
+    # Leave unset on dev machines so the host's default display is used.
+    browser_display: str | None = None
+
     model_config = {
         "env_file": str(ROOT_DIR / ".env")
     }
