@@ -50,10 +50,18 @@ class WatchJobRead(SQLModel):
     auto_book: bool
     created_at: datetime
     last_checked_at: Optional[datetime]
-    last_result: Optional[dict]
+    last_result: list[dict] | None = None
 
     @classmethod
     def from_db(cls, job: WatchJob) -> "WatchJobRead":
+        raw = json.loads(job.last_result) if job.last_result else None
+        if isinstance(raw, list):
+            last_result = raw
+        elif isinstance(raw, dict):
+            last_result = [raw]  # wrap error dicts in a list
+        else:
+            last_result = None
+
         return cls(
             id=job.id,
             name=job.name,
@@ -63,5 +71,5 @@ class WatchJobRead(SQLModel):
             auto_book=job.auto_book,
             created_at=job.created_at,
             last_checked_at=job.last_checked_at,
-            last_result=json.loads(job.last_result) if job.last_result else None,
+            last_result=last_result,
         )
