@@ -25,6 +25,25 @@ export interface CreateWatchJobDto {
   auto_book: boolean
 }
 
+export interface ParamField {
+  key: string
+  label: string
+  type: 'text' | 'date' | 'number' | 'select'
+  options: string[] | null
+  default: unknown
+  required: boolean
+}
+
+export interface AdapterInfo {
+  adapter_id: string
+  name: string
+  param_fields: ParamField[]
+}
+
+export const adaptersApi = {
+  list: () => api.get<AdapterInfo[]>('/adapters').then(r => r.data),
+}
+
 export const jobsApi = {
   list: () => api.get<WatchJob[]>('/jobs').then(r => r.data),
   get: (id: string) => api.get<WatchJob>(`/jobs/${id}`).then(r => r.data),

@@ -6,6 +6,7 @@ uvicorn[standard]
 sqlmodel
 asyncpg
 alembic
+cryptography
 
 # Queue
 arq

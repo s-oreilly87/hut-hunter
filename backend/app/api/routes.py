@@ -7,12 +7,22 @@ from sqlmodel import select
 from arq.connections import RedisSettings, create_pool
 
 from app.core.database import get_session
-from app.models.job import WatchJob, WatchJobCreate, WatchJobRead
+from app.core.crypto import encrypt, decrypt
+from app.models.job import WatchJob, WatchJobCreate, WatchJobRead, utcnow
+from app.models.session import AdapterSession, CartSession
+from app.adapters import list_adapters
+
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
 
 
+@router.get("/adapters")
+async def get_adapters():
+    return list_adapters()
+
+# Jobs
 async def get_redis():
     """Dependency — yields an ARQ redis connection."""
     pool = await create_pool(RedisSettings(host="localhost", port=6379))
@@ -66,3 +76,103 @@ async def trigger_job(
         raise HTTPException(status_code=404, detail="Job not found")
     await redis.enqueue_job("check_availability", job_id)
     return {"status": "enqueued", "job_id": job_id}
+
+
+# Sessions
+@router.post("/adapters/{adapter_id}/session", status_code=201)
+async def store_adapter_session(
+    adapter_id: str,
+    body: dict,
+    session: AsyncSession = Depends(get_session)
+):
+    """Store encrypted Playwright storageState for an adapter."""
+    from sqlmodel import select
+    existing = (await session.execute(
+        select(AdapterSession).where(AdapterSession.adapter_id == adapter_id)
+    )).scalar_one_or_none()
+
+    encrypted = encrypt(json.dumps(body))
+
+    if existing:
+        existing.encrypted_state = encrypted
+        existing.updated_at = utcnow()
+        session.add(existing)
+    else:
+        adapter_session = AdapterSession(
+            adapter_id=adapter_id,
+            encrypted_state=encrypted,
+        )
+        session.add(adapter_session)
+
+    await session.commit()
+    return {"status": "ok", "adapter_id": adapter_id}
+
+
+@router.get("/adapters/{adapter_id}/session/status")
+async def get_session_status(
+    adapter_id: str,
+    session: AsyncSession = Depends(get_session)
+):
+    """Check if a session exists for an adapter."""
+    from sqlmodel import select
+    existing = (await session.execute(
+        select(AdapterSession).where(AdapterSession.adapter_id == adapter_id)
+    )).scalar_one_or_none()
+
+    if not existing:
+        return {"has_session": False}
+
+    return {
+        "has_session": True,
+        "updated_at": existing.updated_at,
+        "expires_at": existing.expires_at,
+    }
+
+
+@router.get("/jobs/{job_id}/resume")
+async def resume_cart(
+    job_id: str,
+    session: AsyncSession = Depends(get_session)
+):
+    from fastapi.responses import HTMLResponse
+    from sqlmodel import select
+
+    cart = (await session.execute(
+        select(CartSession).where(CartSession.job_id == job_id)
+    )).scalar_one_or_none()
+
+    if not cart:
+        return HTMLResponse("<h1>No cart session found for this job</h1>", status_code=404)
+
+    if cart.expires_at < utcnow():
+        return HTMLResponse("<h1>Cart session has expired</h1>", status_code=410)
+
+    cookies = json.loads(decrypt(cart.encrypted_cookies))
+
+    # Build cookie JS using json.dumps for safe string escaping
+    cookie_scripts = []
+    for c in cookies:
+        name = json.dumps(c["name"])
+        value = json.dumps(c["value"])
+        domain = json.dumps(c.get("domain", ""))
+        path = json.dumps(c.get("path", "/"))
+        cookie_scripts.append(
+            f'document.cookie = {name} + "=" + {value} + "; domain=" + {domain} + "; path=" + {path};'
+        )
+
+    cookie_js = "\n".join(cookie_scripts)
+    cart_url = json.dumps(cart.cart_url)
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><title>Resuming booking...</title></head>
+<body>
+    <p>Resuming your booking session...</p>
+    <script>
+        {cookie_js}
+        window.location.href = {cart_url};
+    </script>
+</body>
+</html>"""
+
+    return HTMLResponse(html)

@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.core.config import settings
 from app.core.database import init_db
-from app.models import job  # noqa — imported for SQLModel table registration
+from app.models import job, session  # noqa — imported for SQLModel table registration
 from app.api.routes import router
 
 

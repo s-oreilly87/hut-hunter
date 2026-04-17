@@ -4,6 +4,8 @@ from enum import Enum
 from typing import Any
 from playwright.async_api import Page
 
+import os
+from datetime import datetime
 
 class AvailabilityStatus(str, Enum):
     AVAILABLE = "available"
@@ -66,3 +68,29 @@ class BaseAdapter(ABC):
         Override in adapters that support it.
         """
         raise NotImplementedError(f"{self.__class__.__name__} does not support holds yet")
+
+    async def get_storage_state(self, db_session) -> dict | None:
+        """Load decrypted storageState from DB for this adapter."""
+        from sqlmodel import select
+        from app.models.session import AdapterSession
+        from app.core.crypto import decrypt
+        import json
+
+        result = await db_session.execute(
+            select(AdapterSession).where(AdapterSession.adapter_id == self.adapter_id)
+        )
+        adapter_session = result.scalar_one_or_none()
+        if not adapter_session:
+            return None
+        return json.loads(decrypt(adapter_session.encrypted_state))
+
+    async def snapshot(self, page: Page, label: str) -> str:
+        """Save screenshot + HTML for debugging."""
+        out_dir = "artifacts"
+        os.makedirs(out_dir, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base = f"{out_dir}/{ts}_{self.adapter_id}_{label}"
+        await page.screenshot(path=f"{base}.png", full_page=True)
+        with open(f"{base}.html", "w") as f:
+            f.write(await page.content())
+        return base

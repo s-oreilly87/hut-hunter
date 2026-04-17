@@ -1,3 +1,4 @@
+import json
 import re
 import logging
 import asyncio
@@ -6,6 +7,10 @@ from app.adapters.base import (
     BaseAdapter, ParamField, AvailabilityResult, AvailabilityStatus, BookingResult
 )
 from dataclasses import dataclass, field
+
+from app.core.config import settings
+from app.core.database import AsyncSessionLocal
+from app.models.job import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +97,13 @@ class DocGreatWalkAdapter(BaseAdapter):
                 type="select",
                 options=PEOPLE_OPTIONS,
                 default="2",
+            ),
+            ParamField(
+                key="occupants",
+                label="Occupants",
+                type="text",
+                default='[{"first_name": "","last_name": "","category": "NZ Adult (18+)","country": "New Zealand","age": "","gender": "Male"}]',
+                required=True,
             ),
             ParamField(
                 key="direction",
@@ -375,41 +387,221 @@ class DocGreatWalkAdapter(BaseAdapter):
         )
 
     async def attempt_hold(self, page: Page, params: dict) -> BookingResult:
-        """Click the available cell to initiate the 25-minute hold."""
-        date_str = params["date"]
+        date_str = params["date"]  # start date DD/MM/YYYY
+        nights = int(params.get("nights", 1))
         sites = [s.strip() for s in params.get("sites", "").split(",") if s.strip()]
+        occupants = params.get("occupants", [])
 
-        for site in sites:
-            table = page.locator("table.js-book-modal")
-            site_link = table.locator("a.gridParkLink span", has_text=site).first
-            if await site_link.count() == 0:
+        if not occupants:
+            return BookingResult(
+                success=False, held=False,
+                message="No occupant details provided — cannot complete hold",
+            )
+
+        # Build list of dates for each night DD/MM/YYYY
+        from datetime import datetime, timedelta
+        start = datetime.strptime(date_str, "%d/%m/%Y")
+        night_dates = [
+            (start + timedelta(days=i)).strftime("%d/%m/%Y")
+            for i in range(nights)
+        ]
+        logger.info(f"Attempting hold for {nights} night(s): {night_dates} at sites: {sites}")
+        # --- 1. Get sites in DOM order (top to bottom as displayed) ---
+        table = page.locator("table.js-book-modal")
+        site_links = table.locator("a.gridParkLink span")
+        dom_ordered_sites = []
+        for j in range(await site_links.count()):
+            txt = (await site_links.nth(j).inner_text()).strip()
+            if txt in sites:
+                dom_ordered_sites.append(txt)
+
+        logger.info(f"Sites in DOM order: {dom_ordered_sites}")
+
+        # --- 2. Select one cell per night in DOM order ---
+        selected_count = 0
+        for i, night_date in enumerate(night_dates):
+            # Pick site by DOM position — night 0 = first site, night 1 = second site etc
+            if i >= len(dom_ordered_sites):
+                logger.warning(f"No site available for night {i + 1}")
                 continue
 
+            site = dom_ordered_sites[i]
+            site_link = table.locator("a.gridParkLink span", has_text=site).first
             row = site_link.locator("xpath=ancestor::tr[1]")
-            btn = row.locator(f'button[aria-label*="on{date_str}"]').first
+            btn = row.locator(f'button[aria-label*="on{night_date}"]').first
+
             if await btn.count() == 0:
+                logger.warning(f"No cell found for {site} on {night_date}")
                 continue
 
             await btn.click()
+            logger.info(f"Selected cell: {site} on {night_date}")
+            await page.wait_for_timeout(300)
+            selected_count += 1
 
-            # Wait for reservation details page
-            try:
-                await page.wait_for_url("**/SelectReservationPreCartGreatWalk**", timeout=15_000)
-                return BookingResult(
-                    success=True,
-                    held=True,
-                    reservation_url=page.url,
-                    message=f"Hold secured for {site} on {date_str}. 25 minutes to complete payment.",
-                )
-            except Exception as e:
-                return BookingResult(
-                    success=False,
-                    held=False,
-                    message=f"Clicked cell but reservation page did not load: {e}",
-                )
+        if selected_count == 0:
+            return BookingResult(
+                success=False, held=False,
+                message="Could not select any availability cells",
+            )
+
+        if selected_count < nights:
+            logger.warning(f"Only selected {selected_count}/{nights} nights")
+
+        # --- 3. Click Reserve (outside loop, after all selections) ---
+        reserve_btn = page.get_by_role("button", name="Reserve")
+        try:
+            await reserve_btn.wait_for(state="visible", timeout=10_000)
+            await page.wait_for_function(
+                """() => {
+                  const btn = Array.from(document.querySelectorAll('button'))
+                    .find(b => b.textContent.trim() === 'Reserve');
+                  return btn && !btn.disabled;
+                }""",
+                timeout=10_000,
+            )
+            await reserve_btn.click()
+            logger.info("Clicked Reserve button")
+        except PlaywrightTimeoutError:
+            return BookingResult(
+                success=False, held=False,
+                message=f"Reserve button did not become enabled after {selected_count} selection(s)",
+            )
+
+        # --- 4. Fill occupant details modal ---
+        try:
+            await page.locator("text=Occupant Details").first.wait_for(
+                state="visible", timeout=15_000
+            )
+            logger.info("Occupant details modal appeared")
+        except PlaywrightTimeoutError:
+            return BookingResult(
+                success=False, held=False,
+                message="Occupant details modal did not appear after Reserve",
+            )
+
+        for i, occupant in enumerate(occupants):
+            await page.locator(f"#FirstName_{i}").fill(occupant["first_name"])
+            await page.locator(f"#LastName_{i}").fill(occupant["last_name"])
+            await page.locator(f"#Age_{i}").fill(str(occupant["age"]))
+
+            await self._select_dropdown_option(
+                page,
+                f"#great-walk-occupant-category_{i}-dropdown-button",
+                occupant["category"],
+            )
+            await page.wait_for_timeout(500)
+
+            await self._select_dropdown_option(
+                page,
+                f"#great-walk-occupant-country_{i}-dropdown-button",
+                occupant["country"],
+            )
+
+            await self._select_dropdown_option(
+                page,
+                f"#great-walk-occupant-gender_{i}-dropdown-button",
+                occupant["gender"],
+            )
+            logger.info(f"Filled occupant {i}: {occupant['first_name']} {occupant['last_name']}")
+
+        # --- 5. Save & Continue ---
+        await page.get_by_role("button", name="Save & Continue").click()
+        logger.info("Clicked Save & Continue")
+
+        # --- 6. Wait for Reservation Details page ---
+        try:
+            await page.wait_for_url("**/SelectReservationPreCartGreatWalk**", timeout=15_000)
+            logger.info("Reached Reservation Details page")
+        except PlaywrightTimeoutError:
+            return BookingResult(
+                success=False, held=False,
+                message="Did not reach Reservation Details page",
+            )
+
+        # --- 7. Click Book Great Walk ---
+        try:
+            book_link = page.locator("#mainContent_bReserve")
+            await book_link.wait_for(state="visible", timeout=15_000)
+            await self.snapshot(page, "reservation_details")
+            await book_link.click()
+            logger.info("Clicked Book Great Walk")
+        except PlaywrightTimeoutError:
+            await self.snapshot(page, "book_great_walk_timeout")
+            return BookingResult(
+                success=False,
+                held=False,
+                message="Book Great Walk link not found — check artifact for page state",
+            )
+
+        # --- 8. Wait for Shopping Cart ---
+        try:
+            await page.wait_for_url("**/ShoppingCart**", timeout=15_000)
+            logger.info("Reached Shopping Cart")
+        except PlaywrightTimeoutError:
+            await self.snapshot(page, "shopping_cart_timeout")
+            return BookingResult(
+                success=False,
+                held=False,
+                message="Did not reach Shopping Cart page",
+            )
+
+        # --- 9. Tick T&Cs checkbox ---
+        await page.locator("#mainContent_chkAgree").check()
+        logger.info("Checked T&Cs agreement")
+        await page.wait_for_timeout(300)
+
+        # --- 10. Click To Checkout ---
+        try:
+            checkout_btn = page.locator("#mainContent_bCheckOut")
+            await checkout_btn.wait_for(state="visible", timeout=10_000)
+            await self.snapshot(page, "shopping_cart")
+            await checkout_btn.click()
+            logger.info("Clicked To Checkout")
+        except PlaywrightTimeoutError:
+            await self.snapshot(page, "checkout_timeout")
+            return BookingResult(
+                success=False,
+                held=False,
+                message="To Checkout button not found",
+            )
+
+        # --- 11. Wait for payment page ---
+        try:
+            await page.wait_for_url("**/CreditCardPayment**", timeout=15_000)
+            cart_url = page.url
+            logger.info(f"Reached payment page: {cart_url}")
+        except PlaywrightTimeoutError:
+            await self.snapshot(page, "payment_page_timeout")
+            return BookingResult(
+                success=False,
+                held=False,
+                message="Did not reach payment page",
+            )
+
+        await self.snapshot(page, "payment_page_success")
+
+        # --- 9. Store cart session ---
+        from app.core.crypto import encrypt
+        from app.models.session import CartSession
+        from datetime import timedelta
+
+        cookies = await page.context.cookies()
+        cart_session = CartSession(
+            job_id=params.get("_job_id", "unknown"),
+            encrypted_cookies=encrypt(json.dumps(cookies)),
+            cart_url=cart_url,
+            expires_at=utcnow() + timedelta(minutes=24),
+        )
+        async with AsyncSessionLocal() as db_session:
+            db_session.add(cart_session)
+            await db_session.commit()
+
+        resume_url = f"{settings.app_url}/api/v1/jobs/{params.get('_job_id')}/resume"
 
         return BookingResult(
-            success=False,
-            held=False,
-            message="No available site found to hold",
+            success=True,
+            held=True,
+            reservation_url=resume_url,
+            message=f"Cart secured for {selected_count} night(s). 24 minutes to complete payment.",
         )
