@@ -12,7 +12,7 @@ from app.adapters.base import AvailabilityStatus, BookingResult
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notify import notify_gotify
-from app.models.job import WatchJob, utcnow
+from app.models.job import JobStatus, WatchJob, utcnow
 from app.models.session import CartSession
 from app.adapters import get_adapter
 from playwright.async_api import async_playwright, ViewportSize
@@ -72,7 +72,11 @@ async def _snapshot_safe(adapter, page, label: str) -> None:
 
 
 async def _get_active_cart(session, job_id: str) -> CartSession | None:
-    """Return the most recent non-expired, non-completed cart for this job, if any."""
+    """Return the most recent non-expired, non-completed cart for this job, if any.
+
+    Still used for lazy-expiry of HOLD_PLACED (see _status_guard_and_resolve):
+    if a job is HOLD_PLACED but no active cart exists, the hold has timed out
+    and the status should flip back to CHECKING."""
     return (await session.execute(
         select(CartSession)
         .where(CartSession.job_id == job_id)
@@ -80,6 +84,29 @@ async def _get_active_cart(session, job_id: str) -> CartSession | None:
         .where(CartSession.completed_at.is_(None))
         .order_by(CartSession.created_at.desc())
     )).scalars().first()
+
+
+async def _set_status(session, job: WatchJob, status: JobStatus) -> None:
+    """Commit a status transition. Idempotent — skips the write if the job
+    is already in the requested state."""
+    if job.status == status.value:
+        return
+    logger.info(f"Job {job.id} status: {job.status} -> {status.value}")
+    job.status = status.value
+    session.add(job)
+    await session.commit()
+
+
+async def _resolve_lazy_expired_hold(session, job: WatchJob) -> None:
+    """If a job is HOLD_PLACED but has no live cart, the hold timed out
+    without any explicit signal. Flip back to CHECKING per the state spec
+    ("after the hold expires the status should flip back to Checking")."""
+    if job.status != JobStatus.HOLD_PLACED.value:
+        return
+    active = await _get_active_cart(session, job.id)
+    if active is None:
+        logger.info(f"Lazy-expiring HOLD_PLACED for job {job.id} (no live cart)")
+        await _set_status(session, job, JobStatus.CHECKING)
 
 
 @asynccontextmanager
@@ -180,7 +207,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     queue and returns immediately so polling stays snappy."""
     logger.info(f"Checking availability for job {job_id}")
 
-    # --- 1. Fetch job + active-cart guard + storage state ---
+    # --- 1. Fetch job + status guard + storage state ---
     async with AsyncSessionLocal() as session:
         job = await session.get(WatchJob, job_id)
         if not job:
@@ -193,20 +220,22 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             adapter = get_adapter(job.adapter_id)
         except ValueError as e:
             logger.error(f"Unknown adapter: {e}")
+            await _set_status(session, job, JobStatus.PAUSED)
             await _save_error(job_id, str(e))
             return {"error": str(e)}
 
-        active_cart = await _get_active_cart(session, job_id)
-        if active_cart is not None:
+        # Lazy-expire a HOLD_PLACED whose cart has timed out, then gate the
+        # check on status. Only run when the job is in an "actively looking"
+        # state — anything else (paused / hold placed still live / cancelled
+        # / completed) means this check is stale or concurrent and should
+        # bail without poking the site.
+        await _resolve_lazy_expired_hold(session, job)
+        if job.status not in (JobStatus.CHECKING.value, JobStatus.WAITING.value):
             logger.info(
-                f"Skipping check for job {job_id}: active cart held, "
-                f"expires at {active_cart.expires_at.isoformat()}"
+                f"Skipping check for job {job_id}: status={job.status} "
+                f"(not checking/waiting)"
             )
-            return {
-                "job_id": job_id,
-                "status": "skipped_active_cart",
-                "cart_expires_at": active_cart.expires_at.isoformat(),
-            }
+            return {"job_id": job_id, "status": f"skipped_{job.status}"}
 
         storage_state = await adapter.get_storage_state(session)
         logger.info(f"Storage state loaded for {job.adapter_id}: {storage_state is not None}")
@@ -231,6 +260,11 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     except Exception as e:
         logger.error(f"Detect phase error for job {job_id}: {e}", exc_info=True)
         await _save_error(job_id, str(e))
+        # Release the job so the user can re-trigger.
+        async with AsyncSessionLocal() as session:
+            stale_job = await session.get(WatchJob, job_id)
+            if stale_job is not None:
+                await _set_status(session, stale_job, JobStatus.PAUSED)
         return {"error": str(e)}
 
     fully_available = [r for r in results if r.status == AvailabilityStatus.AVAILABLE]
@@ -301,6 +335,13 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
         if job:
             job.last_checked_at = utcnow()
             job.last_result = json.dumps(result_dicts)
+            # If a hold was enqueued, leave the job in CHECKING — the hold
+            # task owns the next transition (HOLD_PLACED on success, PAUSED
+            # on failure). Otherwise this check is "done"; drop back to
+            # PAUSED until the user triggers again (or until periodic polling
+            # is introduced, at which point WAITING fits here).
+            if not hold_enqueued and job.status == JobStatus.CHECKING.value:
+                job.status = JobStatus.PAUSED.value
             session.add(job)
             await session.commit()
 
@@ -323,7 +364,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     hold-related Gotify notifications originate here."""
     logger.info(f"Attempting hold for job {job_id}")
 
-    # --- 1. Fetch job + active-cart guard + storage state ---
+    # --- 1. Fetch job + status guard + storage state ---
     async with AsyncSessionLocal() as session:
         job = await session.get(WatchJob, job_id)
         if not job:
@@ -338,18 +379,17 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             return {"error": str(e)}
 
         # Race safety: between the poll enqueuing this task and us picking it
-        # up, another worker may already have held a cart for this job.
-        active_cart = await _get_active_cart(session, job_id)
-        if active_cart is not None:
+        # up, another hold may have already succeeded (status flipped to
+        # HOLD_PLACED), or the user may have cancelled / the poll may have
+        # been superseded. If status isn't CHECKING, skip — the job is
+        # either being held elsewhere or isn't in a state that wants a hold.
+        await _resolve_lazy_expired_hold(session, job)
+        if job.status != JobStatus.CHECKING.value:
             logger.info(
-                f"Skipping hold for job {job_id}: cart already held by another "
-                f"worker, expires at {active_cart.expires_at.isoformat()}"
+                f"Skipping hold for job {job_id}: status={job.status} "
+                f"(not checking)"
             )
-            return {
-                "job_id": job_id,
-                "status": "skipped_active_cart",
-                "cart_expires_at": active_cart.expires_at.isoformat(),
-            }
+            return {"job_id": job_id, "status": f"skipped_{job.status}"}
 
         storage_state = await adapter.get_storage_state(session)
 
@@ -438,9 +478,17 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 priority=8,
             )
 
+    # --- 3. Terminal status update for this attempt ---
+    held = bool(booking and booking.held)
+    final_status = JobStatus.HOLD_PLACED if held else JobStatus.PAUSED
+    async with AsyncSessionLocal() as session:
+        job = await session.get(WatchJob, job_id)
+        if job is not None:
+            await _set_status(session, job, final_status)
+
     return {
         "job_id": job_id,
-        "status": "held" if (booking and booking.held) else (
+        "status": "held" if held else (
             "availability_dropped" if availability_dropped else "hold_failed"
         ),
         "message": booking.message if booking else "",
@@ -478,22 +526,35 @@ async def hold_worker_shutdown(ctx: dict) -> None:
     logger.info("Hut Hunter hold worker shutting down")
 
 
+async def close_browser_task(ctx: dict, job_id: str) -> dict:
+    """Enqueued by the API when the user hits 'Cancel' or 'Booking Complete'
+    on the /pay page. Must run on the hold worker so it can access that
+    process's LIVE_BROWSERS registry. A no-op if this worker doesn't own the
+    browser (e.g. another hold_worker replica has it, or it was already torn
+    down). This is fire-and-forget from the API's POV."""
+    closed = await close_live_browser(job_id)
+    logger.info(f"close_browser_task job={job_id} closed={closed}")
+    return {"job_id": job_id, "closed": closed}
+
+
 class WorkerSettings:
     """Poll worker — runs check_availability on the default queue."""
     functions = [check_availability]
     on_startup = startup
     on_shutdown = shutdown
-    redis_settings = RedisSettings(host="localhost", port=6379)
+    # Read redis URL from settings so it works both on the host
+    # (redis://localhost:6379) and inside docker-compose (redis://redis:6379).
+    redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = 1  # one poll at a time per worker
     job_timeout = 120  # 2 minutes — detect phase only
 
 
 class HoldWorkerSettings:
     """Hold worker — runs attempt_hold_task on the dedicated hold queue."""
-    functions = [attempt_hold_task]
+    functions = [attempt_hold_task, close_browser_task]
     on_startup = startup
     on_shutdown = hold_worker_shutdown
-    redis_settings = RedisSettings(host="localhost", port=6379)
+    redis_settings = RedisSettings.from_dsn(settings.redis_url)
     queue_name = HOLD_QUEUE_NAME
     max_jobs = 1  # serialize holds so browsers don't stack on the display
     job_timeout = 300  # 5 minutes — full booking flow with margin

@@ -3,6 +3,7 @@ import { jobsApi, type WatchJob } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { StatusBadge } from '@/components/jobs/StatusBadge'
 import {
   Table, TableBody, TableCell, TableHead,
   TableHeader, TableRow
@@ -54,9 +55,7 @@ export function JobList() {
               <Badge variant="outline">{job.adapter_id}</Badge>
             </TableCell>
             <TableCell>
-              <Badge variant={job.is_active ? 'default' : 'secondary'}>
-                {job.is_active ? 'Active' : 'Paused'}
-              </Badge>
+              <StatusBadge status={job.status} jobId={job.id} />
             </TableCell>
             <TableCell className="text-muted-foreground text-sm">
               {job.last_checked_at

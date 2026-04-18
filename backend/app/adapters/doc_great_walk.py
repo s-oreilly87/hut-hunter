@@ -607,7 +607,11 @@ class DocGreatWalkAdapter(BaseAdapter):
             db_session.add(cart_session)
             await db_session.commit()
 
-        resume_url = f"{settings.app_url}/api/v1/jobs/{params.get('_job_id')}/resume"
+        # Pay page embeds the noVNC iframe so the user can finish checkout in
+        # the headed Chromium we just left open. /api/v1/jobs/{id}/resume is
+        # still mounted for the older "cookie injection on a local browser"
+        # flow, but the notification link goes to /pay now.
+        resume_url = f"{settings.app_url}/pay/{params.get('_job_id')}"
 
         return BookingResult(
             success=True,

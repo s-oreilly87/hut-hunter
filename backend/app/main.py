@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from app.core.config import settings
 from app.core.database import init_db
 from app.models import job, session  # noqa — imported for SQLModel table registration
-from app.api.routes import router
+from app.api.routes import router, public_router
 
 
 @asynccontextmanager
@@ -21,6 +21,7 @@ app = FastAPI(
 )
 
 app.include_router(router)
+app.include_router(public_router)
 
 @app.get("/health")
 async def health_check():

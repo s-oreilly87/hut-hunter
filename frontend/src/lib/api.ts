@@ -6,16 +6,33 @@ export const api = axios.create({
 })
 
 // Types matching our FastAPI schemas
+export type JobStatus =
+  | 'paused'
+  | 'checking'
+  | 'waiting'
+  | 'hold_placed'
+  | 'booking_complete'
+  | 'cancelled'
+
 export interface WatchJob {
   id: string
   name: string
   adapter_id: string
   params: Record<string, unknown>
-  is_active: boolean
+  status: JobStatus
   auto_book: boolean
   created_at: string
   last_checked_at: string | null
   last_result: Record<string, unknown> | null
+}
+
+export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
+  paused: 'Paused',
+  checking: 'Checking',
+  waiting: 'Waiting',
+  hold_placed: 'Hold Placed',
+  booking_complete: 'Booking Complete',
+  cancelled: 'Cancelled',
 }
 
 export interface CreateWatchJobDto {

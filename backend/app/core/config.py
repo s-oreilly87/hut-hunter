@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # Leave unset on dev machines so the host's default display is used.
     browser_display: str | None = None
 
+    # Public URL where the noVNC page is served. Embedded into the /pay/{job_id}
+    # HTML so the browser can connect to the hold worker's display. Defaults
+    # assume localhost for dev; set to the Cloudflare-tunneled domain in prod.
+    vnc_url: str = "http://localhost:6080"
+
     model_config = {
         "env_file": str(ROOT_DIR / ".env")
     }

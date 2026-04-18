@@ -3,6 +3,7 @@ import { jobsApi } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { StatusBadge } from '@/components/jobs/StatusBadge'
 
 export function JobCard() {
   const { selectedJobId } = useJobsStore()
@@ -32,9 +33,7 @@ export function JobCard() {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">{job.name}</CardTitle>
-          <Badge variant={job.is_active ? 'default' : 'secondary'}>
-            {job.is_active ? 'Active' : 'Paused'}
-          </Badge>
+          <StatusBadge status={job.status} jobId={job.id} />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
