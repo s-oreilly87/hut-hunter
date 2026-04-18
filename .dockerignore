@@ -1,0 +1,49 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.venv
+**/venv
+**/env
+**/*.egg-info
+**/.coverage
+**/htmlcov
+
+# IDE / OS
+.idea
+.vscode
+.DS_Store
+**/*.swp
+
+# Node / frontend — the API image doesn't need these
+frontend/node_modules
+frontend/dist
+frontend/build
+
+# Local secrets / runtime state — explicitly NOT baked into the image
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Playwright / browser caches (we reinstall inside the image)
+backend/**/.playwright
+backend/**/playwright-report
+backend/**/test-results
+backend/artifacts
+
+# Docker / CI metadata
+Dockerfile
+docker-compose*.yml
+.dockerignore

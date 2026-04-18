@@ -1,3 +1,30 @@
+# Shared bits pulled in by api / poll_worker / hold_worker via YAML anchors.
+# x-app is ignored by compose itself (the `x-` prefix), it's only here so
+# we don't repeat build/env/depends_on across three services.
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: hut-hunter:latest
+  restart: unless-stopped
+  env_file:
+    - .env
+  # Override the DB / Redis hosts to resolve inside the compose network.
+  # Everything else (SECRET_KEY, ENCRYPTION_KEY, GOTIFY_*, APP_URL, VNC_URL)
+  # comes from .env.
+  environment:
+    DATABASE_URL: postgresql+asyncpg://huthunter:huthunter@postgres:5432/huthunter
+    REDIS_URL: redis://redis:6379
+  # Bind-mount the backend source into /app so code changes don't require
+  # an image rebuild. The image still has a COPY of the code baked in, so
+  # removing this mount (e.g. in prod) still gives a self-contained image.
+  # Rebuild only needed when requirements.txt or the Dockerfile changes.
+  volumes:
+    - ./backend:/app
+  depends_on:
+    - postgres
+    - redis
+
 services:
   postgres:
     image: postgres:16
@@ -18,6 +45,41 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+
+  # ---------------------------------------------------------------------------
+  # Hut Hunter application services. All three use the same image; the only
+  # difference is which command they run inside it. Shared config comes
+  # from the top-level `x-app` anchor above.
+  # ---------------------------------------------------------------------------
+
+  api:
+    <<: *app
+    command: ["python", "run.py"]
+    ports:
+      - "8000:8000"
+
+  poll_worker:
+    <<: *app
+    command: ["python", "run_worker.py"]
+
+  hold_worker:
+    <<: *app
+    # hold-entrypoint.sh starts Xvfb + x11vnc + noVNC, then execs the worker.
+    entrypoint: ["/usr/bin/tini", "--", "/usr/local/bin/hold-entrypoint.sh"]
+    command: ["python", "run_hold_worker.py"]
+    # Headed Chromium needs the X display the entrypoint sets up.
+    environment:
+      DATABASE_URL: postgresql+asyncpg://huthunter:huthunter@postgres:5432/huthunter
+      REDIS_URL: redis://redis:6379
+      BROWSER_DISPLAY: ":99"
+      DISPLAY: ":99"
+    ports:
+      # noVNC HTTP/WebSocket endpoint. Put a Cloudflare tunnel in front of
+      # this port and set VNC_URL in .env to the public hostname.
+      - "6080:6080"
+    # /dev/shm defaults to 64MB in containers, which Chromium will exhaust
+    # on any non-trivial page and start crashing with SIGBUS.
+    shm_size: "1gb"
 
 volumes:
   postgres_data:

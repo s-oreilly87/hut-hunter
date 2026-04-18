@@ -13,6 +13,19 @@ class Settings(BaseSettings):
     gotify_token: str | None = None
     encryption_key: str
 
+    # Browser control
+    # Phase 1 (availability detection) is always headless when this is True.
+    # Phase 2 (hold/payment) launches headed so the user can observe/interact via noVNC.
+    browser_headless_detect: bool = True
+    # X display to point headed Chromium at (e.g. ":99" for Xvfb inside Docker).
+    # Leave unset on dev machines so the host's default display is used.
+    browser_display: str | None = None
+
+    # Public URL where the noVNC page is served. Embedded into the /pay/{job_id}
+    # HTML so the browser can connect to the hold worker's display. Defaults
+    # assume localhost for dev; set to the Cloudflare-tunneled domain in prod.
+    vnc_url: str = "http://localhost:6080"
+
     model_config = {
         "env_file": str(ROOT_DIR / ".env")
     }
