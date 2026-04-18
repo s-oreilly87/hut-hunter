@@ -463,6 +463,7 @@ class DocGreatWalkAdapter(BaseAdapter):
             await reserve_btn.click()
             logger.info("Clicked Reserve button")
         except PlaywrightTimeoutError:
+            await self.snapshot(page, "reserve_button_timeout")
             return BookingResult(
                 success=False, held=False,
                 message=f"Reserve button did not become enabled after {selected_count} selection(s)",
@@ -475,6 +476,7 @@ class DocGreatWalkAdapter(BaseAdapter):
             )
             logger.info("Occupant details modal appeared")
         except PlaywrightTimeoutError:
+            await self.snapshot(page, "occupant_modal_timeout")
             return BookingResult(
                 success=False, held=False,
                 message="Occupant details modal did not appear after Reserve",
@@ -514,6 +516,7 @@ class DocGreatWalkAdapter(BaseAdapter):
             await page.wait_for_url("**/SelectReservationPreCartGreatWalk**", timeout=15_000)
             logger.info("Reached Reservation Details page")
         except PlaywrightTimeoutError:
+            await self.snapshot(page, "reservation_details_url_timeout")
             return BookingResult(
                 success=False, held=False,
                 message="Did not reach Reservation Details page",
@@ -585,15 +588,22 @@ class DocGreatWalkAdapter(BaseAdapter):
         from app.core.crypto import encrypt
         from app.models.session import CartSession
         from datetime import timedelta
+        from sqlalchemy import delete
 
         cookies = await page.context.cookies()
+        job_id_for_cart = params.get("_job_id", "unknown")
         cart_session = CartSession(
-            job_id=params.get("_job_id", "unknown"),
+            job_id=job_id_for_cart,
             encrypted_cookies=encrypt(json.dumps(cookies)),
             cart_url=cart_url,
             expires_at=utcnow() + timedelta(minutes=24),
         )
         async with AsyncSessionLocal() as db_session:
+            # Remove any prior carts for this job — the new cart supersedes them,
+            # and keeping only one keeps resume_cart's lookup unambiguous.
+            await db_session.execute(
+                delete(CartSession).where(CartSession.job_id == job_id_for_cart)
+            )
             db_session.add(cart_session)
             await db_session.commit()
 

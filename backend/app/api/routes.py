@@ -137,9 +137,13 @@ async def resume_cart(
     from fastapi.responses import HTMLResponse
     from sqlmodel import select
 
+    # Multiple cart sessions may exist per job if attempt_hold ran more than once;
+    # always use the most recent.
     cart = (await session.execute(
-        select(CartSession).where(CartSession.job_id == job_id)
-    )).scalar_one_or_none()
+        select(CartSession)
+        .where(CartSession.job_id == job_id)
+        .order_by(CartSession.created_at.desc())
+    )).scalars().first()
 
     if not cart:
         return HTMLResponse("<h1>No cart session found for this job</h1>", status_code=404)
