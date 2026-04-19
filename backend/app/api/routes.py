@@ -14,9 +14,12 @@ from app.models.job import (
     WatchJob,
     WatchJobCreate,
     WatchJobRead,
+    WatchJobUpdate,
+    is_job_expired,
     utcnow,
 )
 from app.models.session import AdapterSession, CartSession
+from app.models.occupant import Occupant, OccupantCreate, OccupantRead, OccupantUpdate
 from app.adapters import list_adapters
 
 
@@ -74,6 +77,79 @@ async def get_job(job_id: str, session: AsyncSession = Depends(get_session)):
     return WatchJobRead.from_db(job)
 
 
+@router.patch("/jobs/{job_id}", response_model=WatchJobRead)
+async def update_job(
+    job_id: str,
+    body: WatchJobUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    """Partial update — only name / params / auto_book are mutable. Editing
+    params invalidates the cached last_result / last_checked_at, since those
+    were captured against the old search. adapter_id is immutable; change
+    adapters by deleting and recreating the job."""
+    job = cast(WatchJob | None, await session.get(WatchJob, job_id))
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # exclude_unset so clients can send just the keys they want to change
+    patch = body.model_dump(exclude_unset=True)
+
+    if "name" in patch:
+        job.name = patch["name"]
+    if "auto_book" in patch:
+        job.auto_book = patch["auto_book"]
+    if "params" in patch:
+        job.params = json.dumps(patch["params"])
+        # The previous result was against different params — drop it so the UI
+        # doesn't show stale availability alongside the new config.
+        job.last_result = None
+        job.last_checked_at = None
+
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return WatchJobRead.from_db(job)
+
+
+@router.delete("/jobs/{job_id}", status_code=204)
+async def delete_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    redis=Depends(get_redis),
+):
+    """Delete a job and any cart sessions attached to it.
+
+    If the job is HOLD_PLACED with a live cart we ALSO fire the browser-close
+    signal so the headed Chromium holding the reservation gets torn down — no
+    point leaving a worker pinned to a job that no longer exists. The DB
+    delete proceeds regardless; the close signal is best-effort."""
+    job = cast(WatchJob | None, await session.get(WatchJob, job_id))
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    had_live_hold = job.status == JobStatus.HOLD_PLACED.value
+
+    # CartSession.job_id has no FK cascade, so prune by hand.
+    carts = (await session.execute(
+        select(CartSession).where(CartSession.job_id == job_id)
+    )).scalars().all()
+    for cart in carts:
+        await session.delete(cart)
+
+    await session.delete(job)
+    await session.commit()
+
+    if had_live_hold:
+        try:
+            await _enqueue_browser_close(job_id, redis)
+        except Exception:
+            # Non-fatal — the worker will notice the job is gone on its next
+            # tick regardless.
+            logger.exception("Failed to enqueue browser close after delete")
+
+    return None
+
+
 @router.post("/jobs/{job_id}/trigger", status_code=202)
 async def trigger_job(
     job_id: str,
@@ -89,6 +165,14 @@ async def trigger_job(
     job = await session.get(WatchJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+
+    # Block triggers on expired jobs (adapter's booking cutoff has passed).
+    params = json.loads(job.params)
+    if is_job_expired(job.adapter_id, params):
+        raise HTTPException(
+            status_code=409,
+            detail="This job's start date has passed — it cannot be triggered.",
+        )
 
     if job.status == JobStatus.HOLD_PLACED.value:
         cart = await _latest_cart(session, job_id)
@@ -113,6 +197,87 @@ async def trigger_job(
     await session.commit()
 
     await redis.enqueue_job("check_availability", job_id)
+    return {"status": "enqueued", "job_id": job_id}
+
+
+@router.post("/jobs/{job_id}/book", status_code=202)
+async def book_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    redis=Depends(get_redis),
+):
+    """Manually dispatch the hold worker for this job.
+
+    Used for two cases:
+      1. auto_book=False: user sees full availability in the UI and clicks
+         "Book Now" to hand off to the headed browser.
+      2. auto_book=True but they missed the notification / retriggered.
+
+    Only valid when last_result shows every site AVAILABLE — partial
+    availability can't be booked in a single DOC cart (different party sizes
+    per night), so the caller is expected to create a new, scoped watch job
+    and Book that instead. Rejects HOLD_PLACED with a live cart so two
+    concurrent holds don't fight over the hold-queue worker.
+    """
+    from app.workers.tasks import HOLD_QUEUE_NAME
+
+    job = await session.get(WatchJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status == JobStatus.HOLD_PLACED.value:
+        cart = await _latest_cart(session, job_id)
+        cart_still_live = (
+            cart is not None
+            and cart.completed_at is None
+            and cart.expires_at > utcnow()
+        )
+        if cart_still_live:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "A hold is already placed for this job. Finish or cancel "
+                    f"it at /pay/{job_id} before booking again."
+                ),
+            )
+        # Lazy expiry — fall through, we'll flip to CHECKING below.
+
+    if job.status == JobStatus.BOOKING_COMPLETE.value:
+        raise HTTPException(
+            status_code=409,
+            detail="This job is already booked. Nothing to do.",
+        )
+
+    # Safety gate: require every site in the most recent check to be fully
+    # available. Anything else (partial / unavailable / never checked)
+    # indicates the caller is booking against stale or partial state.
+    raw = json.loads(job.last_result) if job.last_result else None
+    results = raw if isinstance(raw, list) else []
+    if not results:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "No recent availability for this job. Trigger a check first."
+            ),
+        )
+    if not all(r.get("status") == "available" for r in results):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Not every site is fully available. Create a new watch job "
+                "scoped to the partial site(s) to book those separately."
+            ),
+        )
+
+    job.status = JobStatus.CHECKING.value
+    session.add(job)
+    await session.commit()
+
+    await redis.enqueue_job(
+        "attempt_hold_task",
+        job_id,
+        _queue_name=HOLD_QUEUE_NAME,
+    )
     return {"status": "enqueued", "job_id": job_id}
 
 
@@ -143,6 +308,19 @@ async def _enqueue_browser_close(job_id: str, redis) -> None:
     from app.workers.tasks import HOLD_QUEUE_NAME
     await redis.enqueue_job(
         "close_browser_task",
+        job_id,
+        _queue_name=HOLD_QUEUE_NAME,
+    )
+
+
+async def _enqueue_complete_snapshot(job_id: str, redis) -> None:
+    """Capture a snapshot of the booking-complete page before the browser is
+    torn down. Must be enqueued *before* close_browser_task — the hold queue
+    runs FIFO with max_jobs=1, so enqueue order determines run order. A no-op
+    if the browser is already gone."""
+    from app.workers.tasks import HOLD_QUEUE_NAME
+    await redis.enqueue_job(
+        "snapshot_complete_task",
         job_id,
         _queue_name=HOLD_QUEUE_NAME,
     )
@@ -191,8 +369,12 @@ async def complete_booking(
     redis=Depends(get_redis),
 ):
     """User pressed 'Booking Complete' on /pay. Job goes to BOOKING_COMPLETE
-    (terminal — no reason to keep watching a hut already booked)."""
+    (terminal — no reason to keep watching a hut already booked).
+
+    Enqueues a receipt snapshot before the browser close so the user ends up
+    with a screenshot of the confirmation page linked on the JobCard."""
     await _finalize_hold(session, job_id, JobStatus.BOOKING_COMPLETE)
+    await _enqueue_complete_snapshot(job_id, redis)
     await _enqueue_browser_close(job_id, redis)
     return {"status": "completed", "job_id": job_id}
 
@@ -208,6 +390,58 @@ async def cancel_booking(
     await _finalize_hold(session, job_id, JobStatus.CANCELLED)
     await _enqueue_browser_close(job_id, redis)
     return {"status": "cancelled", "job_id": job_id}
+
+
+# ---------------------------------------------------------------------------
+# Occupants — saved roster of travellers for reuse across jobs
+# ---------------------------------------------------------------------------
+
+@router.get("/occupants", response_model=list[OccupantRead])
+async def list_occupants(session: AsyncSession = Depends(get_session)):
+    result = await session.execute(select(Occupant).order_by(Occupant.created_at))
+    return result.scalars().all()
+
+
+@router.post("/occupants", response_model=OccupantRead, status_code=201)
+async def create_occupant(
+    body: OccupantCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    occupant = Occupant(**body.model_dump())
+    session.add(occupant)
+    await session.commit()
+    await session.refresh(occupant)
+    return occupant
+
+
+@router.patch("/occupants/{occupant_id}", response_model=OccupantRead)
+async def update_occupant(
+    occupant_id: str,
+    body: OccupantUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    occupant = await session.get(Occupant, occupant_id)
+    if not occupant:
+        raise HTTPException(status_code=404, detail="Occupant not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(occupant, field, value)
+    session.add(occupant)
+    await session.commit()
+    await session.refresh(occupant)
+    return occupant
+
+
+@router.delete("/occupants/{occupant_id}", status_code=204)
+async def delete_occupant(
+    occupant_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    occupant = await session.get(Occupant, occupant_id)
+    if not occupant:
+        raise HTTPException(status_code=404, detail="Occupant not found")
+    await session.delete(occupant)
+    await session.commit()
+    return None
 
 
 # Sessions

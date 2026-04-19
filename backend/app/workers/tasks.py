@@ -12,7 +12,7 @@ from app.adapters.base import AvailabilityStatus, BookingResult
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notify import notify_gotify
-from app.models.job import JobStatus, WatchJob, utcnow
+from app.models.job import JobStatus, WatchJob, is_job_expired, utcnow
 from app.models.session import CartSession
 from app.adapters import get_adapter
 from playwright.async_api import async_playwright, ViewportSize
@@ -61,14 +61,36 @@ async def close_live_browser(job_id: str) -> bool:
     return True
 
 
-async def _snapshot_safe(adapter, page, label: str) -> None:
+async def _snapshot_safe(adapter, page, label: str) -> str | None:
     """Best-effort snapshot — never raises. Used inside except blocks so a
-    failing snapshot can't mask the original error."""
+    failing snapshot can't mask the original error. Returns the saved base
+    path (no extension) on success, or None if the snapshot failed."""
     try:
         base = await adapter.snapshot(page, label)
         logger.info(f"Saved error artifact: {base}")
+        return base
     except Exception as snap_e:
         logger.error(f"Failed to snapshot '{label}': {snap_e}", exc_info=True)
+        return None
+
+
+async def _save_artifact(job_id: str, base: str | None) -> None:
+    """Persist the most recent artifact base path onto the job row. No-op if
+    base is None (snapshot failed). Swallows DB errors — we never want to
+    mask the caller's original error path."""
+    if not base:
+        return
+    try:
+        async with AsyncSessionLocal() as session:
+            job = cast(WatchJob | None, await session.get(WatchJob, job_id))
+            if job is not None:
+                job.last_artifact = base
+                session.add(job)
+                await session.commit()
+    except Exception as e:
+        logger.error(
+            f"Failed to save artifact path for job {job_id}: {e}", exc_info=True
+        )
 
 
 async def _get_active_cart(session, job_id: str) -> CartSession | None:
@@ -224,6 +246,11 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             await _save_error(job_id, str(e))
             return {"error": str(e)}
 
+        # Block expired jobs (adapter's booking cutoff has passed).
+        if is_job_expired(job.adapter_id, params):
+            logger.info(f"Job {job_id} is expired (past 8 pm NZ on start date), skipping")
+            return {"job_id": job_id, "status": "skipped_expired"}
+
         # Lazy-expire a HOLD_PLACED whose cart has timed out, then gate the
         # check on status. Only run when the job is in an "actively looking"
         # state — anything else (paused / hold placed still live / cancelled
@@ -237,25 +264,28 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             )
             return {"job_id": job_id, "status": f"skipped_{job.status}"}
 
-        storage_state = await adapter.get_storage_state(session)
-        logger.info(f"Storage state loaded for {job.adapter_id}: {storage_state is not None}")
         auto_book = job.auto_book
+        # Snapshot the previous result now so we can suppress repeat partial
+        # notifications later (we only alert when the status *changes* to
+        # partial — not on every check while it stays partial).
+        prev_last_result: str | None = job.last_result
 
     results = []
 
     # --- 2. Detect phase (headless) ---
     try:
         async with _browser_page(
-            storage_state, headless=settings.browser_headless_detect
+            None, headless=settings.browser_headless_detect
         ) as (page, _keep_alive):
             try:
                 await adapter.fill_form(page, params)
                 results = await adapter.detect_availability(page, params)
                 logger.info(f"Detect results for job {job_id}: {results}")
             except Exception as e:
-                await _snapshot_safe(
+                base = await _snapshot_safe(
                     adapter, page, f"detect_error_{type(e).__name__}"
                 )
+                await _save_artifact(job_id, base)
                 raise
     except Exception as e:
         logger.error(f"Detect phase error for job {job_id}: {e}", exc_info=True)
@@ -271,10 +301,22 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     partially_available = [
         r for r in results if r.status == AvailabilityStatus.PARTIALLY_AVAILABLE
     ]
+    unavailable = [
+        r for r in results if r.status == AvailabilityStatus.UNAVAILABLE
+    ]
+    # Hold is only attempted when EVERY requested site is fully available for
+    # the party size. A mixed bag (some full + some partial, or any partial at
+    # all) goes out as a single informational notification and is left for the
+    # user to handle manually — the hold worker's DOC flow can't select the
+    # party size on a "fewer spots than requested" cell, so enqueueing it
+    # would just waste a browser and burn the DOC cart state.
+    all_fully_available = bool(results) and all(
+        r.status == AvailabilityStatus.AVAILABLE for r in results
+    )
 
     # --- 3. Enqueue hold task or notify directly ---
     hold_enqueued = False
-    if fully_available and auto_book:
+    if all_fully_available and auto_book:
         try:
             await ctx["redis"].enqueue_job(
                 "attempt_hold_task",
@@ -287,36 +329,69 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             # Enqueue failure is surprising but recoverable — let the user know
             # availability exists so they can book manually if needed.
             logger.error(f"Failed to enqueue hold task for {job_id}: {e}", exc_info=True)
-            for r in fully_available:
-                await notify_gotify(
-                    title="🏕️ Availability (hold queue unreachable)",
-                    message=(
-                        f"{r.site} has {r.total_available} spot(s) on {params.get('date')}, "
-                        f"but queueing the auto-hold failed: {e}. Book manually."
-                    ),
-                    priority=9,
-                )
-
-    if fully_available and not auto_book:
-        for r in fully_available:
+            lines = [
+                f"- {r.site}: {r.total_available} spot(s)"
+                for r in fully_available
+            ]
             await notify_gotify(
-                title="🏕️ Availability Detected!",
+                title="🏕️ Availability (hold queue unreachable)",
                 message=(
-                    f"{r.site} has {r.total_available} spot(s) on {params.get('date')}. "
-                    f"Book now!"
+                    f"All sites fully available on {params.get('date')} but the "
+                    f"auto-hold could not be queued ({e}). Book manually:\n"
+                    + "\n".join(lines)
                 ),
-                priority=8,
+                priority=9,
             )
 
-    for r in partially_available:
+    elif all_fully_available:
+        # Every site is good and we're not auto-booking — one combined alert.
+        lines = [
+            f"- {r.site}: {r.total_available} spot(s)"
+            for r in fully_available
+        ]
         await notify_gotify(
-            title="⚠️ Partial Availability",
+            title="🏕️ Availability Detected!",
             message=(
-                f"{r.site} has {r.total_available} spot(s) on {params.get('date')} "
-                f"but you wanted {params.get('people')}. Partial booking may be possible."
+                f"All sites fully available on {params.get('date')}. Book now!\n"
+                + "\n".join(lines)
             ),
-            priority=5,
+            priority=8,
         )
+
+    elif fully_available or partially_available:
+        # Mixed / partial case: at least one site has something but we won't
+        # hold. Only notify when the availability *changes* to partial — if the
+        # last stored result was already partial, the user already knows and a
+        # repeat alert adds no value. We'll re-alert once it goes unavailable
+        # and then back to partial, or when it becomes fully available.
+        if not _was_previously_partial(prev_last_result):
+            def _fmt(r):
+                count = 0 if r.total_available is None else r.total_available
+                return f"{r.site}: {count} spot(s)"
+            lines: list[str] = []
+            if partially_available:
+                lines.append(
+                    f"Partial (wanted {params.get('people')}):"
+                )
+                lines.extend(f"  - {_fmt(r)}" for r in partially_available)
+            if unavailable:
+                lines.append("Unavailable:")
+                lines.extend(f"  - {_fmt(r)}" for r in unavailable)
+            await notify_gotify(
+                title="⚠️ Partial Availability",
+                message=(
+                    f"Some sites have spots on {params.get('date')} but not every "
+                    f"site is fully available — not auto-holding.\n"
+                    + "\n".join(lines)
+                    + "\n\nTo book partial: create a new watch job scoped to the "
+                    "partial site(s) with a smaller party size, then Book it."
+                ),
+                priority=6,
+            )
+        else:
+            logger.info(
+                f"Job {job_id}: still partial — suppressing repeat notification"
+            )
 
     # --- 4. Write detect results to DB ---
     result_dicts = [
@@ -434,9 +509,10 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                             f"Adapter {adapter.adapter_id} does not support holds yet"
                         )
             except Exception as e:
-                await _snapshot_safe(
+                base = await _snapshot_safe(
                     adapter, page, f"hold_error_{type(e).__name__}"
                 )
+                await _save_artifact(job_id, base)
                 raise
     except Exception as e:
         logger.error(f"Hold task error for job {job_id}: {e}", exc_info=True)
@@ -495,6 +571,32 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     }
 
 
+def _was_previously_partial(last_result_json: str | None) -> bool:
+    """Return True if the most recent stored result was already a partial /
+    mixed-availability outcome.
+
+    Partial means:
+      • at least one entry had status "partially_available", OR
+      • there was a mix of "available" and "unavailable" across entries.
+
+    Error-shaped entries (no "status" key) are ignored — they represent a
+    failed check, not an availability state, so they don't count as "partial".
+    """
+    if not last_result_json:
+        return False
+    try:
+        entries = json.loads(last_result_json)
+    except Exception:
+        return False
+    statuses = {e["status"] for e in entries if isinstance(e, dict) and "status" in e}
+    if not statuses:
+        return False
+    if "partially_available" in statuses:
+        return True
+    # Mixed available + unavailable is also treated as partial
+    return "available" in statuses and "unavailable" in statuses
+
+
 async def _save_error(job_id: str, error: str) -> None:
     async with AsyncSessionLocal() as session:
         job = cast(WatchJob | None, await session.get(WatchJob, job_id))
@@ -537,6 +639,48 @@ async def close_browser_task(ctx: dict, job_id: str) -> dict:
     return {"job_id": job_id, "closed": closed}
 
 
+async def snapshot_complete_task(ctx: dict, job_id: str) -> dict:
+    """Capture a screenshot + HTML of the booking-complete / receipt page
+    before the browser is torn down.
+
+    Runs on the hold queue so it can access LIVE_BROWSERS (the browser is
+    owned by the hold worker process). If the browser is already gone — e.g.
+    a different replica owns it, or it was closed by a concurrent action —
+    this is a no-op. Scheduling relies on the hold queue's max_jobs=1 and
+    FIFO ordering to run *before* close_browser_task.
+
+    On success, persists the base path to job.last_artifact so the frontend
+    can link the user to their receipt."""
+    entry = LIVE_BROWSERS.get(job_id)
+    if entry is None:
+        logger.info(
+            f"snapshot_complete_task: no live browser for {job_id}, skipping"
+        )
+        return {"job_id": job_id, "captured": False, "reason": "no_live_browser"}
+
+    page = entry.get("page")
+    if page is None:
+        logger.warning(
+            f"snapshot_complete_task: LIVE_BROWSERS[{job_id}] has no page"
+        )
+        return {"job_id": job_id, "captured": False, "reason": "no_page"}
+
+    async with AsyncSessionLocal() as session:
+        job = cast(WatchJob | None, await session.get(WatchJob, job_id))
+        if job is None:
+            logger.warning(f"snapshot_complete_task: job {job_id} not found")
+            return {"job_id": job_id, "captured": False, "reason": "job_missing"}
+        try:
+            adapter = get_adapter(job.adapter_id)
+        except ValueError as e:
+            logger.error(f"snapshot_complete_task: unknown adapter: {e}")
+            return {"job_id": job_id, "captured": False, "reason": str(e)}
+
+    base = await _snapshot_safe(adapter, page, "booking_complete")
+    await _save_artifact(job_id, base)
+    return {"job_id": job_id, "captured": base is not None, "base": base}
+
+
 class WorkerSettings:
     """Poll worker — runs check_availability on the default queue."""
     functions = [check_availability]
@@ -551,7 +695,7 @@ class WorkerSettings:
 
 class HoldWorkerSettings:
     """Hold worker — runs attempt_hold_task on the dedicated hold queue."""
-    functions = [attempt_hold_task, close_browser_task]
+    functions = [attempt_hold_task, close_browser_task, snapshot_complete_task]
     on_startup = startup
     on_shutdown = hold_worker_shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)

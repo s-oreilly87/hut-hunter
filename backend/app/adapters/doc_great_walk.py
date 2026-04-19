@@ -2,6 +2,7 @@ import json
 import re
 import logging
 import asyncio
+from datetime import time
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 from app.adapters.base import (
     BaseAdapter, ParamField, AvailabilityResult, AvailabilityStatus, BookingResult
@@ -69,6 +70,8 @@ class DocGreatWalkAdapter(BaseAdapter):
     adapter_id = "doc_great_walk"
     name = "DOC Great Walk"
     base_url = "https://bookings.doc.govt.nz/Web/Default.aspx#!greatwalk-result"
+    booking_timezone = "Pacific/Auckland"
+    booking_cutoff_time = time(20, 0)  # 8 pm NZST/NZDT
 
     @classmethod
     def param_fields(cls) -> list[ParamField]:
@@ -112,6 +115,8 @@ class DocGreatWalkAdapter(BaseAdapter):
                 options=[d for w in GREAT_WALK_REGISTRY for d in w.directions],
                 default="",
                 required=False,
+                filter_by="track",
+                options_by={w.name: list(w.directions) for w in GREAT_WALK_REGISTRY},
             ),
             ParamField(
                 key="sites",
@@ -289,6 +294,43 @@ class DocGreatWalkAdapter(BaseAdapter):
                 page, "#great-walk-direction-dropdown-button", direction
             )
 
+    async def _login_if_prompted(self, page: Page) -> bool:
+        """If the DOC login modal appears (e.g. because the session cookie has
+        expired), fill credentials from env and sign in.
+
+        Returns True if a login was performed, False if no modal was visible.
+        Raises RuntimeError if credentials are missing or the login fails."""
+        try:
+            modal = page.locator("div[role='dialog'], .modal, .login-modal").filter(
+                has_text="Login"
+            ).first
+            await modal.wait_for(state="visible", timeout=5_000)
+        except PlaywrightTimeoutError:
+            return False  # No login modal — session is still valid
+
+        logger.info("DOC login modal detected — filling credentials from env")
+
+        if not settings.doc_email or not settings.doc_password:
+            raise RuntimeError(
+                "DOC login modal appeared but DOC_EMAIL / DOC_PASSWORD are not set in env"
+            )
+
+        await page.locator('input[placeholder="Insert Your email"]').fill(settings.doc_email)
+        await page.locator('input[placeholder="Insert Your password"]').fill(settings.doc_password)
+        await page.get_by_role("button", name="Sign In").click()
+
+        # Wait for modal to disappear — if it stays, credentials are wrong
+        try:
+            await modal.wait_for(state="hidden", timeout=15_000)
+            logger.info("DOC login successful")
+        except PlaywrightTimeoutError:
+            await self.snapshot(page, "login_failed")
+            raise RuntimeError(
+                "DOC login modal did not close — check DOC_EMAIL / DOC_PASSWORD"
+            )
+
+        return True
+
     async def _click_search_and_wait(self, page: Page, params: dict) -> None:
         search_btn = page.get_by_role("button", name="Search")
         for attempt in range(1, 4):
@@ -309,14 +351,28 @@ class DocGreatWalkAdapter(BaseAdapter):
 
     async def detect_availability(self, page: Page, params: dict) -> list[AvailabilityResult]:
         date_str = params["date"]
+        nights = int(params.get("nights", 1))
         people_wanted = int(params.get("people", 2))
         sites = [s.strip() for s in params.get("sites", "").split(",") if s.strip()]
+
+        # Build per-night dates so each site is checked on the date it will
+        # actually be booked. Checking every site against the start date gives
+        # a false positive when a later-night hut has no availability on its
+        # actual booking date (e.g. night-2 hut available on Apr 23 but not
+        # Apr 24, which is the night that would be booked).
+        from datetime import datetime, timedelta
+        start = datetime.strptime(date_str, "%d/%m/%Y")
+        night_dates = [
+            (start + timedelta(days=i)).strftime("%d/%m/%Y")
+            for i in range(nights)
+        ]
 
         await self._click_search_and_wait(page, params)
 
         results = []
-        for site in sites:
-            result = await self._detect_site(page, site, date_str, people_wanted)
+        for i, site in enumerate(sites):
+            night_date = night_dates[i] if i < len(night_dates) else date_str
+            result = await self._detect_site(page, site, night_date, people_wanted)
             results.append(result)
         return results
 
@@ -355,21 +411,34 @@ class DocGreatWalkAdapter(BaseAdapter):
 
         bookable_icons = {"GWAvailable", "GWFewerSpaceAvailable", "GWBookingSelected"}
         not_bookable_icons = {"GWNotAvailable", "GWFacilityClosed"}
-        partial_icons = {"GWUnavailablePeopleSearch"}  # available but not enough for requested party size
+        # Icon hint that means "some spots, but not enough for your party size".
+        # This is a hint only — if we have a real count, `total` wins.
+        partial_icons = {"GWUnavailablePeopleSearch"}
 
-        if icon in bookable_icons:
-            status = AvailabilityStatus.AVAILABLE
-        elif icon in partial_icons:
-            status = AvailabilityStatus.PARTIALLY_AVAILABLE
-        elif icon in not_bookable_icons:
-            status = AvailabilityStatus.UNAVAILABLE
-        elif total is not None:
+        # `total` is the source of truth when we can read it from the aria
+        # label. Icons are classification hints that are occasionally wrong
+        # (DOC has been observed showing GWUnavailablePeopleSearch even when
+        # total == 0), which previously caused a "partial availability"
+        # notification on a site that had zero spots. The rule:
+        #
+        #   total >= people_wanted  -> AVAILABLE
+        #   0 < total < people_wanted -> PARTIALLY_AVAILABLE
+        #   total == 0              -> UNAVAILABLE
+        #
+        # Icon-based classification is only consulted when `total` is None.
+        if total is not None:
             if total >= people_wanted:
                 status = AvailabilityStatus.AVAILABLE
             elif total > 0:
                 status = AvailabilityStatus.PARTIALLY_AVAILABLE
             else:
                 status = AvailabilityStatus.UNAVAILABLE
+        elif icon in bookable_icons:
+            status = AvailabilityStatus.AVAILABLE
+        elif icon in partial_icons:
+            status = AvailabilityStatus.PARTIALLY_AVAILABLE
+        elif icon in not_bookable_icons:
+            status = AvailabilityStatus.UNAVAILABLE
         else:
             return AvailabilityResult(
                 site=site,
@@ -406,6 +475,7 @@ class DocGreatWalkAdapter(BaseAdapter):
             for i in range(nights)
         ]
         logger.info(f"Attempting hold for {nights} night(s): {night_dates} at sites: {sites}")
+
         # --- 1. Get sites in DOM order (top to bottom as displayed) ---
         table = page.locator("table.js-book-modal")
         site_links = table.locator("a.gridParkLink span")
@@ -418,9 +488,15 @@ class DocGreatWalkAdapter(BaseAdapter):
         logger.info(f"Sites in DOM order: {dom_ordered_sites}")
 
         # --- 2. Select one cell per night in DOM order ---
+        # Each site maps to the corresponding night: site[0] on night_dates[0],
+        # site[1] on night_dates[1], etc. The DOC availability table orders huts
+        # top-to-bottom matching the track direction, so this naturally maps to
+        # night 1 hut → night 2 hut → etc.
+        #
+        # Use JS click (el.click()) rather than Playwright's coordinate-based
+        # click to reliably target each cell regardless of DOM overlay position.
         selected_count = 0
         for i, night_date in enumerate(night_dates):
-            # Pick site by DOM position — night 0 = first site, night 1 = second site etc
             if i >= len(dom_ordered_sites):
                 logger.warning(f"No site available for night {i + 1}")
                 continue
@@ -434,7 +510,8 @@ class DocGreatWalkAdapter(BaseAdapter):
                 logger.warning(f"No cell found for {site} on {night_date}")
                 continue
 
-            await btn.click()
+            await btn.evaluate("el => el.click()")
+
             logger.info(f"Selected cell: {site} on {night_date}")
             await page.wait_for_timeout(300)
             selected_count += 1
@@ -446,7 +523,13 @@ class DocGreatWalkAdapter(BaseAdapter):
             )
 
         if selected_count < nights:
-            logger.warning(f"Only selected {selected_count}/{nights} nights")
+            return BookingResult(
+                success=False, held=False,
+                message=(
+                    f"Only selected {selected_count}/{nights} nights "
+                    f"— cannot proceed to Reserve"
+                ),
+            )
 
         # --- 3. Click Reserve (outside loop, after all selections) ---
         reserve_btn = page.get_by_role("button", name="Reserve")
@@ -468,6 +551,19 @@ class DocGreatWalkAdapter(BaseAdapter):
                 success=False, held=False,
                 message=f"Reserve button did not become enabled after {selected_count} selection(s)",
             )
+
+        # --- 3b. Handle login modal if session has expired ---
+        try:
+            logged_in = await self._login_if_prompted(page)
+            if logged_in:
+                # After login the site should automatically proceed to the occupant
+                # modal. If it doesn't (some SPA flows need a nudge), click Reserve
+                # again — the 15s timeout on the occupant modal below will catch it
+                # either way.
+                logger.info("Login completed — continuing to occupant details")
+        except RuntimeError as e:
+            await self.snapshot(page, "login_error")
+            return BookingResult(success=False, held=False, message=str(e))
 
         # --- 4. Fill occupant details modal ---
         try:

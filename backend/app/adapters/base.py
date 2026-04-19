@@ -5,7 +5,7 @@ from typing import Any
 from playwright.async_api import Page
 
 import os
-from datetime import datetime
+from datetime import datetime, time
 
 class AvailabilityStatus(str, Enum):
     AVAILABLE = "available"
@@ -39,12 +39,28 @@ class ParamField:
     options: list[str] | None = None
     default: Any = None
     required: bool = True
+    # When set, the frontend should use options_by[<value of filter_by field>]
+    # as the select's options instead of `options`. Used e.g. to show only
+    # the directions valid for the currently-selected track.
+    filter_by: str | None = None
+    options_by: dict[str, list[str]] | None = None
 
 
 class BaseAdapter(ABC):
     adapter_id: str
     name: str
     base_url: str
+
+    # Booking window / expiry config.
+    #
+    # booking_timezone: IANA timezone name (e.g. "Pacific/Auckland").
+    #   None means "use the server's local timezone".
+    # booking_cutoff_hour / booking_cutoff_minute: time of day (local to
+    #   booking_timezone) after which the start date is considered expired
+    #   and no new reservations can be attempted.
+    #   Defaults to 23:59 — end of the start date in local time.
+    booking_timezone: str | None = None   # None → server local TZ
+    booking_cutoff_time: time = time(23, 59)
 
     @classmethod
     @abstractmethod
@@ -68,6 +84,36 @@ class BaseAdapter(ABC):
         Override in adapters that support it.
         """
         raise NotImplementedError(f"{self.__class__.__name__} does not support holds yet")
+
+    def is_expired(self, params: dict) -> bool:
+        """Return True if the job's start date has passed this adapter's
+        booking cutoff in its local timezone.
+
+        Default: expires at 23:59 on the start date in the server's local
+        timezone. Adapters override booking_timezone / booking_cutoff_hour /
+        booking_cutoff_minute to change this."""
+        date_str = params.get("date")
+        if not date_str:
+            return False
+        try:
+            from datetime import timezone as _tz
+            if self.booking_timezone is None:
+                # Use the server's local timezone — astimezone() on a naive
+                # datetime gives a local-aware datetime without needing zoneinfo.
+                now = datetime.now().astimezone()
+                tz = now.tzinfo
+            else:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo(self.booking_timezone)
+            dd, mm, yyyy = date_str.split("/")
+            cutoff = datetime(
+                int(yyyy), int(mm), int(dd),
+                self.booking_cutoff_time.hour, self.booking_cutoff_time.minute,
+                tzinfo=tz,
+            )
+            return datetime.now(_tz.utc) > cutoff
+        except Exception:
+            return False
 
     async def get_storage_state(self, db_session) -> dict | None:
         """Load decrypted storageState from DB for this adapter."""

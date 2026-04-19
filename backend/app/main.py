@@ -1,8 +1,10 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import init_db
-from app.models import job, session  # noqa — imported for SQLModel table registration
+from app.models import job, session, occupant  # noqa — imported for SQLModel table registration
 from app.api.routes import router, public_router
 
 
@@ -22,6 +24,17 @@ app = FastAPI(
 
 app.include_router(router)
 app.include_router(public_router)
+
+# Serve debug snapshots + booking receipts captured by workers. The dir matches
+# the one used by BaseAdapter.snapshot (cwd-relative "artifacts/"). We create
+# it on boot so StaticFiles.check_dir doesn't choke on a fresh checkout.
+_ARTIFACTS_DIR = os.path.abspath("artifacts")
+os.makedirs(_ARTIFACTS_DIR, exist_ok=True)
+app.mount(
+    "/artifacts",
+    StaticFiles(directory=_ARTIFACTS_DIR),
+    name="artifacts",
+)
 
 @app.get("/health")
 async def health_check():
