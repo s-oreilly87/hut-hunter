@@ -7,6 +7,7 @@ import {
   FileCode2,
   ImageIcon,
   LayoutDashboard,
+  Loader2,
   Search,
   Settings2,
   Trash2,
@@ -452,7 +453,6 @@ function getHoldFlowArtifacts(artifacts: ArtifactRecord[] | null | undefined): A
   const orderedLabels = [
     'reservation_details',
     'shopping_cart',
-    'payment_page_success',
   ]
 
   const relevant = artifacts.filter((artifact) => orderedLabels.includes(artifact.label))
@@ -625,6 +625,7 @@ export function JobCard() {
     job.status === 'booking_complete'
     || job.status === 'expired'
     || displayStatus === 'booking'
+    || displayStatus === 'attempting_hold'
   const queued = optimisticTriggers.has(job.id)
   const deleting = remove.isPending
   const showStatusBadge = displayStatus !== 'paused' && displayStatus !== 'checking'
@@ -653,7 +654,7 @@ export function JobCard() {
                     artifactUrl={job.last_artifact_png}
                   />
                 )}
-                <MonitoringBadge job={job} />
+                <MonitoringBadge job={job} displayStatus={displayStatus} />
                 <Badge variant={job.auto_book ? 'default' : 'outline'}>
                   {job.auto_book ? 'Auto-book' : 'Manual'}
                 </Badge>
@@ -785,7 +786,14 @@ export function JobCard() {
                     {formatRelativeTime(job.last_checked_at)}
                   </p>
                 </div>
-                <BookButton job={job} className="w-full sm:w-auto" size="default" />
+                {displayStatus === 'attempting_hold' ? (
+                  <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Securing hold…
+                  </div>
+                ) : (
+                  <BookButton job={job} className="w-full sm:w-auto" size="default" />
+                )}
               </div>
               <LastResultView
                 result={job.last_result}

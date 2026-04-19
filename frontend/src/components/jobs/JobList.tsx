@@ -302,7 +302,7 @@ export function JobList() {
                                 artifactUrl={job.last_artifact_png}
                               />
                             )}
-                            <MonitoringBadge job={job} />
+                            <MonitoringBadge job={job} displayStatus={displayStatus} />
                             <Badge variant={job.auto_book ? 'default' : 'outline'}>
                               {job.auto_book ? 'Auto-book' : 'Manual'}
                             </Badge>
@@ -379,7 +379,7 @@ export function JobList() {
                                   )}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <MonitoringBadge job={job} />
+                                  <MonitoringBadge job={job} displayStatus={displayStatus} />
                                   <Badge variant={job.auto_book ? 'default' : 'outline'}>
                                     {job.auto_book ? 'Auto-book' : 'Manual'}
                                   </Badge>

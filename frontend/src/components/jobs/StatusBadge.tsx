@@ -15,6 +15,7 @@ interface Props {
 // Label overrides for display-only statuses not in JOB_STATUS_LABEL
 const DISPLAY_LABEL: Record<string, string> = {
   booking:            'Booking…',
+  attempting_hold:    'Securing Hold…',
   result_available:   'Available',
   result_partial:     'Partially Available',
   result_unavailable: 'Unavailable',
@@ -25,6 +26,7 @@ const STATUS_CLASS: Record<string, string | undefined> = {
   paused:             undefined,
   checking:           'bg-blue-600 hover:bg-blue-600 text-white',
   booking:            'bg-blue-600 hover:bg-blue-600 text-white',
+  attempting_hold:    'bg-amber-500 hover:bg-amber-500 text-white',
   waiting:            'bg-slate-500 hover:bg-slate-500 text-white',
   hold_placed:        'bg-amber-500 hover:bg-amber-600 text-white',
   booking_complete:   'bg-emerald-600 hover:bg-emerald-600 text-white',
@@ -35,6 +37,8 @@ const STATUS_CLASS: Record<string, string | undefined> = {
   result_unavailable: undefined,
 }
 
+const SPINNER_STATUSES = new Set(['booking', 'attempting_hold'])
+
 export function StatusBadge({ status, jobId, artifactUrl }: Props) {
   const label = DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
   const isSecondary = status === 'paused' || status === 'cancelled' || status === 'result_unavailable'
@@ -43,7 +47,7 @@ export function StatusBadge({ status, jobId, artifactUrl }: Props) {
       variant={isSecondary ? 'secondary' : 'default'}
       className={STATUS_CLASS[status]}
     >
-      {status === 'booking' && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+      {SPINNER_STATUSES.has(status) && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
       {label}
     </Badge>
   )

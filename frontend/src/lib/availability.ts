@@ -23,6 +23,7 @@ import type {
 
 export type DisplayStatus =
   | 'booking'
+  | 'attempting_hold'
   | 'result_available'
   | 'result_partial'
   | 'result_unavailable'
@@ -34,6 +35,18 @@ export function getDisplayStatus(
 ): DisplayStatus {
   // Hold attempt in flight — show "Booking" regardless of backend status
   if (pendingBookings.has(job.id)) return 'booking'
+
+  // CHECKING + auto_book + all-available results → the check finished and
+  // dispatched the hold worker. Show a distinct "Securing Hold" state so the
+  // user can see progress without the misleading "Checking…" label or a
+  // clickable "Attempt Booking" button.
+  if (
+    job.status === 'checking'
+    && job.auto_book
+    && jobAllFullyAvailable(job)
+  ) {
+    return 'attempting_hold'
+  }
 
   // Paused / Waiting with results — derive from what the last check found.
   // WAITING is the "between scheduled runs" state for monitored jobs; the
