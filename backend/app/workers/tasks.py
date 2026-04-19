@@ -2,8 +2,10 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import cast
 
+from arq import cron
 from arq.connections import RedisSettings
 
 from sqlmodel import select
@@ -18,6 +20,13 @@ from app.adapters import get_adapter
 from playwright.async_api import async_playwright, ViewportSize
 
 logger = logging.getLogger(__name__)
+
+
+# Stable ARQ job ID scheme for check_availability — used for dedup so we
+# never have more than one queued/running check per watch job. ARQ rejects
+# a duplicate enqueue with the same _job_id. Must match app/api/routes.py.
+def _check_job_arq_id(job_id: str) -> str:
+    return f"check_availability:{job_id}"
 
 
 # Dedicated arq queue name for hold jobs. Polling and hold work run on
@@ -290,11 +299,22 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     except Exception as e:
         logger.error(f"Detect phase error for job {job_id}: {e}", exc_info=True)
         await _save_error(job_id, str(e))
-        # Release the job so the user can re-trigger.
+        # Release the job so the user can re-trigger. When monitoring is on
+        # we keep polling on the same cadence — a transient adapter error
+        # shouldn't silently disable monitoring (the error surfaces via
+        # last_result, the user can always switch monitoring off in the UI).
         async with AsyncSessionLocal() as session:
             stale_job = await session.get(WatchJob, job_id)
             if stale_job is not None:
-                await _set_status(session, stale_job, JobStatus.PAUSED)
+                if stale_job.enable_monitoring:
+                    await _set_status(session, stale_job, JobStatus.WAITING)
+                    stale_job.next_check_at = utcnow() + timedelta(
+                        minutes=stale_job.interval_minutes
+                    )
+                    session.add(stale_job)
+                    await session.commit()
+                else:
+                    await _set_status(session, stale_job, JobStatus.PAUSED)
         return {"error": str(e)}
 
     fully_available = [r for r in results if r.status == AvailabilityStatus.AVAILABLE]
@@ -412,11 +432,18 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             job.last_result = json.dumps(result_dicts)
             # If a hold was enqueued, leave the job in CHECKING — the hold
             # task owns the next transition (HOLD_PLACED on success, PAUSED
-            # on failure). Otherwise this check is "done"; drop back to
-            # PAUSED until the user triggers again (or until periodic polling
-            # is introduced, at which point WAITING fits here).
+            # on failure). Otherwise this check is "done": if monitoring is
+            # on we move to WAITING and reschedule; otherwise drop to PAUSED
+            # until the user manually triggers again.
             if not hold_enqueued and job.status == JobStatus.CHECKING.value:
-                job.status = JobStatus.PAUSED.value
+                if job.enable_monitoring:
+                    job.status = JobStatus.WAITING.value
+                    job.next_check_at = utcnow() + timedelta(
+                        minutes=job.interval_minutes
+                    )
+                else:
+                    job.status = JobStatus.PAUSED.value
+                    job.next_check_at = None
             session.add(job)
             await session.commit()
 
@@ -556,11 +583,24 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
 
     # --- 3. Terminal status update for this attempt ---
     held = bool(booking and booking.held)
-    final_status = JobStatus.HOLD_PLACED if held else JobStatus.PAUSED
     async with AsyncSessionLocal() as session:
         job = await session.get(WatchJob, job_id)
         if job is not None:
-            await _set_status(session, job, final_status)
+            if held:
+                # Hold secured — next_check_at is left alone; the scheduler's
+                # hold-expiry pass resumes monitoring once the cart times out.
+                await _set_status(session, job, JobStatus.HOLD_PLACED)
+            elif job.enable_monitoring:
+                # Hold failed but monitoring is on — reschedule and keep
+                # watching. The next check will redetect availability.
+                await _set_status(session, job, JobStatus.WAITING)
+                job.next_check_at = utcnow() + timedelta(
+                    minutes=job.interval_minutes
+                )
+                session.add(job)
+                await session.commit()
+            else:
+                await _set_status(session, job, JobStatus.PAUSED)
 
     return {
         "job_id": job_id,
@@ -605,6 +645,133 @@ async def _save_error(job_id: str, error: str) -> None:
             job.last_checked_at = utcnow()
             session.add(job)
             await session.commit()
+
+
+async def scheduler_tick(ctx: dict) -> dict:
+    """Periodic scan of watchjob — enqueue overdue checks and resume after
+    expired holds. Runs every 30 seconds on the poll worker.
+
+    Two passes:
+
+      1. **Hold-expiry resume.** Jobs in HOLD_PLACED whose latest CartSession
+         has expired (expires_at < now AND completed_at IS NULL) flip back to
+         WAITING with next_check_at=now so the second pass picks them up
+         immediately. Matches the "after hold expires, resume monitoring"
+         spec.
+
+      2. **Dispatch due checks.** Jobs with enable_monitoring=true,
+         next_check_at<=now, and status NOT in (CHECKING, HOLD_PLACED with
+         live cart, BOOKING_COMPLETE, CANCELLED) get enqueued as
+         check_availability with _job_id dedup. ARQ rejects duplicate
+         _job_ids so a second enqueue while one is pending/running is a
+         no-op — exactly the at-most-one-queued semantic we want.
+
+    EXPIRED (virtual) is skipped by checking is_job_expired() against the
+    adapter's cutoff.
+    """
+    now = utcnow()
+    dispatched = 0
+    resumed_from_hold = 0
+    deduped = 0
+    skipped_expired = 0
+
+    redis = ctx["redis"]
+
+    async with AsyncSessionLocal() as session:
+        # Pass 1 — lazy hold-expiry. We can't join to CartSession cleanly
+        # from here without adding a relationship; instead, fetch all
+        # HOLD_PLACED jobs (there should be very few) and check the cart
+        # per-job. Small enough that N+1 is fine.
+        hold_jobs = (await session.execute(
+            select(WatchJob).where(WatchJob.status == JobStatus.HOLD_PLACED.value)
+        )).scalars().all()
+        for job in hold_jobs:
+            if not job.enable_monitoring:
+                continue
+            active_cart = await _get_active_cart(session, job.id)
+            if active_cart is not None:
+                continue  # hold still live — skip
+            # Cart expired (or never created): resume monitoring.
+            logger.info(
+                f"scheduler_tick: hold expired for {job.id}, resuming monitoring"
+            )
+            job.status = JobStatus.WAITING.value
+            job.next_check_at = now
+            session.add(job)
+            resumed_from_hold += 1
+        if resumed_from_hold:
+            await session.commit()
+
+        # Pass 2 — dispatch due checks.
+        due = (await session.execute(
+            select(WatchJob).where(
+                WatchJob.enable_monitoring == True,  # noqa: E712 — SQLAlchemy
+                WatchJob.next_check_at.is_not(None),
+                WatchJob.next_check_at <= now,
+                WatchJob.status.not_in([
+                    JobStatus.CHECKING.value,
+                    JobStatus.HOLD_PLACED.value,
+                    JobStatus.BOOKING_COMPLETE.value,
+                    JobStatus.CANCELLED.value,
+                ]),
+            )
+        )).scalars().all()
+
+        for job in due:
+            # Adapter-level expiry (e.g. DOC cutoff past 8pm NZ). Skip silently
+            # — the UI surfaces EXPIRED via from_db() so the user sees why.
+            try:
+                params = json.loads(job.params)
+            except Exception:
+                logger.exception(f"scheduler_tick: bad params JSON for {job.id}")
+                continue
+            if is_job_expired(job.adapter_id, params):
+                skipped_expired += 1
+                # Park the job — no sense in the scheduler waking up on this
+                # row every tick. Once expired we won't come back here unless
+                # params change (which resets next_check_at via the API).
+                job.next_check_at = None
+                session.add(job)
+                await session.commit()
+                continue
+
+            # Write status + next_check_at update *before* enqueue so the
+            # worker sees fresh state. Committing per-job also avoids a
+            # race where the batch commit at the end of the loop would
+            # overwrite a concurrent check_availability's status write
+            # (e.g. if max_jobs were ever bumped above 1).
+            if job.status == JobStatus.WAITING.value:
+                job.status = JobStatus.CHECKING.value
+            job.next_check_at = now + timedelta(minutes=job.interval_minutes)
+            session.add(job)
+            await session.commit()
+
+            queued = await redis.enqueue_job(
+                "check_availability",
+                job.id,
+                _job_id=_check_job_arq_id(job.id),
+            )
+            if queued is None:
+                # Already queued or running — dedup did its job. Status stays
+                # as-is; next_check_at is already pushed out so we won't
+                # retry every tick.
+                deduped += 1
+                continue
+
+            dispatched += 1
+
+    if dispatched or resumed_from_hold or deduped or skipped_expired:
+        logger.info(
+            f"scheduler_tick: dispatched={dispatched} "
+            f"resumed_from_hold={resumed_from_hold} "
+            f"deduped={deduped} skipped_expired={skipped_expired}"
+        )
+    return {
+        "dispatched": dispatched,
+        "resumed_from_hold": resumed_from_hold,
+        "deduped": deduped,
+        "skipped_expired": skipped_expired,
+    }
 
 
 async def startup(ctx: dict) -> None:
@@ -684,6 +851,22 @@ async def snapshot_complete_task(ctx: dict, job_id: str) -> dict:
 class WorkerSettings:
     """Poll worker — runs check_availability on the default queue."""
     functions = [check_availability]
+    # Cron runs every 30s — interval is stored in minutes so 30s tick
+    # granularity means a monitored job fires at most 30s late. `run_at_startup`
+    # ensures the first tick doesn't wait a full 30s after a worker restart
+    # (handles the "worker was down, catch up now" case per spec).
+    cron_jobs = [
+        cron(
+            scheduler_tick,
+            second={0, 30},
+            run_at_startup=True,
+            # Each tick is cheap but must never stack — unique=True makes ARQ
+            # skip a new tick if the previous one is still executing.
+            unique=True,
+            # If a tick somehow runs long, kill it rather than pile up.
+            timeout=25,
+        ),
+    ]
     on_startup = startup
     on_shutdown = shutdown
     # Read redis URL from settings so it works both on the host
@@ -691,6 +874,12 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = 1  # one poll at a time per worker
     job_timeout = 120  # 2 minutes — detect phase only
+    # We persist last_result on the WatchJob itself, so ARQ's result cache is
+    # redundant. Setting keep_result=0 lets us re-enqueue with the same
+    # _job_id (used for dedup) the moment the previous run finishes —
+    # otherwise ARQ would reject the next scheduler tick's enqueue for up to
+    # an hour (default keep_result).
+    keep_result = 0
 
 
 class HoldWorkerSettings:

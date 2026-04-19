@@ -35,8 +35,15 @@ export function getDisplayStatus(
   // Hold attempt in flight — show "Booking" regardless of backend status
   if (pendingBookings.has(job.id)) return 'booking'
 
-  // Paused with results — derive from what the last check found
-  if (job.status === 'paused' && job.last_result?.length) {
+  // Paused / Waiting with results — derive from what the last check found.
+  // WAITING is the "between scheduled runs" state for monitored jobs; the
+  // MonitoringBadge beside this one already shows the countdown, so the
+  // primary status badge conveys more signal by reflecting the last result
+  // (Available / Partial / Unavailable) than by repeating "Waiting".
+  if (
+    (job.status === 'paused' || job.status === 'waiting')
+    && job.last_result?.length
+  ) {
     const avail = job.last_result.filter(
       e => typeof e === 'object' && e !== null && 'status' in e,
     ) as AvailabilityResult[]

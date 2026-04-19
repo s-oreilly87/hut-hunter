@@ -258,6 +258,17 @@ function JobFormBody({
   const [autoBook, setAutoBook] = useState(
     mode === 'edit' && initialJob ? initialJob.auto_book : false,
   )
+  // Monitoring — default on for new jobs so the user opts *out* rather than
+  // discovering the toggle buried in the dialog. For existing jobs we echo
+  // whatever's persisted.
+  const [enableMonitoring, setEnableMonitoring] = useState(
+    mode === 'edit' && initialJob ? initialJob.enable_monitoring : true,
+  )
+  const [intervalMinutes, setIntervalMinutes] = useState<string>(
+    mode === 'edit' && initialJob
+      ? String(initialJob.interval_minutes)
+      : '15',
+  )
   const [error, setError] = useState<string | null>(null)
 
   // Occupant IDs selected from the roster. Initialise from the job's existing
@@ -405,12 +416,31 @@ function JobFormBody({
       }
     }
 
+    // Validate interval (only matters when monitoring is on, but we still
+    // want a sane value so toggling monitoring back on later works)
+    const intervalNum = parseInt(intervalMinutes, 10)
+    if (
+      enableMonitoring
+      && (isNaN(intervalNum) || intervalNum < 1 || intervalNum > 120)
+    ) {
+      setError('Interval must be between 1 and 120 minutes')
+      return
+    }
+    // If monitoring is off, a bad interval in the disabled input is fine —
+    // clamp to a sensible default on submit so the backend still gets a
+    // valid int.
+    const safeInterval = (!isNaN(intervalNum) && intervalNum >= 1 && intervalNum <= 120)
+      ? intervalNum
+      : 15
+
     if (mode === 'create') {
       create.mutate({
         name,
         adapter_id: selectedAdapterId,
         params: parsedParams,
         auto_book: autoBook,
+        enable_monitoring: enableMonitoring,
+        interval_minutes: safeInterval,
       })
     } else if (initialJob) {
       update.mutate({
@@ -419,6 +449,8 @@ function JobFormBody({
           name,
           params: parsedParams,
           auto_book: autoBook,
+          enable_monitoring: enableMonitoring,
+          interval_minutes: safeInterval,
         },
       })
     }
@@ -531,6 +563,50 @@ function JobFormBody({
                   (requires stored session)
                 </span>
               </Label>
+            </div>
+          )}
+
+          {/* Monitoring toggle + interval. Interval input is visible but
+              disabled when monitoring is off — less jarring than popping in
+              and out of the layout. */}
+          {selectedAdapter && (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={enableMonitoring}
+                  onCheckedChange={setEnableMonitoring}
+                  id="enable-monitoring"
+                />
+                <Label htmlFor="enable-monitoring">
+                  Enable monitoring
+                  <span className="text-muted-foreground text-xs ml-2">
+                    (auto-check on a schedule)
+                  </span>
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 pl-10">
+                <Label
+                  htmlFor="interval-minutes"
+                  className={enableMonitoring ? '' : 'text-muted-foreground'}
+                >
+                  Check every
+                </Label>
+                <Input
+                  id="interval-minutes"
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={intervalMinutes}
+                  onChange={e => setIntervalMinutes(e.target.value)}
+                  disabled={!enableMonitoring}
+                  className="w-20"
+                />
+                <span
+                  className={`text-sm ${enableMonitoring ? '' : 'text-muted-foreground'}`}
+                >
+                  minutes
+                </span>
+              </div>
             </div>
           )}
 

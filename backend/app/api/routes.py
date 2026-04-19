@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import timedelta
 from typing import List, cast
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,26 @@ from app.models.job import (
     is_job_expired,
     utcnow,
 )
+
+# Minimum interval the UI should permit (matches the form's min=1). Enforced
+# at the API layer as well so programmatic callers can't set e.g. 0 and cause
+# the scheduler to hammer the adapter.
+MIN_INTERVAL_MINUTES = 1
+MAX_INTERVAL_MINUTES = 120
+
+
+def _clamp_interval(minutes: int | None) -> int:
+    """Clamp interval_minutes to the [MIN, MAX] range; fall back to 15 if None."""
+    if minutes is None:
+        return 15
+    return max(MIN_INTERVAL_MINUTES, min(MAX_INTERVAL_MINUTES, int(minutes)))
+
+
+def _check_job_arq_id(job_id: str) -> str:
+    """Stable ARQ job ID for dedup. ARQ rejects a second enqueue with the
+    same `_job_id` while a job is pending or running — so this is our
+    at-most-one-queued guarantee per watch job."""
+    return f"check_availability:{job_id}"
 from app.models.session import AdapterSession, CartSession
 from app.models.occupant import Occupant, OccupantCreate, OccupantRead, OccupantUpdate
 from app.adapters import list_adapters
@@ -55,17 +76,54 @@ async def list_jobs(session: AsyncSession = Depends(get_session)):
 @router.post("/jobs", response_model=WatchJobRead, status_code=201)
 async def create_job(
     body: WatchJobCreate,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    redis=Depends(get_redis),
 ):
+    """Create a new watch job.
+
+    When enable_monitoring=true, the job also gets dispatched immediately
+    (via ARQ with a dedup'd _job_id) so the user sees a first check without
+    waiting for the next scheduler tick, and next_check_at is set so the
+    scheduler will enqueue again on the configured cadence."""
+    interval = _clamp_interval(body.interval_minutes)
+    now = utcnow()
+    monitoring = body.enable_monitoring
+
     job = WatchJob(
         name=body.name,
         adapter_id=body.adapter_id,
         params=json.dumps(body.params),
         auto_book=body.auto_book,
+        enable_monitoring=monitoring,
+        interval_minutes=interval,
+        # With monitoring on, schedule the *next* check one interval out. The
+        # immediate enqueue below covers the first run without relying on the
+        # scheduler tick.
+        next_check_at=(now + timedelta(minutes=interval)) if monitoring else None,
+        # WAITING reads better than PAUSED when monitoring is on and a check
+        # is about to fire. The worker flips to CHECKING when it picks it up.
+        status=JobStatus.WAITING.value if monitoring else JobStatus.PAUSED.value,
     )
     session.add(job)
     await session.commit()
     await session.refresh(job)
+
+    if monitoring:
+        # Fire the first check now. _job_id dedups against later scheduler
+        # ticks if they happen to coincide.
+        try:
+            await redis.enqueue_job(
+                "check_availability",
+                job.id,
+                _job_id=_check_job_arq_id(job.id),
+            )
+        except Exception:
+            # Enqueue failure is non-fatal for creation — the scheduler will
+            # pick it up on the next tick. Log and move on.
+            logger.exception(
+                f"Failed to enqueue first check for new job {job.id}"
+            )
+
     return WatchJobRead.from_db(job)
 
 
@@ -82,11 +140,22 @@ async def update_job(
     job_id: str,
     body: WatchJobUpdate,
     session: AsyncSession = Depends(get_session),
+    redis=Depends(get_redis),
 ):
-    """Partial update — only name / params / auto_book are mutable. Editing
-    params invalidates the cached last_result / last_checked_at, since those
-    were captured against the old search. adapter_id is immutable; change
-    adapters by deleting and recreating the job."""
+    """Partial update — name, params, auto_book, enable_monitoring,
+    interval_minutes are mutable. Editing params invalidates the cached
+    last_result / last_checked_at, since those were captured against the old
+    search. adapter_id is immutable; change adapters by deleting and
+    recreating the job.
+
+    Monitoring transitions:
+      • toggle OFF     → clear next_check_at; keep current status unless
+                         WAITING (move to PAUSED).
+      • toggle ON      → schedule next check immediately and enqueue a first
+                         check now (dedup'd via _job_id).
+      • interval change (monitoring already on) → reschedule next_check_at
+                         to now + new_interval so the cadence restarts cleanly.
+    """
     job = cast(WatchJob | None, await session.get(WatchJob, job_id))
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -105,9 +174,66 @@ async def update_job(
         job.last_result = None
         job.last_checked_at = None
 
+    # Monitoring changes — capture the "before" state first so we can detect
+    # OFF→ON transitions and interval changes precisely.
+    prev_monitoring = job.enable_monitoring
+    prev_interval = job.interval_minutes
+
+    if "interval_minutes" in patch:
+        job.interval_minutes = _clamp_interval(patch["interval_minutes"])
+    if "enable_monitoring" in patch:
+        job.enable_monitoring = bool(patch["enable_monitoring"])
+
+    now = utcnow()
+    dispatch_now = False
+
+    if job.enable_monitoring and not prev_monitoring:
+        # OFF → ON. Fire a check immediately; set next_check_at out one
+        # interval so scheduler doesn't double-dispatch if the check runs
+        # long. Flip status to CHECKING (mirroring trigger_job) rather than
+        # WAITING — this gives the user visible "Checking…" feedback during
+        # the run, and ensures check_availability's completion handler
+        # (which only fires on status=CHECKING) resets next_check_at fresh
+        # from when the check finishes instead of when the toggle clicked.
+        # HOLD_PLACED / CHECKING / terminal states are left alone: a check
+        # there would either dedup or be inappropriate.
+        job.next_check_at = now + timedelta(minutes=job.interval_minutes)
+        if job.status in (JobStatus.PAUSED.value, JobStatus.CANCELLED.value):
+            job.status = JobStatus.CHECKING.value
+            dispatch_now = True
+        elif job.status == JobStatus.WAITING.value:
+            # Rare — WAITING with monitoring-off shouldn't happen in steady
+            # state, but if it does, dispatch a check without disturbing the
+            # status (check_availability accepts WAITING as a runnable state).
+            dispatch_now = True
+    elif not job.enable_monitoring and prev_monitoring:
+        # ON → OFF. Stop the scheduler; drop WAITING back to PAUSED so the
+        # UI doesn't show "Waiting" with no countdown.
+        job.next_check_at = None
+        if job.status == JobStatus.WAITING.value:
+            job.status = JobStatus.PAUSED.value
+    elif job.enable_monitoring and job.interval_minutes != prev_interval:
+        # Interval changed while monitoring is on. Reschedule cleanly from
+        # "now" so the user doesn't get a surprise immediate dispatch just
+        # because they nudged the interval down.
+        job.next_check_at = now + timedelta(minutes=job.interval_minutes)
+
     session.add(job)
     await session.commit()
     await session.refresh(job)
+
+    if dispatch_now:
+        try:
+            await redis.enqueue_job(
+                "check_availability",
+                job.id,
+                _job_id=_check_job_arq_id(job.id),
+            )
+        except Exception:
+            logger.exception(
+                f"Failed to enqueue immediate check on monitoring-enable for {job.id}"
+            )
+
     return WatchJobRead.from_db(job)
 
 
@@ -193,11 +319,27 @@ async def trigger_job(
         logger.info(f"Lazy-expiring HOLD_PLACED for job {job_id} (cart expired)")
 
     job.status = JobStatus.CHECKING.value
+    # If monitoring is enabled, push the next scheduled check one interval
+    # out — the manual trigger already provides the "now" run so the
+    # scheduler shouldn't fire again immediately after.
+    if job.enable_monitoring:
+        job.next_check_at = utcnow() + timedelta(minutes=job.interval_minutes)
     session.add(job)
     await session.commit()
 
-    await redis.enqueue_job("check_availability", job_id)
-    return {"status": "enqueued", "job_id": job_id}
+    # Dedup: if a check is already queued or running for this job, ARQ
+    # returns None and we treat that as success. Prevents double-runs from
+    # spam-clicks or scheduler-vs-manual races.
+    queued = await redis.enqueue_job(
+        "check_availability",
+        job_id,
+        _job_id=_check_job_arq_id(job_id),
+    )
+    deduped = queued is None
+    return {
+        "status": "already_queued" if deduped else "enqueued",
+        "job_id": job_id,
+    }
 
 
 @router.post("/jobs/{job_id}/book", status_code=202)

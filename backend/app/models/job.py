@@ -15,25 +15,29 @@ def utcnow() -> datetime:
 class JobStatus(str, Enum):
     """Lifecycle states for a WatchJob.
 
-    Transitions (current, without periodic scheduling):
-        (create)         -> PAUSED
-        trigger          -> PAUSED/CANCELLED/BOOKING_COMPLETE -> CHECKING
-        check no-avail   -> CHECKING -> PAUSED
+    Transitions:
+        (create)                 -> PAUSED (or WAITING if monitoring enabled)
+        manual trigger           -> PAUSED/CANCELLED -> CHECKING
+        scheduler dispatch       -> WAITING -> CHECKING
+        check no-avail +
+         monitoring on           -> CHECKING -> WAITING
+        check no-avail +
+         monitoring off          -> CHECKING -> PAUSED
         check found +
-         hold in flight  -> CHECKING (unchanged; flips on hold result)
-        hold secured     -> CHECKING -> HOLD_PLACED
-        hold failed      -> CHECKING -> PAUSED
-        user Complete    -> HOLD_PLACED -> BOOKING_COMPLETE (terminal)
-        user Cancel      -> HOLD_PLACED -> CANCELLED (terminal-ish; trigger resumes)
-        hold expired     -> HOLD_PLACED -> CHECKING (lazy; checked by /trigger and
-                            check_availability)
+         hold in flight          -> CHECKING (unchanged; flips on hold result)
+        hold secured             -> CHECKING -> HOLD_PLACED
+        hold failed              -> CHECKING -> PAUSED/WAITING
+        user Complete            -> HOLD_PLACED -> BOOKING_COMPLETE (terminal)
+        user Cancel              -> HOLD_PLACED -> CANCELLED (terminal-ish; trigger resumes)
+        hold expired             -> HOLD_PLACED -> WAITING/CHECKING (lazy; checked by
+                                    /trigger, check_availability, scheduler_tick)
 
     EXPIRED is a virtual/computed status returned by the API when a DOC-adapter
     job's start date has passed 8pm New Zealand time. It is never written to the
     DB — from_db() injects it on the fly. Expired jobs cannot be triggered.
 
-    WAITING is reserved for the future periodic-poll flow (between scheduled
-    runs). For now jobs never enter WAITING automatically.
+    WAITING means "monitoring on, between scheduled runs" — the scheduler will
+    pick this job up on its next tick once next_check_at is due.
     """
     PAUSED = "paused"
     CHECKING = "checking"
@@ -69,6 +73,20 @@ class WatchJob(SQLModel, table=True):
     params: str                        # JSON blob of search params
     status: str = Field(default=JobStatus.PAUSED.value, index=True)
     auto_book: bool = Field(default=False)
+    # When true, the scheduler periodically enqueues check_availability on
+    # interval_minutes cadence. When false, the job only runs on manual Force
+    # Check. See scheduler_tick in app/workers/tasks.py.
+    enable_monitoring: bool = Field(default=False)
+    # Minutes between scheduled checks. UI clamps to 1..120; the DB column is
+    # unbounded but sane values only come through the API.
+    interval_minutes: int = Field(default=15)
+    # Wall-clock timestamp of the next scheduled check. Null when monitoring
+    # is off or a check is currently in flight that we haven't rescheduled yet.
+    # Scheduler enqueues when next_check_at <= utcnow().
+    next_check_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True, index=True),
+    )
     created_at: datetime = Field(
         default_factory=utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False)
@@ -91,6 +109,8 @@ class WatchJobCreate(SQLModel):
     adapter_id: str
     params: dict                       # accepts a dict, we serialize to JSON
     auto_book: bool = False
+    enable_monitoring: bool = True
+    interval_minutes: int = 15
 
 
 class WatchJobUpdate(SQLModel):
@@ -101,6 +121,8 @@ class WatchJobUpdate(SQLModel):
     name: Optional[str] = None
     params: Optional[dict] = None
     auto_book: Optional[bool] = None
+    enable_monitoring: Optional[bool] = None
+    interval_minutes: Optional[int] = None
 
 
 class WatchJobRead(SQLModel):
@@ -111,6 +133,9 @@ class WatchJobRead(SQLModel):
     params: dict                       # deserialize back to dict for response
     status: str                        # JobStatus enum value (see above)
     auto_book: bool
+    enable_monitoring: bool
+    interval_minutes: int
+    next_check_at: Optional[datetime]
     created_at: datetime
     last_checked_at: Optional[datetime]
     last_result: list[dict] | None = None
@@ -160,6 +185,9 @@ class WatchJobRead(SQLModel):
             params=parsed_params,
             status=effective_status,
             auto_book=job.auto_book,
+            enable_monitoring=job.enable_monitoring,
+            interval_minutes=job.interval_minutes,
+            next_check_at=job.next_check_at,
             created_at=job.created_at,
             last_checked_at=job.last_checked_at,
             last_result=last_result,

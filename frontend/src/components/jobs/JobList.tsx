@@ -5,6 +5,7 @@ import { getDisplayStatus } from '@/lib/availability'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
+import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { BookButton } from '@/components/jobs/BookButton'
 import {
   Table, TableBody, TableCell, TableHead,
@@ -77,11 +78,14 @@ export function JobList() {
               </Badge>
             </TableCell>
             <TableCell>
-              <StatusBadge
-                status={displayStatus}
-                jobId={job.id}
-                artifactUrl={job.last_artifact_png}
-              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <StatusBadge
+                  status={displayStatus}
+                  jobId={job.id}
+                  artifactUrl={job.last_artifact_png}
+                />
+                <MonitoringBadge job={job} />
+              </div>
             </TableCell>
             <TableCell>
               <div className="flex items-center gap-2">
@@ -92,7 +96,9 @@ export function JobList() {
                     disabled={optimisticTriggers.has(job.id)}
                     onClick={e => { e.stopPropagation(); trigger.mutate(job.id) }}
                   >
-                    {optimisticTriggers.has(job.id) ? 'Queued...' : 'Trigger'}
+                    {optimisticTriggers.has(job.id)
+                      ? 'Queued...'
+                      : job.enable_monitoring ? 'Force Check' : 'Check Now'}
                   </Button>
                 )}
                 <BookButton job={job} />

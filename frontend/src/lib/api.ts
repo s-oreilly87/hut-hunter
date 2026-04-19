@@ -40,6 +40,14 @@ export interface WatchJob {
   params: Record<string, unknown>
   status: JobStatus
   auto_book: boolean
+  // Scheduler state for periodic polling. When enable_monitoring=true, the
+  // backend scheduler dispatches check_availability every interval_minutes
+  // and next_check_at reflects when the next dispatch is due. next_check_at
+  // is null when monitoring is off or the job is in a terminal / live-hold
+  // state where polling is paused.
+  enable_monitoring: boolean
+  interval_minutes: number
+  next_check_at: string | null
   created_at: string
   last_checked_at: string | null
   last_result: LastResultEntry[] | null
@@ -65,12 +73,16 @@ export interface CreateWatchJobDto {
   adapter_id: string
   params: Record<string, unknown>
   auto_book: boolean
+  enable_monitoring: boolean
+  interval_minutes: number
 }
 
 export interface UpdateWatchJobDto {
   name?: string
   params?: Record<string, unknown>
   auto_book?: boolean
+  enable_monitoring?: boolean
+  interval_minutes?: number
 }
 
 export interface ParamField {

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
+import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { EditJobDialog } from '@/components/jobs/CreateJobDialog'
 import {
   BookButton,
@@ -266,6 +267,7 @@ export function JobCard() {
               jobId={job.id}
               artifactUrl={job.last_artifact_png}
             />
+            <MonitoringBadge job={job} />
             {!hideTrigger && (
               <Button
                 size="sm"
@@ -273,7 +275,9 @@ export function JobCard() {
                 disabled={queued}
                 onClick={() => trigger.mutate(job.id)}
               >
-                {queued ? 'Queued...' : 'Trigger'}
+                {queued
+                  ? 'Queued...'
+                  : job.enable_monitoring ? 'Force Check' : 'Check Now'}
               </Button>
             )}
             <Button
