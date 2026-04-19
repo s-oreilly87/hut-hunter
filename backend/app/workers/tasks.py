@@ -2,8 +2,10 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import cast
 
+from arq import cron
 from arq.connections import RedisSettings
 
 from sqlmodel import select
@@ -12,12 +14,19 @@ from app.adapters.base import AvailabilityStatus, BookingResult
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notify import notify_gotify
-from app.models.job import JobStatus, WatchJob, utcnow
+from app.models.job import JobStatus, WatchJob, is_job_expired, utcnow
 from app.models.session import CartSession
 from app.adapters import get_adapter
 from playwright.async_api import async_playwright, ViewportSize
 
 logger = logging.getLogger(__name__)
+
+
+# Stable ARQ job ID scheme for check_availability — used for dedup so we
+# never have more than one queued/running check per watch job. ARQ rejects
+# a duplicate enqueue with the same _job_id. Must match app/api/routes.py.
+def _check_job_arq_id(job_id: str) -> str:
+    return f"check_availability:{job_id}"
 
 
 # Dedicated arq queue name for hold jobs. Polling and hold work run on
@@ -61,14 +70,36 @@ async def close_live_browser(job_id: str) -> bool:
     return True
 
 
-async def _snapshot_safe(adapter, page, label: str) -> None:
+async def _snapshot_safe(adapter, page, label: str) -> str | None:
     """Best-effort snapshot — never raises. Used inside except blocks so a
-    failing snapshot can't mask the original error."""
+    failing snapshot can't mask the original error. Returns the saved base
+    path (no extension) on success, or None if the snapshot failed."""
     try:
         base = await adapter.snapshot(page, label)
         logger.info(f"Saved error artifact: {base}")
+        return base
     except Exception as snap_e:
         logger.error(f"Failed to snapshot '{label}': {snap_e}", exc_info=True)
+        return None
+
+
+async def _save_artifact(job_id: str, base: str | None) -> None:
+    """Persist the most recent artifact base path onto the job row. No-op if
+    base is None (snapshot failed). Swallows DB errors — we never want to
+    mask the caller's original error path."""
+    if not base:
+        return
+    try:
+        async with AsyncSessionLocal() as session:
+            job = cast(WatchJob | None, await session.get(WatchJob, job_id))
+            if job is not None:
+                job.last_artifact = base
+                session.add(job)
+                await session.commit()
+    except Exception as e:
+        logger.error(
+            f"Failed to save artifact path for job {job_id}: {e}", exc_info=True
+        )
 
 
 async def _get_active_cart(session, job_id: str) -> CartSession | None:
@@ -224,6 +255,11 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             await _save_error(job_id, str(e))
             return {"error": str(e)}
 
+        # Block expired jobs (adapter's booking cutoff has passed).
+        if is_job_expired(job.adapter_id, params):
+            logger.info(f"Job {job_id} is expired (past 8 pm NZ on start date), skipping")
+            return {"job_id": job_id, "status": "skipped_expired"}
+
         # Lazy-expire a HOLD_PLACED whose cart has timed out, then gate the
         # check on status. Only run when the job is in an "actively looking"
         # state — anything else (paused / hold placed still live / cancelled
@@ -237,44 +273,70 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             )
             return {"job_id": job_id, "status": f"skipped_{job.status}"}
 
-        storage_state = await adapter.get_storage_state(session)
-        logger.info(f"Storage state loaded for {job.adapter_id}: {storage_state is not None}")
         auto_book = job.auto_book
+        # Snapshot the previous result now so we can suppress repeat partial
+        # notifications later (we only alert when the status *changes* to
+        # partial — not on every check while it stays partial).
+        prev_last_result: str | None = job.last_result
 
     results = []
 
     # --- 2. Detect phase (headless) ---
     try:
         async with _browser_page(
-            storage_state, headless=settings.browser_headless_detect
+            None, headless=settings.browser_headless_detect
         ) as (page, _keep_alive):
             try:
                 await adapter.fill_form(page, params)
                 results = await adapter.detect_availability(page, params)
                 logger.info(f"Detect results for job {job_id}: {results}")
             except Exception as e:
-                await _snapshot_safe(
+                base = await _snapshot_safe(
                     adapter, page, f"detect_error_{type(e).__name__}"
                 )
+                await _save_artifact(job_id, base)
                 raise
     except Exception as e:
         logger.error(f"Detect phase error for job {job_id}: {e}", exc_info=True)
         await _save_error(job_id, str(e))
-        # Release the job so the user can re-trigger.
+        # Release the job so the user can re-trigger. When monitoring is on
+        # we keep polling on the same cadence — a transient adapter error
+        # shouldn't silently disable monitoring (the error surfaces via
+        # last_result, the user can always switch monitoring off in the UI).
         async with AsyncSessionLocal() as session:
             stale_job = await session.get(WatchJob, job_id)
             if stale_job is not None:
-                await _set_status(session, stale_job, JobStatus.PAUSED)
+                if stale_job.enable_monitoring:
+                    await _set_status(session, stale_job, JobStatus.WAITING)
+                    stale_job.next_check_at = utcnow() + timedelta(
+                        minutes=stale_job.interval_minutes
+                    )
+                    session.add(stale_job)
+                    await session.commit()
+                else:
+                    await _set_status(session, stale_job, JobStatus.PAUSED)
         return {"error": str(e)}
 
     fully_available = [r for r in results if r.status == AvailabilityStatus.AVAILABLE]
     partially_available = [
         r for r in results if r.status == AvailabilityStatus.PARTIALLY_AVAILABLE
     ]
+    unavailable = [
+        r for r in results if r.status == AvailabilityStatus.UNAVAILABLE
+    ]
+    # Hold is only attempted when EVERY requested site is fully available for
+    # the party size. A mixed bag (some full + some partial, or any partial at
+    # all) goes out as a single informational notification and is left for the
+    # user to handle manually — the hold worker's DOC flow can't select the
+    # party size on a "fewer spots than requested" cell, so enqueueing it
+    # would just waste a browser and burn the DOC cart state.
+    all_fully_available = bool(results) and all(
+        r.status == AvailabilityStatus.AVAILABLE for r in results
+    )
 
     # --- 3. Enqueue hold task or notify directly ---
     hold_enqueued = False
-    if fully_available and auto_book:
+    if all_fully_available and auto_book:
         try:
             await ctx["redis"].enqueue_job(
                 "attempt_hold_task",
@@ -287,36 +349,69 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             # Enqueue failure is surprising but recoverable — let the user know
             # availability exists so they can book manually if needed.
             logger.error(f"Failed to enqueue hold task for {job_id}: {e}", exc_info=True)
-            for r in fully_available:
-                await notify_gotify(
-                    title="🏕️ Availability (hold queue unreachable)",
-                    message=(
-                        f"{r.site} has {r.total_available} spot(s) on {params.get('date')}, "
-                        f"but queueing the auto-hold failed: {e}. Book manually."
-                    ),
-                    priority=9,
-                )
-
-    if fully_available and not auto_book:
-        for r in fully_available:
+            lines = [
+                f"- {r.site}: {r.total_available} spot(s)"
+                for r in fully_available
+            ]
             await notify_gotify(
-                title="🏕️ Availability Detected!",
+                title="🏕️ Availability (hold queue unreachable)",
                 message=(
-                    f"{r.site} has {r.total_available} spot(s) on {params.get('date')}. "
-                    f"Book now!"
+                    f"All sites fully available on {params.get('date')} but the "
+                    f"auto-hold could not be queued ({e}). Book manually:\n"
+                    + "\n".join(lines)
                 ),
-                priority=8,
+                priority=9,
             )
 
-    for r in partially_available:
+    elif all_fully_available:
+        # Every site is good and we're not auto-booking — one combined alert.
+        lines = [
+            f"- {r.site}: {r.total_available} spot(s)"
+            for r in fully_available
+        ]
         await notify_gotify(
-            title="⚠️ Partial Availability",
+            title="🏕️ Availability Detected!",
             message=(
-                f"{r.site} has {r.total_available} spot(s) on {params.get('date')} "
-                f"but you wanted {params.get('people')}. Partial booking may be possible."
+                f"All sites fully available on {params.get('date')}. Book now!\n"
+                + "\n".join(lines)
             ),
-            priority=5,
+            priority=8,
         )
+
+    elif fully_available or partially_available:
+        # Mixed / partial case: at least one site has something but we won't
+        # hold. Only notify when the availability *changes* to partial — if the
+        # last stored result was already partial, the user already knows and a
+        # repeat alert adds no value. We'll re-alert once it goes unavailable
+        # and then back to partial, or when it becomes fully available.
+        if not _was_previously_partial(prev_last_result):
+            def _fmt(r):
+                count = 0 if r.total_available is None else r.total_available
+                return f"{r.site}: {count} spot(s)"
+            lines: list[str] = []
+            if partially_available:
+                lines.append(
+                    f"Partial (wanted {params.get('people')}):"
+                )
+                lines.extend(f"  - {_fmt(r)}" for r in partially_available)
+            if unavailable:
+                lines.append("Unavailable:")
+                lines.extend(f"  - {_fmt(r)}" for r in unavailable)
+            await notify_gotify(
+                title="⚠️ Partial Availability",
+                message=(
+                    f"Some sites have spots on {params.get('date')} but not every "
+                    f"site is fully available — not auto-holding.\n"
+                    + "\n".join(lines)
+                    + "\n\nTo book partial: create a new watch job scoped to the "
+                    "partial site(s) with a smaller party size, then Book it."
+                ),
+                priority=6,
+            )
+        else:
+            logger.info(
+                f"Job {job_id}: still partial — suppressing repeat notification"
+            )
 
     # --- 4. Write detect results to DB ---
     result_dicts = [
@@ -337,11 +432,18 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             job.last_result = json.dumps(result_dicts)
             # If a hold was enqueued, leave the job in CHECKING — the hold
             # task owns the next transition (HOLD_PLACED on success, PAUSED
-            # on failure). Otherwise this check is "done"; drop back to
-            # PAUSED until the user triggers again (or until periodic polling
-            # is introduced, at which point WAITING fits here).
+            # on failure). Otherwise this check is "done": if monitoring is
+            # on we move to WAITING and reschedule; otherwise drop to PAUSED
+            # until the user manually triggers again.
             if not hold_enqueued and job.status == JobStatus.CHECKING.value:
-                job.status = JobStatus.PAUSED.value
+                if job.enable_monitoring:
+                    job.status = JobStatus.WAITING.value
+                    job.next_check_at = utcnow() + timedelta(
+                        minutes=job.interval_minutes
+                    )
+                else:
+                    job.status = JobStatus.PAUSED.value
+                    job.next_check_at = None
             session.add(job)
             await session.commit()
 
@@ -434,9 +536,10 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                             f"Adapter {adapter.adapter_id} does not support holds yet"
                         )
             except Exception as e:
-                await _snapshot_safe(
+                base = await _snapshot_safe(
                     adapter, page, f"hold_error_{type(e).__name__}"
                 )
+                await _save_artifact(job_id, base)
                 raise
     except Exception as e:
         logger.error(f"Hold task error for job {job_id}: {e}", exc_info=True)
@@ -480,11 +583,24 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
 
     # --- 3. Terminal status update for this attempt ---
     held = bool(booking and booking.held)
-    final_status = JobStatus.HOLD_PLACED if held else JobStatus.PAUSED
     async with AsyncSessionLocal() as session:
         job = await session.get(WatchJob, job_id)
         if job is not None:
-            await _set_status(session, job, final_status)
+            if held:
+                # Hold secured — next_check_at is left alone; the scheduler's
+                # hold-expiry pass resumes monitoring once the cart times out.
+                await _set_status(session, job, JobStatus.HOLD_PLACED)
+            elif job.enable_monitoring:
+                # Hold failed but monitoring is on — reschedule and keep
+                # watching. The next check will redetect availability.
+                await _set_status(session, job, JobStatus.WAITING)
+                job.next_check_at = utcnow() + timedelta(
+                    minutes=job.interval_minutes
+                )
+                session.add(job)
+                await session.commit()
+            else:
+                await _set_status(session, job, JobStatus.PAUSED)
 
     return {
         "job_id": job_id,
@@ -495,6 +611,32 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     }
 
 
+def _was_previously_partial(last_result_json: str | None) -> bool:
+    """Return True if the most recent stored result was already a partial /
+    mixed-availability outcome.
+
+    Partial means:
+      • at least one entry had status "partially_available", OR
+      • there was a mix of "available" and "unavailable" across entries.
+
+    Error-shaped entries (no "status" key) are ignored — they represent a
+    failed check, not an availability state, so they don't count as "partial".
+    """
+    if not last_result_json:
+        return False
+    try:
+        entries = json.loads(last_result_json)
+    except Exception:
+        return False
+    statuses = {e["status"] for e in entries if isinstance(e, dict) and "status" in e}
+    if not statuses:
+        return False
+    if "partially_available" in statuses:
+        return True
+    # Mixed available + unavailable is also treated as partial
+    return "available" in statuses and "unavailable" in statuses
+
+
 async def _save_error(job_id: str, error: str) -> None:
     async with AsyncSessionLocal() as session:
         job = cast(WatchJob | None, await session.get(WatchJob, job_id))
@@ -503,6 +645,133 @@ async def _save_error(job_id: str, error: str) -> None:
             job.last_checked_at = utcnow()
             session.add(job)
             await session.commit()
+
+
+async def scheduler_tick(ctx: dict) -> dict:
+    """Periodic scan of watchjob — enqueue overdue checks and resume after
+    expired holds. Runs every 30 seconds on the poll worker.
+
+    Two passes:
+
+      1. **Hold-expiry resume.** Jobs in HOLD_PLACED whose latest CartSession
+         has expired (expires_at < now AND completed_at IS NULL) flip back to
+         WAITING with next_check_at=now so the second pass picks them up
+         immediately. Matches the "after hold expires, resume monitoring"
+         spec.
+
+      2. **Dispatch due checks.** Jobs with enable_monitoring=true,
+         next_check_at<=now, and status NOT in (CHECKING, HOLD_PLACED with
+         live cart, BOOKING_COMPLETE, CANCELLED) get enqueued as
+         check_availability with _job_id dedup. ARQ rejects duplicate
+         _job_ids so a second enqueue while one is pending/running is a
+         no-op — exactly the at-most-one-queued semantic we want.
+
+    EXPIRED (virtual) is skipped by checking is_job_expired() against the
+    adapter's cutoff.
+    """
+    now = utcnow()
+    dispatched = 0
+    resumed_from_hold = 0
+    deduped = 0
+    skipped_expired = 0
+
+    redis = ctx["redis"]
+
+    async with AsyncSessionLocal() as session:
+        # Pass 1 — lazy hold-expiry. We can't join to CartSession cleanly
+        # from here without adding a relationship; instead, fetch all
+        # HOLD_PLACED jobs (there should be very few) and check the cart
+        # per-job. Small enough that N+1 is fine.
+        hold_jobs = (await session.execute(
+            select(WatchJob).where(WatchJob.status == JobStatus.HOLD_PLACED.value)
+        )).scalars().all()
+        for job in hold_jobs:
+            if not job.enable_monitoring:
+                continue
+            active_cart = await _get_active_cart(session, job.id)
+            if active_cart is not None:
+                continue  # hold still live — skip
+            # Cart expired (or never created): resume monitoring.
+            logger.info(
+                f"scheduler_tick: hold expired for {job.id}, resuming monitoring"
+            )
+            job.status = JobStatus.WAITING.value
+            job.next_check_at = now
+            session.add(job)
+            resumed_from_hold += 1
+        if resumed_from_hold:
+            await session.commit()
+
+        # Pass 2 — dispatch due checks.
+        due = (await session.execute(
+            select(WatchJob).where(
+                WatchJob.enable_monitoring == True,  # noqa: E712 — SQLAlchemy
+                WatchJob.next_check_at.is_not(None),
+                WatchJob.next_check_at <= now,
+                WatchJob.status.not_in([
+                    JobStatus.CHECKING.value,
+                    JobStatus.HOLD_PLACED.value,
+                    JobStatus.BOOKING_COMPLETE.value,
+                    JobStatus.CANCELLED.value,
+                ]),
+            )
+        )).scalars().all()
+
+        for job in due:
+            # Adapter-level expiry (e.g. DOC cutoff past 8pm NZ). Skip silently
+            # — the UI surfaces EXPIRED via from_db() so the user sees why.
+            try:
+                params = json.loads(job.params)
+            except Exception:
+                logger.exception(f"scheduler_tick: bad params JSON for {job.id}")
+                continue
+            if is_job_expired(job.adapter_id, params):
+                skipped_expired += 1
+                # Park the job — no sense in the scheduler waking up on this
+                # row every tick. Once expired we won't come back here unless
+                # params change (which resets next_check_at via the API).
+                job.next_check_at = None
+                session.add(job)
+                await session.commit()
+                continue
+
+            # Write status + next_check_at update *before* enqueue so the
+            # worker sees fresh state. Committing per-job also avoids a
+            # race where the batch commit at the end of the loop would
+            # overwrite a concurrent check_availability's status write
+            # (e.g. if max_jobs were ever bumped above 1).
+            if job.status == JobStatus.WAITING.value:
+                job.status = JobStatus.CHECKING.value
+            job.next_check_at = now + timedelta(minutes=job.interval_minutes)
+            session.add(job)
+            await session.commit()
+
+            queued = await redis.enqueue_job(
+                "check_availability",
+                job.id,
+                _job_id=_check_job_arq_id(job.id),
+            )
+            if queued is None:
+                # Already queued or running — dedup did its job. Status stays
+                # as-is; next_check_at is already pushed out so we won't
+                # retry every tick.
+                deduped += 1
+                continue
+
+            dispatched += 1
+
+    if dispatched or resumed_from_hold or deduped or skipped_expired:
+        logger.info(
+            f"scheduler_tick: dispatched={dispatched} "
+            f"resumed_from_hold={resumed_from_hold} "
+            f"deduped={deduped} skipped_expired={skipped_expired}"
+        )
+    return {
+        "dispatched": dispatched,
+        "resumed_from_hold": resumed_from_hold,
+        "deduped": deduped,
+        "skipped_expired": skipped_expired,
+    }
 
 
 async def startup(ctx: dict) -> None:
@@ -537,9 +806,67 @@ async def close_browser_task(ctx: dict, job_id: str) -> dict:
     return {"job_id": job_id, "closed": closed}
 
 
+async def snapshot_complete_task(ctx: dict, job_id: str) -> dict:
+    """Capture a screenshot + HTML of the booking-complete / receipt page
+    before the browser is torn down.
+
+    Runs on the hold queue so it can access LIVE_BROWSERS (the browser is
+    owned by the hold worker process). If the browser is already gone — e.g.
+    a different replica owns it, or it was closed by a concurrent action —
+    this is a no-op. Scheduling relies on the hold queue's max_jobs=1 and
+    FIFO ordering to run *before* close_browser_task.
+
+    On success, persists the base path to job.last_artifact so the frontend
+    can link the user to their receipt."""
+    entry = LIVE_BROWSERS.get(job_id)
+    if entry is None:
+        logger.info(
+            f"snapshot_complete_task: no live browser for {job_id}, skipping"
+        )
+        return {"job_id": job_id, "captured": False, "reason": "no_live_browser"}
+
+    page = entry.get("page")
+    if page is None:
+        logger.warning(
+            f"snapshot_complete_task: LIVE_BROWSERS[{job_id}] has no page"
+        )
+        return {"job_id": job_id, "captured": False, "reason": "no_page"}
+
+    async with AsyncSessionLocal() as session:
+        job = cast(WatchJob | None, await session.get(WatchJob, job_id))
+        if job is None:
+            logger.warning(f"snapshot_complete_task: job {job_id} not found")
+            return {"job_id": job_id, "captured": False, "reason": "job_missing"}
+        try:
+            adapter = get_adapter(job.adapter_id)
+        except ValueError as e:
+            logger.error(f"snapshot_complete_task: unknown adapter: {e}")
+            return {"job_id": job_id, "captured": False, "reason": str(e)}
+
+    base = await _snapshot_safe(adapter, page, "booking_complete")
+    await _save_artifact(job_id, base)
+    return {"job_id": job_id, "captured": base is not None, "base": base}
+
+
 class WorkerSettings:
     """Poll worker — runs check_availability on the default queue."""
     functions = [check_availability]
+    # Cron runs every 30s — interval is stored in minutes so 30s tick
+    # granularity means a monitored job fires at most 30s late. `run_at_startup`
+    # ensures the first tick doesn't wait a full 30s after a worker restart
+    # (handles the "worker was down, catch up now" case per spec).
+    cron_jobs = [
+        cron(
+            scheduler_tick,
+            second={0, 30},
+            run_at_startup=True,
+            # Each tick is cheap but must never stack — unique=True makes ARQ
+            # skip a new tick if the previous one is still executing.
+            unique=True,
+            # If a tick somehow runs long, kill it rather than pile up.
+            timeout=25,
+        ),
+    ]
     on_startup = startup
     on_shutdown = shutdown
     # Read redis URL from settings so it works both on the host
@@ -547,11 +874,17 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = 1  # one poll at a time per worker
     job_timeout = 120  # 2 minutes — detect phase only
+    # We persist last_result on the WatchJob itself, so ARQ's result cache is
+    # redundant. Setting keep_result=0 lets us re-enqueue with the same
+    # _job_id (used for dedup) the moment the previous run finishes —
+    # otherwise ARQ would reject the next scheduler tick's enqueue for up to
+    # an hour (default keep_result).
+    keep_result = 0
 
 
 class HoldWorkerSettings:
     """Hold worker — runs attempt_hold_task on the dedicated hold queue."""
-    functions = [attempt_hold_task, close_browser_task]
+    functions = [attempt_hold_task, close_browser_task, snapshot_complete_task]
     on_startup = startup
     on_shutdown = hold_worker_shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)

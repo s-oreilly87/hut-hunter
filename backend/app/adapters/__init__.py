@@ -13,12 +13,28 @@ def get_adapter(adapter_id: str) -> BaseAdapter:
         raise ValueError(f"Unknown adapter: {adapter_id}. Available: {list(_REGISTRY.keys())}")
     return cls()
 
+
+def is_job_expired(adapter_id: str, params: dict) -> bool:
+    """Return True if the job's start date has passed the adapter's booking
+    cutoff in its local timezone. Returns False for unknown adapters or
+    adapters that don't define a booking window."""
+    try:
+        return get_adapter(adapter_id).is_expired(params)
+    except ValueError:
+        return False
+
+
 def list_adapters() -> list[dict]:
     return [
         {
             "adapter_id": cls.adapter_id,
             "name": cls.name,
             "param_fields": [f.__dict__ for f in cls.param_fields()],
+            # Expiry metadata — None means the adapter has no booking cutoff.
+            # Consumed by the frontend for date validation and by the worker
+            # to gate availability checks.
+            "booking_timezone": cls.booking_timezone,
+            "booking_cutoff_time": cls.booking_cutoff_time.isoformat(),
         }
         for cls in _REGISTRY.values()
     ]

@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     # assume localhost for dev; set to the Cloudflare-tunneled domain in prod.
     vnc_url: str = "http://localhost:6080"
 
+    # DOC bookings credentials — used to dismiss the login modal that appears
+    # when clicking Reserve without a valid session cookie. If unset, the hold
+    # worker will fail when the modal appears.
+    doc_email: str | None = None
+    doc_password: str | None = None
+
     model_config = {
         "env_file": str(ROOT_DIR / ".env")
     }

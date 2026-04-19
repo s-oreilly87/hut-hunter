@@ -13,6 +13,25 @@ export type JobStatus =
   | 'hold_placed'
   | 'booking_complete'
   | 'cancelled'
+  | 'expired'
+
+export type AvailabilityStatusStr =
+  | 'available'
+  | 'partially_available'
+  | 'unavailable'
+  | 'unknown'
+
+export interface AvailabilityResult {
+  site: string
+  status: AvailabilityStatusStr
+  evidence: string
+  total_available?: number | null
+  icon?: string | null
+}
+
+// last_result is either a list of AvailabilityResult or, on error, a list
+// wrapping a single error dict { error: ... }. We accept either shape.
+export type LastResultEntry = AvailabilityResult | Record<string, unknown>
 
 export interface WatchJob {
   id: string
@@ -21,9 +40,22 @@ export interface WatchJob {
   params: Record<string, unknown>
   status: JobStatus
   auto_book: boolean
+  // Scheduler state for periodic polling. When enable_monitoring=true, the
+  // backend scheduler dispatches check_availability every interval_minutes
+  // and next_check_at reflects when the next dispatch is due. next_check_at
+  // is null when monitoring is off or the job is in a terminal / live-hold
+  // state where polling is paused.
+  enable_monitoring: boolean
+  interval_minutes: number
+  next_check_at: string | null
   created_at: string
   last_checked_at: string | null
-  last_result: Record<string, unknown> | null
+  last_result: LastResultEntry[] | null
+  // URLs (relative to the API host) of the most recent debug/receipt
+  // snapshot captured by the worker. Both are set together (same base path
+  // with .png / .html extensions) or both are null.
+  last_artifact_png: string | null
+  last_artifact_html: string | null
 }
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
@@ -33,6 +65,7 @@ export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
   hold_placed: 'Hold Placed',
   booking_complete: 'Booking Complete',
   cancelled: 'Cancelled',
+  expired: 'Expired',
 }
 
 export interface CreateWatchJobDto {
@@ -40,6 +73,16 @@ export interface CreateWatchJobDto {
   adapter_id: string
   params: Record<string, unknown>
   auto_book: boolean
+  enable_monitoring: boolean
+  interval_minutes: number
+}
+
+export interface UpdateWatchJobDto {
+  name?: string
+  params?: Record<string, unknown>
+  auto_book?: boolean
+  enable_monitoring?: boolean
+  interval_minutes?: number
 }
 
 export interface ParamField {
@@ -49,21 +92,64 @@ export interface ParamField {
   options: string[] | null
   default: unknown
   required: boolean
+  // When set, this field's options depend on the value of the field named
+  // `filter_by`. Use options_by[<value of filter_by>] as the options.
+  filter_by?: string | null
+  options_by?: Record<string, string[]> | null
 }
 
 export interface AdapterInfo {
   adapter_id: string
   name: string
   param_fields: ParamField[]
+  // Set when the adapter has a time-bounded booking window. Used by the
+  // frontend for date validation and stale-job display.
+  // null timezone means "use client local timezone"
+  booking_timezone: string | null
+  booking_cutoff_time: string  // HH:MM:SS — informational, expiry enforced server-side
+}
+
+export interface Occupant {
+  id: string
+  first_name: string
+  last_name: string
+  age: number
+  gender: string
+  country: string
+  category: string
+  created_at: string
+}
+
+export interface OccupantCreate {
+  first_name: string
+  last_name: string
+  age: number
+  gender: string
+  country: string
+  category: string
 }
 
 export const adaptersApi = {
   list: () => api.get<AdapterInfo[]>('/adapters').then(r => r.data),
 }
 
+export const occupantsApi = {
+  list: () => api.get<Occupant[]>('/occupants').then(r => r.data),
+  create: (data: OccupantCreate) => api.post<Occupant>('/occupants', data).then(r => r.data),
+  update: (id: string, data: Partial<OccupantCreate>) =>
+    api.patch<Occupant>(`/occupants/${id}`, data).then(r => r.data),
+  remove: (id: string) => api.delete(`/occupants/${id}`),
+}
+
 export const jobsApi = {
   list: () => api.get<WatchJob[]>('/jobs').then(r => r.data),
   get: (id: string) => api.get<WatchJob>(`/jobs/${id}`).then(r => r.data),
   create: (data: CreateWatchJobDto) => api.post<WatchJob>('/jobs', data).then(r => r.data),
+  update: (id: string, data: UpdateWatchJobDto) =>
+    api.patch<WatchJob>(`/jobs/${id}`, data).then(r => r.data),
+  remove: (id: string) => api.delete(`/jobs/${id}`).then(r => r.data),
   trigger: (id: string) => api.post(`/jobs/${id}/trigger`).then(r => r.data),
+  // Manual hold dispatch. Backend rejects with 409 unless the last check
+  // shows every site fully available; the UI hides this button otherwise.
+  book: (id: string) => api.post(`/jobs/${id}/book`).then(r => r.data),
 }
