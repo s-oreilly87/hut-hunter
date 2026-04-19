@@ -32,6 +32,12 @@ class BookingResult:
 
 
 @dataclass
+class ArtifactSnapshot:
+    label: str
+    base: str
+
+
+@dataclass
 class ParamField:
     key: str
     label: str
@@ -61,6 +67,9 @@ class BaseAdapter(ABC):
     #   Defaults to 23:59 — end of the start date in local time.
     booking_timezone: str | None = None   # None → server local TZ
     booking_cutoff_time: time = time(23, 59)
+
+    def __init__(self) -> None:
+        self._artifact_log: list[ArtifactSnapshot] = []
 
     @classmethod
     @abstractmethod
@@ -139,4 +148,10 @@ class BaseAdapter(ABC):
         await page.screenshot(path=f"{base}.png", full_page=True)
         with open(f"{base}.html", "w") as f:
             f.write(await page.content())
+        self._artifact_log.append(ArtifactSnapshot(label=label, base=base))
         return base
+
+    def consume_artifacts(self) -> list[ArtifactSnapshot]:
+        artifacts = self._artifact_log[:]
+        self._artifact_log.clear()
+        return artifacts

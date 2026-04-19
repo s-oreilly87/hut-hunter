@@ -173,6 +173,8 @@ async def update_job(
         # doesn't show stale availability alongside the new config.
         job.last_result = None
         job.last_checked_at = None
+        job.last_artifact = None
+        job.artifact_history = None
 
     # Monitoring changes — capture the "before" state first so we can detect
     # OFF→ON transitions and interval changes precisely.

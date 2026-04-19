@@ -29,6 +29,12 @@ export interface AvailabilityResult {
   icon?: string | null
 }
 
+export interface ArtifactRecord {
+  label: string
+  png_url: string
+  html_url: string
+}
+
 // last_result is either a list of AvailabilityResult or, on error, a list
 // wrapping a single error dict { error: ... }. We accept either shape.
 export type LastResultEntry = AvailabilityResult | Record<string, unknown>
@@ -56,6 +62,7 @@ export interface WatchJob {
   // with .png / .html extensions) or both are null.
   last_artifact_png: string | null
   last_artifact_html: string | null
+  artifact_history: ArtifactRecord[] | null
 }
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {

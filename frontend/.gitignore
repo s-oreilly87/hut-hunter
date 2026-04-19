@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Artifacts
+backend/artifacts
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

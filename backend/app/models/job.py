@@ -101,6 +101,10 @@ class WatchJob(SQLModel, table=True):
     # serves them via the StaticFiles mount at /artifacts/. Set on any failure
     # during check/hold and on booking-complete.
     last_artifact: Optional[str] = None
+    # JSON list of snapshot bases/labels captured across the current booking
+    # flow. Used by the frontend to render a lightweight artifact gallery for
+    # holds and receipts.
+    artifact_history: Optional[str] = None
 
 
 class WatchJobCreate(SQLModel):
@@ -144,6 +148,7 @@ class WatchJobRead(SQLModel):
     # comes from.
     last_artifact_png: Optional[str] = None
     last_artifact_html: Optional[str] = None
+    artifact_history: list[dict] | None = None
 
     @classmethod
     def from_db(cls, job: WatchJob) -> "WatchJobRead":
@@ -167,6 +172,33 @@ class WatchJobRead(SQLModel):
                 base = base[len("artifacts/"):]
             png_url = f"/artifacts/{base}.png"
             html_url = f"/artifacts/{base}.html"
+
+        artifact_history = None
+        if job.artifact_history:
+            try:
+                parsed_history = json.loads(job.artifact_history)
+            except Exception:
+                parsed_history = []
+
+            if isinstance(parsed_history, list):
+                artifact_history = []
+                for entry in parsed_history:
+                    if not isinstance(entry, dict):
+                        continue
+                    base = entry.get("base")
+                    label = entry.get("label")
+                    if not isinstance(base, str) or not base:
+                        continue
+                    if base.startswith("artifacts/"):
+                        base = base[len("artifacts/"):]
+                    artifact_history.append({
+                        "label": label if isinstance(label, str) else "artifact",
+                        "png_url": f"/artifacts/{base}.png",
+                        "html_url": f"/artifacts/{base}.html",
+                    })
+
+                if not artifact_history:
+                    artifact_history = None
 
         parsed_params = json.loads(job.params)
 
@@ -193,4 +225,5 @@ class WatchJobRead(SQLModel):
             last_result=last_result,
             last_artifact_png=png_url,
             last_artifact_html=html_url,
+            artifact_history=artifact_history,
         )

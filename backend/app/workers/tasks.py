@@ -84,22 +84,76 @@ async def _snapshot_safe(adapter, page, label: str) -> str | None:
 
 
 async def _save_artifact(job_id: str, base: str | None) -> None:
-    """Persist the most recent artifact base path onto the job row. No-op if
-    base is None (snapshot failed). Swallows DB errors — we never want to
-    mask the caller's original error path."""
-    if not base:
+    await _save_artifacts(job_id, [], last_base=base)
+
+
+async def _save_artifacts(
+    job_id: str,
+    artifacts: list[dict],
+    *,
+    last_base: str | None = None,
+    reset_history: bool = False,
+) -> None:
+    """Persist the most recent artifact base path plus any artifact history.
+
+    `artifacts` entries should be dicts with `label` and `base`.
+    Swallows DB errors — we never want to mask the caller's original path.
+    """
+    if not last_base and not artifacts and not reset_history:
         return
     try:
         async with AsyncSessionLocal() as session:
             job = cast(WatchJob | None, await session.get(WatchJob, job_id))
             if job is not None:
-                job.last_artifact = base
+                if last_base:
+                    job.last_artifact = last_base
+
+                if reset_history:
+                    history: list[dict] = []
+                else:
+                    try:
+                        parsed = json.loads(job.artifact_history) if job.artifact_history else []
+                    except Exception:
+                        parsed = []
+                    history = parsed if isinstance(parsed, list) else []
+
+                seen_bases = {
+                    entry.get("base")
+                    for entry in history
+                    if isinstance(entry, dict)
+                }
+                for artifact in artifacts:
+                    base = artifact.get("base")
+                    label = artifact.get("label")
+                    if not isinstance(base, str) or not base or base in seen_bases:
+                        continue
+                    history.append({
+                        "label": label if isinstance(label, str) else "artifact",
+                        "base": base,
+                    })
+                    seen_bases.add(base)
+
+                job.artifact_history = json.dumps(history[-12:]) if history else None
                 session.add(job)
                 await session.commit()
     except Exception as e:
         logger.error(
-            f"Failed to save artifact path for job {job_id}: {e}", exc_info=True
+            f"Failed to save artifacts for job {job_id}: {e}", exc_info=True
         )
+
+
+def _consume_adapter_artifacts(adapter) -> list[dict]:
+    return [
+        {"label": artifact.label, "base": artifact.base}
+        for artifact in adapter.consume_artifacts()
+    ]
+
+
+def _latest_artifact_base(artifacts: list[dict]) -> str | None:
+    if not artifacts:
+        return None
+    base = artifacts[-1].get("base")
+    return base if isinstance(base, str) else None
 
 
 async def _get_active_cart(session, job_id: str) -> CartSession | None:
@@ -294,7 +348,12 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                 base = await _snapshot_safe(
                     adapter, page, f"detect_error_{type(e).__name__}"
                 )
-                await _save_artifact(job_id, base)
+                await _save_artifacts(
+                    job_id,
+                    _consume_adapter_artifacts(adapter),
+                    last_base=base,
+                    reset_history=True,
+                )
                 raise
     except Exception as e:
         logger.error(f"Detect phase error for job {job_id}: {e}", exc_info=True)
@@ -524,6 +583,13 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                     params["_job_id"] = job_id
                     try:
                         booking = await adapter.attempt_hold(page, params)
+                        hold_artifacts = _consume_adapter_artifacts(adapter)
+                        await _save_artifacts(
+                            job_id,
+                            hold_artifacts,
+                            last_base=_latest_artifact_base(hold_artifacts),
+                            reset_history=True,
+                        )
                         logger.info(
                             f"Hold result for job {job_id}: "
                             f"held={booking.held} url={booking.reservation_url} "
@@ -539,7 +605,12 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 base = await _snapshot_safe(
                     adapter, page, f"hold_error_{type(e).__name__}"
                 )
-                await _save_artifact(job_id, base)
+                await _save_artifacts(
+                    job_id,
+                    _consume_adapter_artifacts(adapter),
+                    last_base=base,
+                    reset_history=True,
+                )
                 raise
     except Exception as e:
         logger.error(f"Hold task error for job {job_id}: {e}", exc_info=True)
@@ -844,7 +915,11 @@ async def snapshot_complete_task(ctx: dict, job_id: str) -> dict:
             return {"job_id": job_id, "captured": False, "reason": str(e)}
 
     base = await _snapshot_safe(adapter, page, "booking_complete")
-    await _save_artifact(job_id, base)
+    await _save_artifacts(
+        job_id,
+        _consume_adapter_artifacts(adapter),
+        last_base=base,
+    )
     return {"job_id": job_id, "captured": base is not None, "base": base}
 
 
