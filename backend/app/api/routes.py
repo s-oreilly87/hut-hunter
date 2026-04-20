@@ -16,6 +16,8 @@ from app.models.job import (
     WatchJobCreate,
     WatchJobRead,
     WatchJobUpdate,
+    as_optional_utc,
+    as_utc,
     is_job_expired,
     utcnow,
 )
@@ -310,7 +312,7 @@ async def trigger_job(
         cart_still_live = (
             cart is not None
             and cart.completed_at is None
-            and cart.expires_at > utcnow()
+            and as_utc(cart.expires_at) > utcnow()
         )
         if cart_still_live:
             raise HTTPException(
@@ -377,7 +379,7 @@ async def book_job(
         cart_still_live = (
             cart is not None
             and cart.completed_at is None
-            and cart.expires_at > utcnow()
+            and as_utc(cart.expires_at) > utcnow()
         )
         if cart_still_live:
             raise HTTPException(
@@ -637,8 +639,8 @@ async def get_session_status(
 
     return {
         "has_session": True,
-        "updated_at": existing.updated_at,
-        "expires_at": existing.expires_at,
+        "updated_at": as_utc(existing.updated_at),
+        "expires_at": as_optional_utc(existing.expires_at),
     }
 
 
@@ -661,7 +663,8 @@ async def resume_cart(
     if not cart:
         return HTMLResponse("<h1>No cart session found for this job</h1>", status_code=404)
 
-    if cart.expires_at < utcnow():
+    cart_expires_at = as_utc(cart.expires_at)
+    if cart_expires_at < utcnow():
         return HTMLResponse("<h1>Cart session has expired</h1>", status_code=410)
 
     cookies = json.loads(decrypt(cart.encrypted_cookies))
@@ -742,7 +745,8 @@ async def pay(
             status_code=404,
         )
 
-    if cart.expires_at < utcnow():
+    cart_expires_at = as_utc(cart.expires_at)
+    if cart_expires_at < utcnow():
         # Hold_placed but the cart timed out — the status will get lazily
         # flipped back to CHECKING next time the job is triggered.
         return HTMLResponse(
@@ -759,7 +763,7 @@ async def pay(
     vnc_embed_url = f"{vnc_base}/vnc_lite.html?autoconnect=1&resize=remote"
 
     # Minutes remaining until hold expires (displayed in the header).
-    seconds_left = int((cart.expires_at - utcnow()).total_seconds())
+    seconds_left = int((cart_expires_at - utcnow()).total_seconds())
     minutes_left = max(0, seconds_left // 60)
 
     # How many pixels of the iframe to crop off the top. Chromium's tab strip

@@ -12,6 +12,23 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def as_utc(value: datetime) -> datetime:
+    """Normalize DB-loaded datetimes to timezone-aware UTC.
+
+    Some backends used in tests, especially SQLite, round-trip timezone-aware
+    columns as naive datetimes. Normalize them before any Python-side
+    comparisons or API serialization so behavior stays consistent across
+    environments.
+    """
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def as_optional_utc(value: Optional[datetime]) -> Optional[datetime]:
+    return as_utc(value) if value is not None else None
+
+
 class JobStatus(str, Enum):
     """Lifecycle states for a WatchJob.
 
@@ -219,9 +236,9 @@ class WatchJobRead(SQLModel):
             auto_book=job.auto_book,
             enable_monitoring=job.enable_monitoring,
             interval_minutes=job.interval_minutes,
-            next_check_at=job.next_check_at,
-            created_at=job.created_at,
-            last_checked_at=job.last_checked_at,
+            next_check_at=as_optional_utc(job.next_check_at),
+            created_at=as_utc(job.created_at),
+            last_checked_at=as_optional_utc(job.last_checked_at),
             last_result=last_result,
             last_artifact_png=png_url,
             last_artifact_html=html_url,
