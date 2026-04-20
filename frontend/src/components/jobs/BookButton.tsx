@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { jobsApi, type WatchJob } from '@/lib/api'
-import { jobAllFullyAvailable } from '@/lib/availability'
+import { getDisplayStatus, jobAllFullyAvailable } from '@/lib/availability'
 import { useJobsStore } from '@/store/jobs'
 import { Button } from '@/components/ui/button'
 
@@ -52,16 +52,19 @@ export function BookButton({
     },
   })
 
-  // Clear the pending flag once the server-side status resolves. We watch
-  // `job.status` from react-query's 5s poll: HOLD_PLACED means the hold
-  // landed (success); anything terminal or a return to PAUSED means the
-  // hold worker finished without placing a hold (failure).
+  const displayStatus = getDisplayStatus(job, pendingBookings)
+
+  // Clear the pending flag once the server-side status resolves. Both
+  // 'checking' and 'attempting_hold' mean the backend is still mid-flight,
+  // so we leave the flag set for both. Anything else means the worker
+  // finished — either HOLD_PLACED (success) or back to PAUSED/WAITING
+  // (failure).
   useEffect(() => {
     if (!isPendingLocal) return
-    if (job.status !== 'checking') {
+    if (displayStatus !== 'checking' && displayStatus !== 'attempting_hold') {
       clearBooking(job.id)
     }
-  }, [isPendingLocal, job.status, job.id, clearBooking])
+  }, [isPendingLocal, displayStatus, job.id, clearBooking])
 
   const showBooking = isPendingLocal || mutation.isPending
   const stale = isCheckStale(job.last_checked_at)
@@ -69,10 +72,13 @@ export function BookButton({
   // Self-gate visibility so callers don't have to reproduce the logic.
   // Render when: (a) we think a book would succeed right now, (b) we're in
   // the middle of booking, or (c) a hold has landed and we want to be the
-  // pay entry point. Never render for terminal states (completed, expired).
+  // pay entry point. Never render for terminal states (completed, expired),
+  // or when the hold worker is already running (attempting_hold).
   const isTerminal = job.status === 'booking_complete' || job.status === 'expired'
   const visible =
-    !isTerminal && (
+    !isTerminal
+    && displayStatus !== 'attempting_hold'
+    && (
       job.status === 'hold_placed'
       || showBooking
       || jobAllFullyAvailable(job)

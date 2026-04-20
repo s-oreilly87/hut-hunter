@@ -1,5 +1,16 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  ArrowRight,
+  CalendarDays,
+  CircleHelp,
+  Map,
+  MapPinned,
+  MoonStar,
+  Plus,
+  Settings2,
+  Users,
+} from 'lucide-react'
 import {
   jobsApi, adaptersApi, occupantsApi,
   type ParamField, type WatchJob, type Occupant,
@@ -15,6 +26,12 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 // ---------------------------------------------------------------------------
 // Field rendering
@@ -201,6 +218,133 @@ function buildParamsFromJob(job: WatchJob): Record<string, unknown> {
   return out
 }
 
+function FormSection({
+  title,
+  tooltip,
+  children,
+}: {
+  title: string
+  tooltip: string
+  children: ReactNode
+}) {
+  return (
+    <section className="rounded-[1.5rem] border border-border/70 bg-secondary/35 p-4 sm:p-5">
+      <div className="mb-4">
+        <SectionHeading title={title} tooltip={tooltip} />
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
+  )
+}
+
+function SettingRow({
+  title,
+  tooltip,
+  children,
+}: {
+  title: string
+  tooltip: string
+  children: ReactNode
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/70 px-4 py-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <SectionHeading title={title} tooltip={tooltip} tone="body" />
+        </div>
+        <div className="sm:pt-1">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+function InfoTooltip({
+  content,
+  align = 'center',
+}: {
+  content: string
+  align?: 'center' | 'start' | 'end'
+}) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="More information"
+          >
+            <CircleHelp className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent align={align} side="bottom">
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+function SectionHeading({
+  title,
+  tooltip,
+  tone = 'section',
+}: {
+  title: string
+  tooltip: string
+  tone?: 'section' | 'body'
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <h3 className={tone === 'section'
+        ? 'text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground'
+        : 'font-medium text-foreground'}
+      >
+        {title}
+      </h3>
+      <InfoTooltip content={tooltip} />
+    </div>
+  )
+}
+
+function renderParamIcon(fieldKey: string) {
+  switch (fieldKey) {
+    case 'track':
+      return <Map className="h-3.5 w-3.5 text-muted-foreground" />
+    case 'date':
+      return <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+    case 'nights':
+      return <MoonStar className="h-3.5 w-3.5 text-muted-foreground" />
+    case 'people':
+    case 'occupants':
+      return <Users className="h-3.5 w-3.5 text-muted-foreground" />
+    case 'direction':
+      return <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+    case 'sites':
+      return <MapPinned className="h-3.5 w-3.5 text-muted-foreground" />
+    default:
+      return null
+  }
+}
+
+function ParamLabel({
+  fieldKey,
+  children,
+  required = false,
+}: {
+  fieldKey: string
+  children: ReactNode
+  required?: boolean
+}) {
+  return (
+    <Label className="inline-flex items-center gap-2">
+      {renderParamIcon(fieldKey)}
+      <span>{children}</span>
+      {required && <span className="ml-1 text-destructive">*</span>}
+    </Label>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Shared controlled dialog
 // ---------------------------------------------------------------------------
@@ -224,7 +368,7 @@ function JobFormDialog({
   // get "fresh state per open" without a prop-sync effect.
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[92vh] sm:max-w-3xl overflow-y-auto">
         <JobFormBody
           key={`${mode}:${initialJob?.id ?? 'new'}`}
           mode={mode}
@@ -463,162 +607,194 @@ function JobFormBody({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-4 py-2">
-
-        {/* Job name */}
-        <div className="space-y-1">
-          <Label>Job Name</Label>
-          <Input
-            placeholder="e.g. Routeburn Falls Hut – Apr 2026"
-            value={name}
-            onChange={e => setName(e.target.value)}
+        <div className="flex items-center gap-2">
+          <DialogTitle>{title}</DialogTitle>
+          <InfoTooltip
+            content="Set the adapter inputs, choose the saved occupants, and decide whether this job should monitor on a schedule or only run on demand."
+            align="start"
           />
         </div>
-
-          {/* Adapter selector — disabled in edit mode since params are
-              adapter-specific. To change adapters, delete + recreate. */}
-          <div className="space-y-1">
-            <Label>Adapter</Label>
-            <Select
-              value={selectedAdapterId}
-              onValueChange={handleAdapterChange}
-              disabled={mode === 'edit'}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select booking site" />
-              </SelectTrigger>
-              <SelectContent>
-                {adapters.map(a => (
-                  <SelectItem key={a.adapter_id} value={a.adapter_id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Dynamic param fields */}
-          {selectedAdapter && selectedAdapter.param_fields.map(field => {
-            // Occupants are managed via the roster selector, not a raw input
-            if (field.key === 'occupants') {
-              const peopleCount = parseInt(String(params.people ?? '0'), 10)
-              return (
-                <div key={field.key} className="space-y-1">
-                  <Label>
-                    Occupants
-                    <span className="text-destructive ml-1">*</span>
-                  </Label>
-                  <OccupantSelector
-                    selectedIds={selectedOccupantIds}
-                    onChange={setSelectedOccupantIds}
-                    required={peopleCount}
-                  />
-                </div>
-              )
-            }
-
-            const opts = resolveOptions(field, params)
-            // Hide dependent selects when the filter value has no valid options
-            // (e.g. Milford Track has no direction). Still render when the
-            // parent value hasn't been chosen yet (opts === []), so the user
-            // sees a disabled/empty select rather than a vanished field.
-            if (
-              field.type === 'select'
-              && field.filter_by
-              && !field.required
-              && (!opts || opts.length === 0)
-              && params[field.filter_by]
-            ) {
-              return null
-            }
-            return (
-              <div key={field.key} className="space-y-1">
-                <Label>
-                  {field.label}
-                  {field.required && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                <ParamFieldInput
-                  field={field}
-                  value={params[field.key]}
-                  onChange={val => handleParamChange(field.key, val)}
-                  options={opts}
-                />
-              </div>
-            )
-          })}
-
-          {/* Auto book toggle */}
-          {selectedAdapter && (
-            <div className="flex items-center gap-2 pt-1">
-              <Switch
-                checked={autoBook}
-                onCheckedChange={setAutoBook}
-                id="auto-book"
-              />
-              <Label htmlFor="auto-book">
-                Auto-book when available
-                <span className="text-muted-foreground text-xs ml-2">
-                  (requires stored session)
-                </span>
-              </Label>
-            </div>
-          )}
-
-          {/* Monitoring toggle + interval. Interval input is visible but
-              disabled when monitoring is off — less jarring than popping in
-              and out of the layout. */}
-          {selectedAdapter && (
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={enableMonitoring}
-                  onCheckedChange={setEnableMonitoring}
-                  id="enable-monitoring"
-                />
-                <Label htmlFor="enable-monitoring">
-                  Enable monitoring
-                  <span className="text-muted-foreground text-xs ml-2">
-                    (auto-check on a schedule)
-                  </span>
-                </Label>
-              </div>
-              <div className="flex items-center gap-2 pl-10">
-                <Label
-                  htmlFor="interval-minutes"
-                  className={enableMonitoring ? '' : 'text-muted-foreground'}
-                >
-                  Check every
-                </Label>
-                <Input
-                  id="interval-minutes"
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={intervalMinutes}
-                  onChange={e => setIntervalMinutes(e.target.value)}
-                  disabled={!enableMonitoring}
-                  className="w-20"
-                />
-                <span
-                  className={`text-sm ${enableMonitoring ? '' : 'text-muted-foreground'}`}
-                >
-                  minutes
-                </span>
-              </div>
-            </div>
-          )}
-
-          {error && <p className="text-destructive text-xs">{error}</p>}
-
-          <Button
-            className="w-full"
-            onClick={handleSubmit}
-            disabled={!name || !selectedAdapterId || pending}
+      </DialogHeader>
+      <div className="grid gap-4 py-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
+        <div className="space-y-4">
+          <FormSection
+            title="Job Setup"
+            tooltip="Name the workflow and pick the booking adapter it should target."
           >
-            {pending ? submitBusy : submitIdle}
-          </Button>
+            <div className="space-y-1.5">
+              <Label>Job Name</Label>
+              <Input
+                autoFocus
+                placeholder="e.g. Routeburn Falls Hut – Apr 2026"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Label>Adapter</Label>
+                {mode === 'edit' && (
+                  <InfoTooltip content="Adapter choice is locked for existing jobs because the param schema is adapter-specific." />
+                )}
+              </div>
+              <Select
+                value={selectedAdapterId}
+                onValueChange={handleAdapterChange}
+                disabled={mode === 'edit'}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select booking site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {adapters.map(a => (
+                    <SelectItem key={a.adapter_id} value={a.adapter_id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </FormSection>
+
+          {selectedAdapter && (
+            <FormSection
+              title="Booking Inputs"
+              tooltip="These fields mirror the adapter’s required search and booking parameters."
+            >
+              {selectedAdapter.param_fields.map(field => {
+                if (field.key === 'occupants') {
+                  const peopleCount = parseInt(String(params.people ?? '0'), 10)
+                  return (
+                    <div key={field.key} className="space-y-1.5">
+                      <ParamLabel fieldKey={field.key} required>
+                        Occupants
+                      </ParamLabel>
+                      <OccupantSelector
+                        selectedIds={selectedOccupantIds}
+                        onChange={setSelectedOccupantIds}
+                        required={peopleCount}
+                      />
+                    </div>
+                  )
+                }
+
+                const opts = resolveOptions(field, params)
+                if (
+                  field.type === 'select'
+                  && field.filter_by
+                  && !field.required
+                  && (!opts || opts.length === 0)
+                  && params[field.filter_by]
+                ) {
+                  return null
+                }
+
+                return (
+                  <div key={field.key} className="space-y-1.5">
+                    <ParamLabel fieldKey={field.key} required={field.required}>
+                      {field.label}
+                    </ParamLabel>
+                    <ParamFieldInput
+                      field={field}
+                      value={params[field.key]}
+                      onChange={val => handleParamChange(field.key, val)}
+                      options={opts}
+                    />
+                  </div>
+                )
+              })}
+            </FormSection>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <FormSection
+            title="Automation"
+            tooltip="Control whether the job books automatically and how aggressively it monitors."
+          >
+            {selectedAdapter ? (
+              <>
+                <SettingRow
+                  title="Auto-book when available"
+                  tooltip="Lets the worker continue directly into the booking flow instead of stopping at manual confirmation."
+                >
+                  <Switch
+                    checked={autoBook}
+                    onCheckedChange={setAutoBook}
+                    id="auto-book"
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  title="Enable monitoring"
+                  tooltip="Keep polling this job on a schedule instead of only checking when you trigger it manually."
+                >
+                  <Switch
+                    checked={enableMonitoring}
+                    onCheckedChange={setEnableMonitoring}
+                    id="enable-monitoring"
+                  />
+                </SettingRow>
+
+                <div className="rounded-2xl border border-border/70 bg-background/70 px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor="interval-minutes"
+                      className={enableMonitoring ? '' : 'text-muted-foreground'}
+                    >
+                      Check interval
+                    </Label>
+                    <InfoTooltip content="The backend will clamp invalid values on submit, but keeping a sane interval here keeps scheduled checks predictable." />
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <Input
+                      id="interval-minutes"
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={intervalMinutes}
+                      onChange={e => setIntervalMinutes(e.target.value)}
+                      disabled={!enableMonitoring}
+                      className="w-24"
+                    />
+                    <span
+                      className={`text-sm ${enableMonitoring ? 'text-foreground' : 'text-muted-foreground'}`}
+                    >
+                      minutes
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 px-4 py-4">
+                <p className="text-sm text-muted-foreground">
+                  Select an adapter first to reveal its booking fields and automation settings.
+                </p>
+              </div>
+            )}
+          </FormSection>
+
+          <FormSection
+            title="Submit"
+            tooltip="Review validation errors here before creating or updating the job."
+          >
+            {error && (
+              <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            <Button
+              className="w-full"
+              onClick={handleSubmit}
+              disabled={!name || !selectedAdapterId || pending}
+            >
+              <Settings2 className="h-4 w-4" />
+              {pending ? submitBusy : submitIdle}
+            </Button>
+          </FormSection>
+        </div>
       </div>
     </>
   )
@@ -632,7 +808,10 @@ export function CreateJobDialog() {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button onClick={() => setOpen(true)}>New Watch Job</Button>
+      <Button onClick={() => setOpen(true)} className="sm:min-w-40">
+        <Plus className="h-4 w-4" />
+        New Watch Job
+      </Button>
       <JobFormDialog open={open} onOpenChange={setOpen} mode="create" />
     </>
   )

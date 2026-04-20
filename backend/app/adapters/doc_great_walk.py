@@ -618,11 +618,25 @@ class DocGreatWalkAdapter(BaseAdapter):
                 message="Did not reach Reservation Details page",
             )
 
-        # --- 7. Click Book Great Walk ---
+        # --- 7. Expand occupant details, snapshot, then click Book Great Walk ---
         try:
             book_link = page.locator("#mainContent_bReserve")
             await book_link.wait_for(state="visible", timeout=15_000)
-            await self.snapshot(page, "reservation_details")
+
+            # Open the View Occupants modal so the snapshot captures what was
+            # actually saved rather than just the per-night grid.
+            view_occ_btn = page.locator("#aViewOccupant")
+            if await view_occ_btn.count() > 0:
+                await view_occ_btn.click()
+                logger.info("Opened View Occupants modal on Reservation Details page")
+                await page.locator("#myModal_occu").wait_for(state="visible", timeout=5_000)
+                await page.wait_for_timeout(300)
+                await self.snapshot(page, "reservation_details")
+                await page.locator("#myModal_occu .close").first.click()
+                await page.locator("#myModal_occu").wait_for(state="hidden", timeout=5_000)
+            else:
+                await self.snapshot(page, "reservation_details")
+
             await book_link.click()
             logger.info("Clicked Book Great Walk")
         except PlaywrightTimeoutError:
@@ -677,8 +691,6 @@ class DocGreatWalkAdapter(BaseAdapter):
                 held=False,
                 message="Did not reach payment page",
             )
-
-        await self.snapshot(page, "payment_page_success")
 
         # --- 9. Store cart session ---
         from app.core.crypto import encrypt

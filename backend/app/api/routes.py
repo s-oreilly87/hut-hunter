@@ -100,9 +100,12 @@ async def create_job(
         # immediate enqueue below covers the first run without relying on the
         # scheduler tick.
         next_check_at=(now + timedelta(minutes=interval)) if monitoring else None,
-        # WAITING reads better than PAUSED when monitoring is on and a check
-        # is about to fire. The worker flips to CHECKING when it picks it up.
-        status=JobStatus.WAITING.value if monitoring else JobStatus.PAUSED.value,
+        # When monitoring is on we immediately dispatch a first check (below),
+        # so start in CHECKING — mirrors trigger_job and the monitoring-on
+        # path in update_job. The scheduler only ever sees WAITING, so using
+        # CHECKING here prevents it from double-dispatching before the first
+        # check completes. Jobs created without monitoring start PAUSED.
+        status=JobStatus.CHECKING.value if monitoring else JobStatus.PAUSED.value,
     )
     session.add(job)
     await session.commit()
@@ -173,6 +176,8 @@ async def update_job(
         # doesn't show stale availability alongside the new config.
         job.last_result = None
         job.last_checked_at = None
+        job.last_artifact = None
+        job.artifact_history = None
 
     # Monitoring changes — capture the "before" state first so we can detect
     # OFF→ON transitions and interval changes precisely.

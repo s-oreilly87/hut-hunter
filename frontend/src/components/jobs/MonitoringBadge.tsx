@@ -3,9 +3,11 @@ import { Pause, Play } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { jobsApi, type WatchJob } from '@/lib/api'
+import type { DisplayStatus } from '@/lib/availability'
 
 interface Props {
   job: WatchJob
+  displayStatus: DisplayStatus
 }
 
 // Pad a positive number of seconds as MM:SS. Negative values render as 00:00
@@ -27,7 +29,7 @@ function formatCountdown(seconds: number): string {
 // Merging the toggle into the badge avoids the visual noise of a separate
 // pause/monitor button sitting next to a status badge that describes the
 // same thing.
-export function MonitoringBadge({ job }: Props) {
+export function MonitoringBadge({ job, displayStatus }: Props) {
   const qc = useQueryClient()
 
   // Tick every second so the countdown updates smoothly between the 5s
@@ -47,18 +49,21 @@ export function MonitoringBadge({ job }: Props) {
     },
   })
 
-  // Terminal states — monitoring is permanently off. Hide entirely.
+  // Terminal states — monitoring is permanently off. Fall through to render
+  // the static "Unmonitored" badge so the column is never empty.
   if (
-    job.status === 'booking_complete'
-    || job.status === 'cancelled'
-    || job.status === 'expired'
+    displayStatus === 'booking_complete'
+    || displayStatus === 'cancelled'
+    || displayStatus === 'expired'
   ) {
-    return null
+    return (
+      <Badge variant="secondary">Unmonitored</Badge>
+    )
   }
 
   // Live hold — monitoring is on but paused until cart expires. Not
   // toggleable (user should cancel the hold to resume monitoring).
-  if (job.status === 'hold_placed') {
+  if (displayStatus === 'hold_placed') {
     return (
       <Badge variant="outline" className="border-amber-500 text-amber-600">
         Paused (hold active)
@@ -66,9 +71,19 @@ export function MonitoringBadge({ job }: Props) {
     )
   }
 
+  // Hold worker is running — transient, not toggleable. StatusBadge already
+  // shows "Securing Hold…" so this badge stays quiet.
+  if (displayStatus === 'attempting_hold') {
+    return (
+      <Badge variant="outline" className="border-amber-500 text-amber-600">
+        Paused (securing hold)
+      </Badge>
+    )
+  }
+
   // Currently running a check. Not toggleable — it'll transition on its
   // own once the worker finishes.
-  if (job.status === 'checking') {
+  if (displayStatus === 'checking') {
     return (
       <Badge
         variant="default"
