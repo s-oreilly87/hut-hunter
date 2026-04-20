@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  Activity,
   AlertTriangle,
   CheckCircle2,
   CircleHelp,
@@ -8,8 +9,11 @@ import {
   ImageIcon,
   LayoutDashboard,
   Loader2,
+  Pause,
+  Play,
   Search,
   Settings2,
+  Stamp,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -18,6 +22,7 @@ import {
   jobsApi,
   type AvailabilityResult,
   type LastResultEntry,
+  type WatchJob,
 } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { Badge } from '@/components/ui/badge'
@@ -30,13 +35,13 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
-import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { EditJobDialog } from '@/components/jobs/CreateJobDialog'
 import {
   BookButton,
   PartialAvailabilityHelp,
 } from '@/components/jobs/BookButton'
 import {
+  type DisplayStatus,
   getDisplayStatus,
   jobHasPartialAvailability,
 } from '@/lib/availability'
@@ -529,6 +534,118 @@ function ArtifactGallery({
   )
 }
 
+function formatDateTime(value: string | null): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatCountdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds))
+  const mm = Math.floor(s / 60).toString().padStart(2, '0')
+  const ss = (s % 60).toString().padStart(2, '0')
+  return `${mm}:${ss}`
+}
+
+// ---------------------------------------------------------------------------
+// MonitoringSection — always rendered at the top of the JobCard body.
+// Shows last-checked time, auto-book state, monitoring toggle, interval, and
+// live countdown. Toggle is suppressed during transient backend states.
+// ---------------------------------------------------------------------------
+function MonitoringSection({
+  job,
+  displayStatus,
+}: {
+  job: WatchJob
+  displayStatus: DisplayStatus
+}) {
+  const qc = useQueryClient()
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const mutation = useMutation({
+    mutationFn: (next: boolean) => jobsApi.update(job.id, { enable_monitoring: next }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+  })
+
+  if (displayStatus === 'booking_complete') return null
+
+  // Terminal and transient states — toggle is not user-actionable.
+  const isTerminal = (
+    displayStatus === 'cancelled'
+    || displayStatus === 'expired'
+  )
+  const isTransient = (
+    displayStatus === 'checking'
+    || displayStatus === 'attempting_hold'
+    || displayStatus === 'hold_placed'
+    || displayStatus === 'booking'
+  )
+  const showToggle = !isTerminal && !isTransient
+
+  const isOn = job.enable_monitoring
+  const countdownSeconds = isOn && job.next_check_at
+    ? (new Date(job.next_check_at).getTime() - nowMs) / 1000
+    : null
+
+  return (
+    <section>
+      <div className="rounded-[1.25rem] border border-border/70 bg-background/80 px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Monitoring
+            </h3>
+            <Badge variant={job.auto_book ? 'default' : 'outline'}>
+              {job.auto_book ? 'Auto-book' : 'Check only'}
+            </Badge>
+          </div>
+          {showToggle && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate(!isOn)}
+            >
+              {isOn
+                ? <><Pause className="h-3.5 w-3.5" /> Pause</>
+                : <><Play className="h-3.5 w-3.5" /> Resume</>
+              }
+            </Button>
+          )}
+        </div>
+
+        <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+          <p>{formatRelativeTime(job.last_checked_at)}</p>
+          {isOn && (
+            <p>
+              Every {job.interval_minutes} min
+              {countdownSeconds !== null && (
+                <>
+                  {' · Next check in '}
+                  <span className="tabular-nums font-medium text-foreground">
+                    {formatCountdown(countdownSeconds)}
+                  </span>
+                </>
+              )}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export function JobCard() {
   const queryClient = useQueryClient()
   const {
@@ -654,10 +771,6 @@ export function JobCard() {
                     artifactUrl={job.last_artifact_png}
                   />
                 )}
-                <MonitoringBadge job={job} displayStatus={displayStatus} />
-                <Badge variant={job.auto_book ? 'default' : 'outline'}>
-                  {job.auto_book ? 'Auto-book' : 'Manual'}
-                </Badge>
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
                 <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
@@ -677,7 +790,7 @@ export function JobCard() {
             </div>
 
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
+              <div className="min-w-0 flex-1">
                 <CardTitle className="text-xl tracking-tight">{job.name}</CardTitle>
                 <CardDescription className="mt-2 max-w-3xl text-sm leading-5">
                   <HeaderParamSummary params={job.params} />
@@ -706,36 +819,20 @@ export function JobCard() {
         </CardHeader>
 
         <CardContent className="space-y-6 px-6 py-6">
+          <MonitoringSection job={job} displayStatus={displayStatus} />
+
           {job.status === 'booking_complete' && (
             <section className="space-y-3">
               <div className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-primary" />
+                <Stamp className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Booking Complete
                 </h3>
               </div>
               <div className="rounded-[1.25rem] border border-emerald-500/25 bg-emerald-500/8 px-4 py-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-base font-medium tracking-tight text-foreground">
-                      This booking flow is finished.
-                    </p>
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      Open the receipt snapshot to verify the confirmation details captured at completion.
-                    </p>
-                  </div>
-                  {receiptArtifact?.png_url && (
-                    <a
-                      href={receiptArtifact.png_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                    >
-                      <ImageIcon className="h-4 w-4" />
-                      Open Receipt
-                    </a>
-                  )}
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  Booking flow completed at {formatDateTime(job.last_checked_at)}
+                </p>
               </div>
               {receiptArtifact && <ArtifactGallery artifacts={[receiptArtifact]} />}
             </section>

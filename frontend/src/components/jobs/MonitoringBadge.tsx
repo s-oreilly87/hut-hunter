@@ -49,13 +49,16 @@ export function MonitoringBadge({ job, displayStatus }: Props) {
     },
   })
 
-  // Terminal states — monitoring is permanently off. Hide entirely.
+  // Terminal states — monitoring is permanently off. Fall through to render
+  // the static "Unmonitored" badge so the column is never empty.
   if (
     displayStatus === 'booking_complete'
     || displayStatus === 'cancelled'
     || displayStatus === 'expired'
   ) {
-    return null
+    return (
+      <Badge variant="secondary">Unmonitored</Badge>
+    )
   }
 
   // Live hold — monitoring is on but paused until cart expires. Not

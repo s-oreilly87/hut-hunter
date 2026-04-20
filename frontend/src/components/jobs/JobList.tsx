@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, Clock3 } from 'lucide-react'
+import { ChevronDown, Clock3, Stamp } from 'lucide-react'
 import { adaptersApi, type WatchJob } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { getDisplayStatus } from '@/lib/availability'
@@ -55,6 +55,17 @@ function formatTimeAgo(value: string | null): string {
   }
 
   return 'just now'
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function formatStartDate(value: unknown): string | null {
@@ -294,30 +305,38 @@ export function JobList() {
                             </p>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2">
-                            {showStatusBadge && (
+                          {showStatusBadge && (
+                            <div>
                               <StatusBadge
                                 status={displayStatus}
                                 jobId={job.id}
                                 artifactUrl={job.last_artifact_png}
                               />
-                            )}
-                            <MonitoringBadge job={job} displayStatus={displayStatus} />
-                            <Badge variant={job.auto_book ? 'default' : 'outline'}>
-                              {job.auto_book ? 'Auto-book' : 'Manual'}
-                            </Badge>
-                          </div>
-
-                          <dl className="grid gap-3 rounded-2xl bg-secondary/55 p-3 text-sm">
-                            <div>
-                              <dt className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                                Last Checked
-                              </dt>
-                              <dd className="mt-1 font-medium text-foreground">
-                                {formatTimeAgo(job.last_checked_at)}
-                              </dd>
                             </div>
-                          </dl>
+                          )}
+
+                          <div className="rounded-2xl bg-secondary/55 px-3 py-3 space-y-2">
+                            {displayStatus === 'booking_complete' ? (
+                              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                <Stamp className="h-3.5 w-3.5 shrink-0" />
+                                {formatDateTime(job.last_checked_at)}
+                              </p>
+                            ) : (
+                              <>
+                                <p className="text-sm text-muted-foreground">
+                                  {formatTimeAgo(job.last_checked_at)}
+                                </p>
+                                <div>
+                                  <MonitoringBadge job={job} displayStatus={displayStatus} />
+                                </div>
+                                <div>
+                                  <Badge variant={job.auto_book ? 'default' : 'outline'}>
+                                    {job.auto_book ? 'Auto-book' : 'Check only'}
+                                  </Badge>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </button>
                     )
@@ -367,27 +386,40 @@ export function JobList() {
                                 </p>
                               </div>
                             </TableCell>
-                            <TableCell className="w-[32%] whitespace-normal align-top">
-                              <div className="space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {showStatusBadge && (
-                                    <StatusBadge
-                                      status={displayStatus}
-                                      jobId={job.id}
-                                      artifactUrl={job.last_artifact_png}
-                                    />
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <MonitoringBadge job={job} displayStatus={displayStatus} />
-                                  <Badge variant={job.auto_book ? 'default' : 'outline'}>
-                                    {job.auto_book ? 'Auto-book' : 'Manual'}
-                                  </Badge>
-                                </div>
+                            <TableCell className="w-[32%]">
+                              <div className="flex h-full items-center justify-center">
+                                {showStatusBadge && (
+                                  <StatusBadge
+                                    status={displayStatus}
+                                    jobId={job.id}
+                                    artifactUrl={job.last_artifact_png}
+                                  />
+                                )}
                               </div>
                             </TableCell>
-                            <TableCell className="pr-4 text-sm text-muted-foreground">
-                              {formatTimeAgo(job.last_checked_at)}
+                            <TableCell className="pr-4 align-middle">
+                              <div className="space-y-2">
+                                {displayStatus === 'booking_complete' ? (
+                                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                    <Stamp className="h-3.5 w-3.5 shrink-0" />
+                                    {formatDateTime(job.last_checked_at)}
+                                  </p>
+                                ) : (
+                                  <>
+                                    <p className="text-sm text-muted-foreground">
+                                      {formatTimeAgo(job.last_checked_at)}
+                                    </p>
+                                    <div>
+                                      <MonitoringBadge job={job} displayStatus={displayStatus} />
+                                    </div>
+                                    <div>
+                                      <Badge variant={job.auto_book ? 'default' : 'outline'}>
+                                        {job.auto_book ? 'Auto-book' : 'Check only'}
+                                      </Badge>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         )
