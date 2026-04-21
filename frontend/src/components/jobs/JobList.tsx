@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, Clock3, Stamp } from 'lucide-react'
 import { adaptersApi, type WatchJob } from '@/lib/api'
@@ -151,9 +151,19 @@ function getJobMetaLine(job: WatchJob): string {
   return 'Party details not set'
 }
 
-export function JobList() {
+export function JobList({
+  collapseGroupsByDefault = false,
+  showIndexes = false,
+  onJobSelect,
+}: {
+  collapseGroupsByDefault?: boolean
+  showIndexes?: boolean
+  onJobSelect?: (jobId: string) => void
+} = {}) {
   const { selectedJobId, setSelectedJobId, pendingBookings } = useJobsStore()
-  const [collapsedAdapters, setCollapsedAdapters] = useState<Set<string>>(new Set())
+  const [expandedAdapters, setExpandedAdapters] = useState<Set<string> | null>(null)
+  const jobRefs = useRef(new Map<string, HTMLDivElement | HTMLTableRowElement>())
+  const hasAutoScrolledRef = useRef(false)
 
   const { data: jobs = [], isLoading } = useJobsQuery({
     select: (data) =>
@@ -214,17 +224,80 @@ export function JobList() {
     }))
   }, [adapterNameById, jobs])
 
+  const groupsWithIndexes = useMemo(() => {
+    let startIndex = 0
+
+    return groupedJobs.map((group) => {
+      const next = {
+        ...group,
+        startIndex,
+      }
+      startIndex += group.jobs.length
+      return next
+    })
+  }, [groupedJobs])
+
+  const selectedGroupId = useMemo(
+    () => groupedJobs.find((group) => group.jobs.some((job) => job.id === selectedJobId))?.adapterId ?? null,
+    [groupedJobs, selectedJobId],
+  )
+
+  const effectiveExpandedAdapters = useMemo(() => {
+    if (expandedAdapters) return expandedAdapters
+
+    const defaultExpanded = collapseGroupsByDefault
+      ? new Set<string>()
+      : new Set(groupedJobs.map((group) => group.adapterId))
+
+    if (selectedGroupId) {
+      defaultExpanded.add(selectedGroupId)
+    }
+
+    return defaultExpanded
+  }, [collapseGroupsByDefault, expandedAdapters, groupedJobs, selectedGroupId])
+
   const toggleAdapter = (adapterId: string) => {
-    setCollapsedAdapters((current) => {
-      const next = new Set(current)
+    setExpandedAdapters((current) => {
+      const next = new Set(
+        current
+        ?? effectiveExpandedAdapters,
+      )
+
       if (next.has(adapterId)) {
         next.delete(adapterId)
       } else {
         next.add(adapterId)
       }
+
       return next
     })
   }
+
+  const selectJob = (jobId: string) => {
+    setSelectedJobId(jobId)
+    hasAutoScrolledRef.current = false
+    onJobSelect?.(jobId)
+  }
+
+  useEffect(() => {
+    if (!selectedJobId) {
+      hasAutoScrolledRef.current = false
+      return
+    }
+
+    const selectedNode = jobRefs.current.get(selectedJobId)
+    if (!selectedNode || hasAutoScrolledRef.current) return
+
+    hasAutoScrolledRef.current = true
+    const timeoutId = window.setTimeout(() => {
+      selectedNode.scrollIntoView({
+        block: 'start',
+        behavior: 'auto',
+      })
+    }, 40)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [selectedJobId, effectiveExpandedAdapters, groupedJobs])
 
   if (isLoading) {
     return (
@@ -258,8 +331,8 @@ export function JobList() {
 
   return (
     <div className="space-y-3">
-      {groupedJobs.map((group) => {
-        const isExpanded = !collapsedAdapters.has(group.adapterId)
+      {groupsWithIndexes.map((group) => {
+        const isExpanded = effectiveExpandedAdapters.has(group.adapterId)
 
         return (
           <section
@@ -290,32 +363,46 @@ export function JobList() {
             {isExpanded && (
               <div className="px-3 py-3 sm:px-4">
                 <div className="grid gap-3 lg:hidden">
-                  {group.jobs.map((job) => {
+                  {group.jobs.map((job, jobOffset) => {
                     const displayStatus = getDisplayStatus(job, pendingBookings)
                     const isSelected = selectedJobId === job.id
                     const showStatusBadge = displayStatus !== 'checking'
+                    const jobIndex = group.startIndex + jobOffset + 1
 
                     return (
                       <div
                         key={job.id}
                         role="button"
                         tabIndex={0}
+                        data-job-id={job.id}
+                        ref={(node) => {
+                          if (node) {
+                            jobRefs.current.set(job.id, node)
+                          } else {
+                            jobRefs.current.delete(job.id)
+                          }
+                        }}
                         className={[
                           'w-full rounded-[1.35rem] border px-4 py-4 text-left transition-all cursor-pointer',
                           isSelected
                             ? 'border-primary/45 bg-primary/8 ring-2 ring-primary/20 shadow-[0_22px_55px_-34px_rgba(22,53,40,0.7)]'
                             : 'border-border/80 bg-background/75 hover:border-primary/20 hover:bg-background',
                         ].join(' ')}
-                        onClick={() => setSelectedJobId(job.id)}
+                        onClick={() => selectJob(job.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
-                            setSelectedJobId(job.id)
+                            selectJob(job.id)
                           }
                         }}
                       >
                         <div className="space-y-4">
                           <div className="space-y-1">
+                            {showIndexes && (
+                              <span className="inline-flex rounded-full border border-border/80 bg-secondary/55 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                {jobIndex.toString().padStart(2, '0')}
+                              </span>
+                            )}
                             <h3 className="font-semibold tracking-tight text-foreground">
                               {getJobTitle(job)}
                             </h3>
@@ -375,19 +462,28 @@ export function JobList() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {group.jobs.map((job) => {
+                      {group.jobs.map((job, jobOffset) => {
                         const displayStatus = getDisplayStatus(job, pendingBookings)
                         const isSelected = selectedJobId === job.id
                         const showStatusBadge = displayStatus !== 'checking'
+                        const jobIndex = group.startIndex + jobOffset + 1
 
                         return (
                           <TableRow
                             key={job.id}
+                            data-job-id={job.id}
+                            ref={(node) => {
+                              if (node) {
+                                jobRefs.current.set(job.id, node)
+                              } else {
+                                jobRefs.current.delete(job.id)
+                              }
+                            }}
                             className={[
                               'cursor-pointer border-border/70 bg-background/60 transition-colors',
                               isSelected ? 'bg-primary/10 hover:bg-primary/10' : '',
                             ].join(' ')}
-                            onClick={() => setSelectedJobId(job.id)}
+                            onClick={() => selectJob(job.id)}
                           >
                             <TableCell className={[
                               'relative w-[48%] pl-4 whitespace-normal align-top',
@@ -397,6 +493,11 @@ export function JobList() {
                             ].join(' ')}
                             >
                               <div className="space-y-1">
+                                {showIndexes && (
+                                  <span className="inline-flex rounded-full border border-border/80 bg-secondary/55 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                    {jobIndex.toString().padStart(2, '0')}
+                                  </span>
+                                )}
                                 <p className="font-medium tracking-tight text-foreground">
                                   {getJobTitle(job)}
                                 </p>
