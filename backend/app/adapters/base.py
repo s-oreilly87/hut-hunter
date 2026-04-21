@@ -50,6 +50,11 @@ class ParamField:
     # the directions valid for the currently-selected track.
     filter_by: str | None = None
     options_by: dict[str, list[str]] | None = None
+    # When set, the frontend renders a grouped <SelectGroup> dropdown where
+    # each entry is {"group": str, "items": [str, …]}. When options_tree is
+    # present, `options` should be the flattened item list so that older
+    # API clients that don't understand options_tree still work correctly.
+    options_tree: list[dict] | None = None
 
 
 class BaseAdapter(ABC):

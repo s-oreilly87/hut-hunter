@@ -157,7 +157,7 @@ function getAvailabilityCopy(entry: AvailabilityResult): {
         summary:
           totalAvailable != null && peopleWanted != null
             ? `${totalAvailable} spots cover the requested party of ${peopleWanted}.`
-            : 'Availability is open for this stop.',
+            : 'Availability is open for this site.',
         details,
       }
     case 'partially_available':
@@ -173,20 +173,20 @@ function getAvailabilityCopy(entry: AvailabilityResult): {
         summary:
           peopleWanted != null
             ? `No spots are available for the requested party of ${peopleWanted}.`
-            : 'No availability was found for this stop.',
+            : 'No availability was found for this site.',
         details,
       }
     default:
       if (entry.evidence.includes('not found in results table')) {
         return {
-          summary: 'This stop did not appear in the returned results.',
+          summary: 'This site did not appear in the returned results.',
           details: ['The latest search did not include this stop.'],
         }
       }
       if (entry.evidence.includes('No cell found')) {
         return {
           summary: 'The availability table was missing the expected date cell.',
-          details: ['The returned page shape did not match the requested stop and date.'],
+          details: ['The returned page shape did not match the requested site and date.'],
         }
       }
       return {
@@ -259,7 +259,7 @@ function GenericResultView({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     {titleize(key)}
                   </p>
-                  <p className="mt-1 break-words text-sm text-foreground">
+                  <p className="mt-1 wrap-break-word text-sm text-foreground">
                     {formatResultValue(value)}
                   </p>
                 </div>
@@ -305,6 +305,81 @@ function isAvailabilityResult(entry: LastResultEntry): entry is AvailabilityResu
     && entry !== null
     && 'site' in entry
     && 'status' in entry
+  )
+}
+
+function isHoldFailedEntry(entry: LastResultEntry): entry is Record<string, unknown> & { type: 'hold_failed' } {
+  return (
+    typeof entry === 'object'
+    && entry !== null
+    && 'type' in entry
+    && (entry as Record<string, unknown>).type === 'hold_failed'
+  )
+}
+
+function HoldFailedView({
+  entry,
+  artifactPng,
+  artifactHtml,
+}: {
+  entry: Record<string, unknown>
+  artifactPng?: string | null
+  artifactHtml?: string | null
+}) {
+  const errorMsg = typeof entry.error === 'string'
+    ? entry.error
+    : 'The hold attempt did not complete successfully.'
+
+  return (
+    <div className="rounded-[1.25rem] border border-rose-500/30 bg-rose-500/5 px-4 py-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600">
+          <XCircle className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="font-medium tracking-tight text-foreground">
+                Hold Failed
+              </p>
+              <p className="text-sm leading-6 text-foreground/85">
+                {errorMsg}
+              </p>
+            </div>
+            <Badge className="bg-rose-600 text-white hover:bg-rose-600">
+              Hold Failed
+            </Badge>
+          </div>
+
+          {(artifactPng || artifactHtml) && (
+            <div className="flex flex-wrap gap-2 border-t border-rose-500/15 pt-3">
+              {artifactPng && (
+                <a
+                  href={artifactPng}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  Screenshot
+                </a>
+              )}
+              {artifactHtml && (
+                <a
+                  href={artifactHtml}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  <FileCode2 className="h-4 w-4" />
+                  HTML
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -374,6 +449,17 @@ function LastResultView({
           )
         }
 
+        if (isHoldFailedEntry(entry)) {
+          return (
+            <HoldFailedView
+              key={index}
+              entry={entry as Record<string, unknown>}
+              artifactPng={artifactPng}
+              artifactHtml={artifactHtml}
+            />
+          )
+        }
+
         return (
           <GenericResultView
             key={index}
@@ -416,28 +502,42 @@ function HeaderParamSummary({
     )
   }
 
+  const facilityFields = fields.filter((field) => field.key === 'facility' || field.key === 'facility_park')
   const primaryFields = fields.filter((field) => field.key === 'track' || field.key === 'date')
   const secondaryFields = fields.filter(
     (field) => field.key === 'nights' || field.key === 'people' || field.key === 'direction',
   )
   const tertiaryFields = fields.filter((field) => field.key === 'sites')
-  const rows = [primaryFields, secondaryFields, tertiaryFields].filter((row) => row.length > 0)
+  const rows = [facilityFields, primaryFields, secondaryFields, tertiaryFields].filter((row) => row.length > 0)
 
   return (
     <div className="space-y-1.5">
       {rows.map((row, rowIndex) => (
         <div
           key={rowIndex}
-          className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm leading-5 text-muted-foreground"
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm leading-5 text-muted-foreground"
         >
           {row.map((field) => {
             const Icon = field.icon
+            const textClass = field.isSubtitle ? 'text-xs text-muted-foreground/70' : ''
 
             return (
-              <span key={field.key} className="inline-flex items-center gap-2">
-                <Icon className="h-3.5 w-3.5 text-foreground/65" />
+              <span key={field.key} className={`inline-flex items-center gap-2 ${textClass}`}>
+                <Icon className={field.isSubtitle ? 'h-3 w-3 text-foreground/45' : 'h-3.5 w-3.5 text-foreground/65'} />
                 <span className="sr-only">{field.label}: </span>
-                <span>{field.value}</span>
+                {field.href ? (
+                  <a
+                    href={field.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:underline underline-offset-2 decoration-muted-foreground/40 transition-colors hover:text-foreground"
+                  >
+                    {field.value}
+                  </a>
+                ) : (
+                  <span>{field.value}</span>
+                )}
               </span>
             )
           })}
@@ -554,15 +654,21 @@ function formatCountdown(totalSeconds: number): string {
 
 // ---------------------------------------------------------------------------
 // MonitoringSection — always rendered at the top of the JobCard body.
-// Shows last-checked time, auto-book state, monitoring toggle, interval, and
-// live countdown. Toggle is suppressed during transient backend states.
+// Shows last-checked time, auto-book state, monitoring toggle, interval, live
+// countdown, and the Check Now trigger button.
 // ---------------------------------------------------------------------------
 function MonitoringSection({
   job,
   displayStatus,
+  onTrigger,
+  triggerQueued,
+  hideTrigger,
 }: {
   job: WatchJob
   displayStatus: DisplayStatus
+  onTrigger: () => void
+  triggerQueued: boolean
+  hideTrigger: boolean
 }) {
   const qc = useQueryClient()
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -626,21 +732,37 @@ function MonitoringSection({
         </div>
 
         <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-          <p>{formatRelativeTime(job.last_checked_at)}</p>
+          {displayStatus === 'checking' ? (
+            <p>Checking now…</p>
+          ) : (
+            <p>{formatRelativeTime(job.last_checked_at)}</p>
+          )}
           {isOn && (
-            <p>
-              Every {job.interval_minutes} min
-              {countdownSeconds !== null && (
-                <>
-                  {' · Next check in '}
-                  <span className="tabular-nums font-medium text-foreground">
-                    {formatCountdown(countdownSeconds)}
-                  </span>
-                </>
-              )}
-            </p>
+            <p>Every {job.interval_minutes} min</p>
           )}
         </div>
+
+        {!hideTrigger && (
+          <div className="mt-3 pt-3 border-t border-border/50">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              disabled={triggerQueued || displayStatus === 'checking'}
+              onClick={onTrigger}
+            >
+              {displayStatus === 'checking' ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…</>
+              ) : triggerQueued ? (
+                'Queued…'
+              ) : countdownSeconds !== null ? (
+                <><Search className="h-3.5 w-3.5" /> Check Now · <span className="tabular-nums">{formatCountdown(countdownSeconds)}</span></>
+              ) : (
+                <><Search className="h-3.5 w-3.5" /> Check Now</>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </section>
   )
@@ -789,37 +911,23 @@ export function JobCard() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <CardTitle className="text-xl tracking-tight">{job.name}</CardTitle>
-                <CardDescription className="mt-2 max-w-3xl text-sm leading-5">
-                  <HeaderParamSummary params={job.params} />
-                </CardDescription>
-              </div>
-
-              {!hideTrigger && (
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={queued}
-                    onClick={() => trigger.mutate(job.id)}
-                  >
-                    <Search className="h-4 w-4" />
-                    {queued
-                      ? 'Queued...'
-                      : job.enable_monitoring
-                        ? 'Force Check'
-                        : 'Check Now'}
-                  </Button>
-                </div>
-              )}
+            <div className="min-w-0">
+              <CardTitle className="text-xl tracking-tight">{job.name}</CardTitle>
+              <CardDescription className="mt-2 max-w-3xl text-sm leading-5">
+                <HeaderParamSummary params={job.params} />
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-6 px-6 py-6">
-          <MonitoringSection job={job} displayStatus={displayStatus} />
+          <MonitoringSection
+            job={job}
+            displayStatus={displayStatus}
+            onTrigger={() => trigger.mutate(job.id)}
+            triggerQueued={queued}
+            hideTrigger={hideTrigger}
+          />
 
           {job.status === 'booking_complete' && (
             <section className="space-y-3">
@@ -869,7 +977,35 @@ export function JobCard() {
             </section>
           )}
 
-          {job.status !== 'booking_complete' && job.status !== 'hold_placed' && job.last_result && (
+          {job.status !== 'booking_complete' && job.status !== 'hold_placed' && (
+            displayStatus === 'booking' || displayStatus === 'attempting_hold'
+          ) && (
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <LayoutDashboard className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Last Result
+                </h3>
+              </div>
+              <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  </div>
+                  <div>
+                    <p className="font-medium tracking-tight text-foreground">Booking in progress</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Attempting to secure your hold…
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {job.status !== 'booking_complete' && job.status !== 'hold_placed'
+            && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
+            && job.last_result && (
             <section className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -883,14 +1019,7 @@ export function JobCard() {
                     {formatRelativeTime(job.last_checked_at)}
                   </p>
                 </div>
-                {displayStatus === 'attempting_hold' ? (
-                  <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Securing hold…
-                  </div>
-                ) : (
-                  <BookButton job={job} className="w-full sm:w-auto" size="default" />
-                )}
+                <BookButton job={job} className="w-full sm:w-auto" size="default" />
               </div>
               <LastResultView
                 result={job.last_result}
@@ -905,7 +1034,9 @@ export function JobCard() {
             </section>
           )}
 
-          {job.status !== 'booking_complete' && job.status !== 'hold_placed' && !job.last_result && (
+          {job.status !== 'booking_complete' && job.status !== 'hold_placed'
+            && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
+            && !job.last_result && (
             <section className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">

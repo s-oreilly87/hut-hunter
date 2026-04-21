@@ -657,6 +657,17 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     async with AsyncSessionLocal() as session:
         job = await session.get(WatchJob, job_id)
         if job is not None:
+            if not held:
+                # Record the failure in last_result so the JobCard can surface
+                # it with the correct visual and artifact links.
+                fail_msg = (
+                    booking.message if booking else "Hold was not attempted"
+                )
+                job.last_result = json.dumps(
+                    [{"type": "hold_failed", "error": fail_msg}]
+                )
+                session.add(job)
+
             if held:
                 # Hold secured — next_check_at is left alone; the scheduler's
                 # hold-expiry pass resumes monitoring once the cart times out.

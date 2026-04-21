@@ -27,10 +27,9 @@ function formatNextCheck(nextCheckAt: string | null): string {
 }
 
 export default function App() {
-  const { pendingBookings, selectedJobId } = useJobsStore()
+  const { pendingBookings } = useJobsStore()
   const { data: jobs = [] } = useJobsQuery()
 
-  const selectedJob = jobs.find((job) => job.id === selectedJobId)
   const activeJobs = jobs.filter(
     (job) =>
       job.status !== 'booking_complete'
@@ -90,28 +89,15 @@ export default function App() {
           <div className="absolute inset-y-0 right-0 hidden w-2/5 bg-[radial-gradient(circle_at_top,rgba(48,120,86,0.2),transparent_60%)] lg:block" />
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl space-y-4">
-              <span className="inline-flex w-fit items-center rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-                New Zealand DOC Availability
-              </span>
               <div className="space-y-3">
                 <h1 className="max-w-2xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                  Hut Hunter keeps the watchlist operational. The interface should
-                  feel as reliable as the backend.
+                  Never miss a chance to book your hut!
                 </h1>
-                <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                  Monitor jobs, review the latest availability signal, and jump
-                  straight into holds or payment without hunting through a dense table.
-                </p>
+
               </div>
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full bg-secondary px-3 py-1 text-sm text-secondary-foreground">
-                  {jobs.length} total jobs
-                </span>
-                <span className="rounded-full bg-secondary px-3 py-1 text-sm text-secondary-foreground">
-                  {activeJobs.length} active workflows
-                </span>
-                <span className="rounded-full bg-secondary px-3 py-1 text-sm text-secondary-foreground">
-                  {selectedJob ? `Selected: ${selectedJob.name}` : 'Select a job for details'}
+                  {activeJobs.length} bookings being watched
                 </span>
               </div>
             </div>
@@ -150,7 +136,7 @@ export default function App() {
         </section>
 
         <main className="dashboard-enter-late mt-5 grid flex-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)]">
-          <section className="app-panel flex min-h-[26rem] flex-col overflow-hidden">
+          <section className="app-panel flex min-h-104 flex-col overflow-hidden">
             <div className="flex flex-col gap-2 border-b border-border/80 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>

@@ -1,0 +1,2538 @@
+{
+  "scraped_at": "2026-04-20T19:06:04Z",
+  "source": "bookings.doc.govt.nz",
+  "parks": [
+    {
+      "park_id": "897",
+      "park_name": "Acheron Accommodation House Campsite",
+      "facilities": [
+        {
+          "facility_id": "2967",
+          "facility_name": "Bottom Riverside Camp"
+        },
+        {
+          "facility_id": "2966",
+          "facility_name": "Middle Camp"
+        },
+        {
+          "facility_id": "2965",
+          "facility_name": "Top Camp"
+        }
+      ]
+    },
+    {
+      "park_id": "851",
+      "park_name": "Anaura Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2791",
+          "facility_name": "Anaura Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "702",
+      "park_name": "Angelus Hut & Campsite",
+      "facilities": [
+        {
+          "facility_id": "2366",
+          "facility_name": "Angelus Hut"
+        },
+        {
+          "facility_id": "2365",
+          "facility_name": "Angelus Hut Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "906",
+      "park_name": "Anti Crow Hut",
+      "facilities": [
+        {
+          "facility_id": "3011",
+          "facility_name": "Anti Crow Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "720",
+      "park_name": "Aotea Track",
+      "facilities": [
+        {
+          "facility_id": "2403",
+          "facility_name": "Kaiaraara Hut"
+        },
+        {
+          "facility_id": "2404",
+          "facility_name": "Mt Heale Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "819",
+      "park_name": "Arohena Campsite",
+      "facilities": [
+        {
+          "facility_id": "2720",
+          "facility_name": "Arohena Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "831",
+      "park_name": "Arthur's Pass campsites",
+      "facilities": [
+        {
+          "facility_id": "2748",
+          "facility_name": "Avalanche Creek Shelter Campsite"
+        },
+        {
+          "facility_id": "2775",
+          "facility_name": "Hawdon Shelter Campsite"
+        },
+        {
+          "facility_id": "2749",
+          "facility_name": "Klondyke Corner Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "703",
+      "park_name": "Aspiring Hut",
+      "facilities": [
+        {
+          "facility_id": "2367",
+          "facility_name": "Aspiring Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "719",
+      "park_name": "Awaroa/Godley Head Campsite",
+      "facilities": [
+        {
+          "facility_id": "2402",
+          "facility_name": "Campervan only sites"
+        },
+        {
+          "facility_id": "2777",
+          "facility_name": "Lighthouse Cottage"
+        },
+        {
+          "facility_id": "2401",
+          "facility_name": "Tent/campervan sites"
+        }
+      ]
+    },
+    {
+      "park_id": "919",
+      "park_name": "Balloon Hut",
+      "facilities": [
+        {
+          "facility_id": "3035",
+          "facility_name": "Balloon Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "889",
+      "park_name": "Boyle Campsite",
+      "facilities": [
+        {
+          "facility_id": "2948",
+          "facility_name": "Tent Only Sites"
+        },
+        {
+          "facility_id": "2949",
+          "facility_name": "Vehicle Access Sites"
+        }
+      ]
+    },
+    {
+      "park_id": "907",
+      "park_name": "Brass Monkey Hut",
+      "facilities": [
+        {
+          "facility_id": "3012",
+          "facility_name": "Brass Monkey Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "707",
+      "park_name": "Brewster Hut",
+      "facilities": [
+        {
+          "facility_id": "2371",
+          "facility_name": "Brewster Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "803",
+      "park_name": "Broken Hills Campsite",
+      "facilities": [
+        {
+          "facility_id": "2694",
+          "facility_name": "Broken Hills Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "931",
+      "park_name": "Bucks Road Campsite",
+      "facilities": [
+        {
+          "facility_id": "3045",
+          "facility_name": "Bucks Road Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "841",
+      "park_name": "Bushline Hut",
+      "facilities": [
+        {
+          "facility_id": "2763",
+          "facility_name": "Bushline Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "912",
+      "park_name": "Butchers Flat Campsite",
+      "facilities": [
+        {
+          "facility_id": "3022",
+          "facility_name": "Butchers Flat Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "791",
+      "park_name": "Cameron Flat Campsite",
+      "facilities": [
+        {
+          "facility_id": "2645",
+          "facility_name": "Cameron Flat Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "842",
+      "park_name": "Canaan Downs Campsite",
+      "facilities": [
+        {
+          "facility_id": "2764",
+          "facility_name": "Canaan Downs Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "709",
+      "park_name": "Cape Brett Track",
+      "facilities": [
+        {
+          "facility_id": "2374",
+          "facility_name": "Cape Brett Hut"
+        },
+        {
+          "facility_id": "2375",
+          "facility_name": "Walkway permit"
+        }
+      ]
+    },
+    {
+      "park_id": "922",
+      "park_name": "Carrington Hut",
+      "facilities": [
+        {
+          "facility_id": "3050",
+          "facility_name": "Carrington Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "923",
+      "park_name": "Casey Hut",
+      "facilities": [
+        {
+          "facility_id": "3051",
+          "facility_name": "Casey Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "710",
+      "park_name": "Catchpool Centre / Conference Venue",
+      "facilities": [
+        {
+          "facility_id": "2786",
+          "facility_name": "Catchpool Centre"
+        }
+      ]
+    },
+    {
+      "park_id": "822",
+      "park_name": "Catchpool Valley Campsites",
+      "facilities": [
+        {
+          "facility_id": "2724",
+          "facility_name": "Catchpool Valley Campsite"
+        },
+        {
+          "facility_id": "2787",
+          "facility_name": "Maire zone (larger tent sites)"
+        },
+        {
+          "facility_id": "2788",
+          "facility_name": "Titoki zone (small tents only)"
+        },
+        {
+          "facility_id": "2789",
+          "facility_name": "Totara zone (campervan sites)"
+        }
+      ]
+    },
+    {
+      "park_id": "813",
+      "park_name": "Catlins coastal campsites",
+      "facilities": [
+        {
+          "facility_id": "2714",
+          "facility_name": "Papatowai Campsite"
+        },
+        {
+          "facility_id": "2772",
+          "facility_name": "Purakaunui Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "899",
+      "park_name": "Cob Cottage Campsite",
+      "facilities": [
+        {
+          "facility_id": "2969",
+          "facility_name": "Cob Cottage Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "843",
+      "park_name": "Cobb Hostel",
+      "facilities": [
+        {
+          "facility_id": "2765",
+          "facility_name": "Cobb Hostel"
+        }
+      ]
+    },
+    {
+      "park_id": "935",
+      "park_name": "Corner Creek Campsite",
+      "facilities": [
+        {
+          "facility_id": "3049",
+          "facility_name": "Corner Creek Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "832",
+      "park_name": "Craigieburn Forest Park campsites",
+      "facilities": [
+        {
+          "facility_id": "2750",
+          "facility_name": "Lake Pearson (Moana Rua) Campsite"
+        },
+        {
+          "facility_id": "2751",
+          "facility_name": "Mistletoe Flats Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "714",
+      "park_name": "Crosbies Hut & Campsite",
+      "facilities": [
+        {
+          "facility_id": "2383",
+          "facility_name": "Crosbies Hut"
+        },
+        {
+          "facility_id": "2382",
+          "facility_name": "Crosbies Hut campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "885",
+      "park_name": "Diamond Lake Campsite",
+      "facilities": [
+        {
+          "facility_id": "2944",
+          "facility_name": "Diamond Lake Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "901",
+      "park_name": "Downes Hut",
+      "facilities": [
+        {
+          "facility_id": "2983",
+          "facility_name": "Downes Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "924",
+      "park_name": "Edwards Hut",
+      "facilities": [
+        {
+          "facility_id": "3052",
+          "facility_name": "Edwards Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "715",
+      "park_name": "Fantail Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2783",
+          "facility_name": "Fantail Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "917",
+      "park_name": "Fenella Hut",
+      "facilities": [
+        {
+          "facility_id": "3033",
+          "facility_name": "Fenella Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "717",
+      "park_name": "Fletcher Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2781",
+          "facility_name": "Fletcher Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "718",
+      "park_name": "French Pass Campsite",
+      "facilities": [
+        {
+          "facility_id": "2399",
+          "facility_name": "French Pass Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "886",
+      "park_name": "French Ridge Hut",
+      "facilities": [
+        {
+          "facility_id": "2945",
+          "facility_name": "French Ridge Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "833",
+      "park_name": "Geraldine campsites",
+      "facilities": [
+        {
+          "facility_id": "2753",
+          "facility_name": "Waihi Gorge Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "764",
+      "park_name": "Gillespie Pass Circuit",
+      "facilities": [
+        {
+          "facility_id": "2548",
+          "facility_name": "Siberia Hut"
+        },
+        {
+          "facility_id": "2956",
+          "facility_name": "Young Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "847",
+      "park_name": "Gillespies Beach Campsite",
+      "facilities": [
+        {
+          "facility_id": "2987",
+          "facility_name": "Unpowered Large vehicles"
+        },
+        {
+          "facility_id": "2988",
+          "facility_name": "Unpowered Small Vehicles"
+        },
+        {
+          "facility_id": "2989",
+          "facility_name": "Unpowered Tent sites (No vehicle access)"
+        }
+      ]
+    },
+    {
+      "park_id": "811",
+      "park_name": "Glencoe Campsite",
+      "facilities": [
+        {
+          "facility_id": "2712",
+          "facility_name": "Glencoe Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "793",
+      "park_name": "Goldsborough Campsite",
+      "facilities": [
+        {
+          "facility_id": "2646",
+          "facility_name": "Goldsborough Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "701",
+      "park_name": "Great Barrier Island campsites",
+      "facilities": [
+        {
+          "facility_id": "2364",
+          "facility_name": "Akapoua Bay Campsite"
+        },
+        {
+          "facility_id": "2665",
+          "facility_name": "Awana Beach Campsite"
+        },
+        {
+          "facility_id": "2668",
+          "facility_name": "Harataonga Campsite"
+        },
+        {
+          "facility_id": "2669",
+          "facility_name": "Medlands Beach Campsite"
+        },
+        {
+          "facility_id": "2666",
+          "facility_name": "The Green Campsite"
+        },
+        {
+          "facility_id": "2667",
+          "facility_name": "Whangapoua Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "892",
+      "park_name": "Greenstone Caples Circuit",
+      "facilities": [
+        {
+          "facility_id": "2957",
+          "facility_name": "Greenstone Hut"
+        },
+        {
+          "facility_id": "2958",
+          "facility_name": "Greenstone Hut Campsite"
+        },
+        {
+          "facility_id": "2959",
+          "facility_name": "McKellar Hut"
+        },
+        {
+          "facility_id": "2960",
+          "facility_name": "McKellar Hut Campsite"
+        },
+        {
+          "facility_id": "2961",
+          "facility_name": "Mid Caples Hut"
+        },
+        {
+          "facility_id": "2962",
+          "facility_name": "Mid Caples Hut Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "900",
+      "park_name": "Hamilton Hut",
+      "facilities": [
+        {
+          "facility_id": "2982",
+          "facility_name": "Hamilton Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "794",
+      "park_name": "Hans Bay \u2013 Lake Kaniere Campsite",
+      "facilities": [
+        {
+          "facility_id": "2647",
+          "facility_name": "Hans Bay \u2013 Lake Kaniere Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "925",
+      "park_name": "Hawdon Hut",
+      "facilities": [
+        {
+          "facility_id": "3053",
+          "facility_name": "Hawdon Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "932",
+      "park_name": "Holdsworth Campsite",
+      "facilities": [
+        {
+          "facility_id": "3047",
+          "facility_name": "Holdsworth Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "724",
+      "park_name": "Holdsworth Lodge",
+      "facilities": [
+        {
+          "facility_id": "2410",
+          "facility_name": "Holdsworth Bunk House"
+        },
+        {
+          "facility_id": "2412",
+          "facility_name": "Kaka Room"
+        },
+        {
+          "facility_id": "2413",
+          "facility_name": "Kereru Room"
+        }
+      ]
+    },
+    {
+      "park_id": "853",
+      "park_name": "Holly Hut",
+      "facilities": [
+        {
+          "facility_id": "2798",
+          "facility_name": "Holly Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "928",
+      "park_name": "Hollyford Track",
+      "facilities": [
+        {
+          "facility_id": "3055",
+          "facility_name": "Demon Trail Hut"
+        },
+        {
+          "facility_id": "3056",
+          "facility_name": "Hidden Falls Hut"
+        },
+        {
+          "facility_id": "3057",
+          "facility_name": "Hokuri Hut"
+        },
+        {
+          "facility_id": "3058",
+          "facility_name": "Lake Alabaster Hut"
+        },
+        {
+          "facility_id": "3059",
+          "facility_name": "Martins Bay Hut"
+        },
+        {
+          "facility_id": "3060",
+          "facility_name": "Mckerrow Island Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "745",
+      "park_name": "Home Bay, Motutapu Island Campsite",
+      "facilities": [
+        {
+          "facility_id": "2824",
+          "facility_name": "Motutapu Island Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "852",
+      "park_name": "Hooker Hut",
+      "facilities": [
+        {
+          "facility_id": "2793",
+          "facility_name": "Hooker Hut Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "902",
+      "park_name": "Hope Kiwi Lodge",
+      "facilities": [
+        {
+          "facility_id": "2984",
+          "facility_name": "Hope Kiwi Lodge"
+        }
+      ]
+    },
+    {
+      "park_id": "882",
+      "park_name": "Hot Water Beach Campsite",
+      "facilities": [
+        {
+          "facility_id": "2941",
+          "facility_name": "Hot Water Beach Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "845",
+      "park_name": "Jubilee Hut",
+      "facilities": [
+        {
+          "facility_id": "2767",
+          "facility_name": "Jubilee Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "726",
+      "park_name": "Kahikatea Campsites (self-contained only)",
+      "facilities": [
+        {
+          "facility_id": "2415",
+          "facility_name": "Campervan only sites - 12 x 8m"
+        },
+        {
+          "facility_id": "2416",
+          "facility_name": "Campervan only sites - 9 x 8m"
+        }
+      ]
+    },
+    {
+      "park_id": "896",
+      "park_name": "Kahurangi National Park",
+      "facilities": [
+        {
+          "facility_id": "2981",
+          "facility_name": "Courthouse Flat Campsite"
+        },
+        {
+          "facility_id": "2980",
+          "facility_name": "Siberia Flat Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "926",
+      "park_name": "Kaimanawa Forest Park",
+      "facilities": [
+        {
+          "facility_id": "3038",
+          "facility_name": "Boyd Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "727",
+      "park_name": "Kapiti Island Permits",
+      "facilities": [
+        {
+          "facility_id": "2417",
+          "facility_name": "North end permit"
+        },
+        {
+          "facility_id": "2418",
+          "facility_name": "Rangatira permit"
+        }
+      ]
+    },
+    {
+      "park_id": "728",
+      "park_name": "Kauaeranga Kauri Trail",
+      "facilities": [
+        {
+          "facility_id": "2420",
+          "facility_name": "Billy Goat Basin Campsite"
+        },
+        {
+          "facility_id": "2421",
+          "facility_name": "Dancing Camp Campsite"
+        },
+        {
+          "facility_id": "2422",
+          "facility_name": "Pinnacles Hut (Kauaeranga Kauri Trail) Coromandel"
+        }
+      ]
+    },
+    {
+      "park_id": "729",
+      "park_name": "Kauaeranga Valley campsites",
+      "facilities": [
+        {
+          "facility_id": "2423",
+          "facility_name": "Booms Flat Campsite"
+        },
+        {
+          "facility_id": "2654",
+          "facility_name": "Catleys Campsite"
+        },
+        {
+          "facility_id": "2655",
+          "facility_name": "Hotoritori Campsite"
+        },
+        {
+          "facility_id": "2656",
+          "facility_name": "Shag Stream Campsite"
+        },
+        {
+          "facility_id": "2657",
+          "facility_name": "Totara Flat Campsite (Coromandel)"
+        },
+        {
+          "facility_id": "2658",
+          "facility_name": "Trestle View Campsite"
+        },
+        {
+          "facility_id": "2659",
+          "facility_name": "Wainora Campsite"
+        },
+        {
+          "facility_id": "2660",
+          "facility_name": "Whangaiterenga Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "730",
+      "park_name": "Kauaeranga Valley cottages",
+      "facilities": [
+        {
+          "facility_id": "2424",
+          "facility_name": "Cookson Cottage"
+        },
+        {
+          "facility_id": "2425",
+          "facility_name": "Kauri Cottage"
+        }
+      ]
+    },
+    {
+      "park_id": "732",
+      "park_name": "Kenepuru Head Campsite",
+      "facilities": [
+        {
+          "facility_id": "2427",
+          "facility_name": "Kenepuru Head Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "733",
+      "park_name": "Kerr Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2428",
+          "facility_name": "Bellbird zone - powered sites"
+        },
+        {
+          "facility_id": "2429",
+          "facility_name": "Fantail zone - powered sites"
+        },
+        {
+          "facility_id": "2430",
+          "facility_name": "Kaka zone - unpowered sites"
+        },
+        {
+          "facility_id": "2431",
+          "facility_name": "Kiwi zone - unpowered sites"
+        },
+        {
+          "facility_id": "2433",
+          "facility_name": "Robin zone - powered site"
+        },
+        {
+          "facility_id": "2434",
+          "facility_name": "Tui zone - powered sites"
+        }
+      ]
+    },
+    {
+      "park_id": "795",
+      "park_name": "Kidds Bush Campsite",
+      "facilities": [
+        {
+          "facility_id": "2648",
+          "facility_name": "Kidds Bush Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "868",
+      "park_name": "Kinloch Campsite",
+      "facilities": [
+        {
+          "facility_id": "2822",
+          "facility_name": "Kinloch Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "933",
+      "park_name": "Kiriwhakapapa Campsite",
+      "facilities": [
+        {
+          "facility_id": "3046",
+          "facility_name": "Kiriwhakapapa Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "905",
+      "park_name": "Kirtle Burn Hut",
+      "facilities": [
+        {
+          "facility_id": "3004",
+          "facility_name": "Kirtle Burn Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "844",
+      "park_name": "Kohaihai Campsite",
+      "facilities": [
+        {
+          "facility_id": "2766",
+          "facility_name": "Kohaihai Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "734",
+      "park_name": "Konini Lodge",
+      "facilities": [
+        {
+          "facility_id": "2811",
+          "facility_name": "Konini Lodge"
+        }
+      ]
+    },
+    {
+      "park_id": "825",
+      "park_name": "Lake Ianthe Matahi Campsite",
+      "facilities": [
+        {
+          "facility_id": "2990",
+          "facility_name": "Unpowered Large Vehicles"
+        },
+        {
+          "facility_id": "2991",
+          "facility_name": "Unpowered Tent sites (No vehicle access)"
+        }
+      ]
+    },
+    {
+      "park_id": "797",
+      "park_name": "Lake Mahinapua Campsite",
+      "facilities": [
+        {
+          "facility_id": "2649",
+          "facility_name": "Lake Mahinapua Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "799",
+      "park_name": "Lake Paringa Campsite",
+      "facilities": [
+        {
+          "facility_id": "2992",
+          "facility_name": "Campervan site"
+        },
+        {
+          "facility_id": "3061",
+          "facility_name": "Tent site with vehicle on site"
+        },
+        {
+          "facility_id": "2993",
+          "facility_name": "Unpowered Tent sites (No vehicle access)"
+        }
+      ]
+    },
+    {
+      "park_id": "800",
+      "park_name": "Lake Rerewhakaaitu campsites",
+      "facilities": [
+        {
+          "facility_id": "2690",
+          "facility_name": "Rerewhakaaitu, Ash Pit Road Campsite"
+        },
+        {
+          "facility_id": "2691",
+          "facility_name": "Rerewhakaaitu, Brett Road Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "834",
+      "park_name": "Lake Sumner Forest Park campsites",
+      "facilities": [
+        {
+          "facility_id": "2755",
+          "facility_name": "Lake Taylor Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "801",
+      "park_name": "Lake Tarawera Outlet (Te Tapahoro) Campsite",
+      "facilities": [
+        {
+          "facility_id": "2692",
+          "facility_name": "Lake Tarawera Outlet Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "736",
+      "park_name": "Lane Cove Hut",
+      "facilities": [
+        {
+          "facility_id": "2442",
+          "facility_name": "Lane Cove Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "890",
+      "park_name": "Leaning Lodge Hut",
+      "facilities": [
+        {
+          "facility_id": "2950",
+          "facility_name": "Leaning Lodge Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "823",
+      "park_name": "Lewis Pass Scenic Reserve huts and campsites",
+      "facilities": [
+        {
+          "facility_id": "2728",
+          "facility_name": "K\u014dhanga Atawhai \u2013 Manson Nicholls Hut"
+        },
+        {
+          "facility_id": "2729",
+          "facility_name": "Marble Hill Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "826",
+      "park_name": "Liverpool Hut",
+      "facilities": [
+        {
+          "facility_id": "2733",
+          "facility_name": "Liverpool Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "871",
+      "park_name": "Luxmore Hut Winter Stays",
+      "facilities": [
+        {
+          "facility_id": "2851",
+          "facility_name": "Luxmore Hut Winter Stays"
+        }
+      ]
+    },
+    {
+      "park_id": "848",
+      "park_name": "Lyell Campsite",
+      "facilities": [
+        {
+          "facility_id": "2771",
+          "facility_name": "Lyell Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "839",
+      "park_name": "Mangahuia Campsite",
+      "facilities": [
+        {
+          "facility_id": "2760",
+          "facility_name": "Mangahuia Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "895",
+      "park_name": "Manganuku Campsite",
+      "facilities": [
+        {
+          "facility_id": "2964",
+          "facility_name": "Manganuku Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "840",
+      "park_name": "Mangawhero Campsite",
+      "facilities": [
+        {
+          "facility_id": "2761",
+          "facility_name": "Campervan sites"
+        },
+        {
+          "facility_id": "2762",
+          "facility_name": "Tent sites"
+        }
+      ]
+    },
+    {
+      "park_id": "808",
+      "park_name": "Marfells Beach Campsite",
+      "facilities": [
+        {
+          "facility_id": "2703",
+          "facility_name": "Zone 2: 70 -80 square metre sites"
+        },
+        {
+          "facility_id": "2814",
+          "facility_name": "Zone1: Long Vehicle 80 - 85sq m sites"
+        }
+      ]
+    },
+    {
+      "park_id": "850",
+      "park_name": "Mataketake Hut",
+      "facilities": [
+        {
+          "facility_id": "2785",
+          "facility_name": "Mataketake Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "830",
+      "park_name": "Matata Campsite",
+      "facilities": [
+        {
+          "facility_id": "2799",
+          "facility_name": "Self contained Motorhomes and Caravans"
+        },
+        {
+          "facility_id": "2800",
+          "facility_name": "Tent and non self contained vehicle sites"
+        }
+      ]
+    },
+    {
+      "park_id": "867",
+      "park_name": "Mavora Lakes Campsite",
+      "facilities": [
+        {
+          "facility_id": "2821",
+          "facility_name": "Mavora Lakes Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "737",
+      "park_name": "Matiu/Somes Island",
+      "facilities": [
+        {
+          "facility_id": "2819",
+          "facility_name": "Caretakers Cottage"
+        },
+        {
+          "facility_id": "2446",
+          "facility_name": "Forest and Bird House"
+        },
+        {
+          "facility_id": "2445",
+          "facility_name": "Te Whare Mata Uraura"
+        }
+      ]
+    },
+    {
+      "park_id": "804",
+      "park_name": "Milford Road campsites",
+      "facilities": [
+        {
+          "facility_id": "2695",
+          "facility_name": "Cascade Creek Campsite"
+        },
+        {
+          "facility_id": "2696",
+          "facility_name": "Deer Flat Campsite"
+        },
+        {
+          "facility_id": "2697",
+          "facility_name": "Henry Creek Campsite"
+        },
+        {
+          "facility_id": "2698",
+          "facility_name": "Kiosk Creek Campsite"
+        },
+        {
+          "facility_id": "2700",
+          "facility_name": "Totara Campsite"
+        },
+        {
+          "facility_id": "2701",
+          "facility_name": "Upper Eglinton Campsite"
+        },
+        {
+          "facility_id": "2702",
+          "facility_name": "Walker Creek Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "739",
+      "park_name": "Mimiwhangata Accommodation",
+      "facilities": [
+        {
+          "facility_id": "2451",
+          "facility_name": "Mimiwhangata Beach House"
+        },
+        {
+          "facility_id": "2452",
+          "facility_name": "Mimiwhangata Cottage"
+        },
+        {
+          "facility_id": "2453",
+          "facility_name": "Mimiwhangata Lodge"
+        }
+      ]
+    },
+    {
+      "park_id": "815",
+      "park_name": "Moke Lake Campsite",
+      "facilities": [
+        {
+          "facility_id": "3014",
+          "facility_name": "Moke Lake Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "740",
+      "park_name": "Momorangi Bay Campground",
+      "facilities": [
+        {
+          "facility_id": "2454",
+          "facility_name": "Cabins"
+        },
+        {
+          "facility_id": "2743",
+          "facility_name": "Foreshore sites"
+        },
+        {
+          "facility_id": "2744",
+          "facility_name": "Inland sites"
+        },
+        {
+          "facility_id": "2848",
+          "facility_name": "Storage Units"
+        }
+      ]
+    },
+    {
+      "park_id": "741",
+      "park_name": "Motuihe Island Campsite",
+      "facilities": [
+        {
+          "facility_id": "2828",
+          "facility_name": "Confidence Zone"
+        },
+        {
+          "facility_id": "2826",
+          "facility_name": "Parade Ground"
+        },
+        {
+          "facility_id": "2829",
+          "facility_name": "Puriri Ridge"
+        }
+      ]
+    },
+    {
+      "park_id": "742",
+      "park_name": "Motukawanui Hut",
+      "facilities": [
+        {
+          "facility_id": "2470",
+          "facility_name": "Motukawanui Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "744",
+      "park_name": "Motuora (Island) Campsite",
+      "facilities": [
+        {
+          "facility_id": "2823",
+          "facility_name": "Motuora Island Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "743",
+      "park_name": "Motuora Island Bach",
+      "facilities": [
+        {
+          "facility_id": "2471",
+          "facility_name": "Motuora Island Bach"
+        }
+      ]
+    },
+    {
+      "park_id": "921",
+      "park_name": "Mt Arthur Hut",
+      "facilities": [
+        {
+          "facility_id": "3037",
+          "facility_name": "Mt Arthur Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "903",
+      "park_name": "Mt Brown Hut",
+      "facilities": [
+        {
+          "facility_id": "2985",
+          "facility_name": "Mt Brown Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "904",
+      "park_name": "Mt Fyffe Hut",
+      "facilities": [
+        {
+          "facility_id": "3010",
+          "facility_name": "Mt Fyffe Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "723",
+      "park_name": "Mt Holdsworth-Jumbo Circuit",
+      "facilities": [
+        {
+          "facility_id": "2407",
+          "facility_name": "Atiwhakatu Hut"
+        },
+        {
+          "facility_id": "2408",
+          "facility_name": "Jumbo Hut"
+        },
+        {
+          "facility_id": "2409",
+          "facility_name": "Powell Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "894",
+      "park_name": "Mt Nimrod Campsite",
+      "facilities": [
+        {
+          "facility_id": "2963",
+          "facility_name": "Mt Nimrod Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "827",
+      "park_name": "Mt Somers Track",
+      "facilities": [
+        {
+          "facility_id": "2818",
+          "facility_name": "Pinnacles Campsite Canterbury"
+        },
+        {
+          "facility_id": "2734",
+          "facility_name": "Pinnacles Hut (Mount Somers Track) Canterbury"
+        },
+        {
+          "facility_id": "2817",
+          "facility_name": "Woolshed Creek Campsite"
+        },
+        {
+          "facility_id": "2735",
+          "facility_name": "Woolshed Creek Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "747",
+      "park_name": "Mueller Hut",
+      "facilities": [
+        {
+          "facility_id": "2487",
+          "facility_name": "Mueller Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "888",
+      "park_name": "Nina Hut",
+      "facilities": [
+        {
+          "facility_id": "2947",
+          "facility_name": "Nina Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "908",
+      "park_name": "No Man\u2019s Road Access Permit",
+      "facilities": [
+        {
+          "facility_id": "3013",
+          "facility_name": "No Man's Road Access Permit"
+        }
+      ]
+    },
+    {
+      "park_id": "748",
+      "park_name": "Nydia Lodge",
+      "facilities": [
+        {
+          "facility_id": "2488",
+          "facility_name": "Nydia Lodge"
+        }
+      ]
+    },
+    {
+      "park_id": "749",
+      "park_name": "Okarito School House",
+      "facilities": [
+        {
+          "facility_id": "2490",
+          "facility_name": "\u014ck\u0101rito School House"
+        }
+      ]
+    },
+    {
+      "park_id": "809",
+      "park_name": "Onamalutu Campsite",
+      "facilities": [
+        {
+          "facility_id": "2970",
+          "facility_name": "Powered Sites"
+        },
+        {
+          "facility_id": "2972",
+          "facility_name": "Summer-only sites"
+        },
+        {
+          "facility_id": "2971",
+          "facility_name": "Year-round sites"
+        }
+      ]
+    },
+    {
+      "park_id": "835",
+      "park_name": "Otaio Gorge Campsite",
+      "facilities": [
+        {
+          "facility_id": "2756",
+          "facility_name": "Otaio Gorge Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "821",
+      "park_name": "Otaki Forks Campsites",
+      "facilities": [
+        {
+          "facility_id": "2815",
+          "facility_name": "Boielles Campsite - 1 May to 15 October"
+        },
+        {
+          "facility_id": "3015",
+          "facility_name": "School House Flat Campsite - 16 October - 30 April"
+        }
+      ]
+    },
+    {
+      "park_id": "750",
+      "park_name": "Otamahua/Quail Island",
+      "facilities": [
+        {
+          "facility_id": "2849",
+          "facility_name": "Skiers Beach"
+        },
+        {
+          "facility_id": "2850",
+          "facility_name": "Whakamaru Beach"
+        },
+        {
+          "facility_id": "2491",
+          "facility_name": "\u014ctamahua Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "751",
+      "park_name": "Otamure Bay (Whananaki) Campsite",
+      "facilities": [
+        {
+          "facility_id": "2492",
+          "facility_name": "Otamure Bay (Whananaki) Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "798",
+      "park_name": "Otto/MacDonalds Campsite",
+      "facilities": [
+        {
+          "facility_id": "2997",
+          "facility_name": "MacDonalds Creek - Unpowered Large Vehicles"
+        },
+        {
+          "facility_id": "2999",
+          "facility_name": "MacDonalds Creek- Tent sites (No vehicle access)"
+        },
+        {
+          "facility_id": "2996",
+          "facility_name": "Ottos Corner - Tent sites (No vehicle access)"
+        },
+        {
+          "facility_id": "2994",
+          "facility_name": "Ottos Corner - Unpowered Large Vehicles"
+        },
+        {
+          "facility_id": "2995",
+          "facility_name": "Ottos Corner - Unpowered Small Vehicles"
+        }
+      ]
+    },
+    {
+      "park_id": "846",
+      "park_name": "Pahautea Hut",
+      "facilities": [
+        {
+          "facility_id": "2768",
+          "facility_name": "Pahautea Campsite"
+        },
+        {
+          "facility_id": "2769",
+          "facility_name": "Pahautea Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "753",
+      "park_name": "Peach Cove Hut",
+      "facilities": [
+        {
+          "facility_id": "2502",
+          "facility_name": "Peach Cove Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "754",
+      "park_name": "Peel Forest Campsite",
+      "facilities": [
+        {
+          "facility_id": "2773",
+          "facility_name": "Peel Forest Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "909",
+      "park_name": "Pelorus & Kenepuru Sounds",
+      "facilities": [
+        {
+          "facility_id": "3016",
+          "facility_name": "Ferndale Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "755",
+      "park_name": "Pelorus Bridge (Kahikatea Flat) Campsite",
+      "facilities": [
+        {
+          "facility_id": "2746",
+          "facility_name": "Powered sites"
+        },
+        {
+          "facility_id": "2745",
+          "facility_name": "Unpowered sites"
+        }
+      ]
+    },
+    {
+      "park_id": "911",
+      "park_name": "Pelorus Sound Road Access Sites",
+      "facilities": [
+        {
+          "facility_id": "3023",
+          "facility_name": "Harvey Bay Campsite"
+        },
+        {
+          "facility_id": "3024",
+          "facility_name": "Moetapu Bay Campsite"
+        },
+        {
+          "facility_id": "3025",
+          "facility_name": "Nikau Cove Campsite"
+        },
+        {
+          "facility_id": "3026",
+          "facility_name": "Picnic Bay Campsite"
+        },
+        {
+          "facility_id": "3027",
+          "facility_name": "Waimaru Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "910",
+      "park_name": "Pelorus Sound Water Access Sites",
+      "facilities": [
+        {
+          "facility_id": "3018",
+          "facility_name": "Jacobs Bay Campsite"
+        },
+        {
+          "facility_id": "3017",
+          "facility_name": "Nydia Campsite"
+        },
+        {
+          "facility_id": "3019",
+          "facility_name": "Pipi Beach Campsite"
+        },
+        {
+          "facility_id": "3020",
+          "facility_name": "Putanui Point Campsite"
+        },
+        {
+          "facility_id": "3021",
+          "facility_name": "Tawa Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "817",
+      "park_name": "Piano Flat Campsite",
+      "facilities": [
+        {
+          "facility_id": "2718",
+          "facility_name": "Piano Flat Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "836",
+      "park_name": "Pioneer Park Campsite",
+      "facilities": [
+        {
+          "facility_id": "2757",
+          "facility_name": "Pioneer Park Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "796",
+      "park_name": "Pleasant Flat Campsite",
+      "facilities": [
+        {
+          "facility_id": "2652",
+          "facility_name": "Pleasant Flat Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "756",
+      "park_name": "Pohangina Base",
+      "facilities": [
+        {
+          "facility_id": "2517",
+          "facility_name": "Pohangina Base"
+        }
+      ]
+    },
+    {
+      "park_id": "929",
+      "park_name": "Port Craig School Hut",
+      "facilities": [
+        {
+          "facility_id": "3054",
+          "facility_name": "Port Craig School Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "757",
+      "park_name": "Port Jackson Campsite",
+      "facilities": [
+        {
+          "facility_id": "2986",
+          "facility_name": "Port Jackson Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "818",
+      "park_name": "Pouakai Hut",
+      "facilities": [
+        {
+          "facility_id": "3000",
+          "facility_name": "Room 1 (9 bunks)"
+        },
+        {
+          "facility_id": "3001",
+          "facility_name": "Room 2 (9 bunks)"
+        },
+        {
+          "facility_id": "3002",
+          "facility_name": "Room 3 (7 bunks)"
+        },
+        {
+          "facility_id": "3003",
+          "facility_name": "Room 4 (9 bunks)"
+        }
+      ]
+    },
+    {
+      "park_id": "898",
+      "park_name": "Puhi Puhi Campsite",
+      "facilities": [
+        {
+          "facility_id": "2968",
+          "facility_name": "Puhi Puhi Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "759",
+      "park_name": "Puketi Forest Hut",
+      "facilities": [
+        {
+          "facility_id": "2527",
+          "facility_name": "Puketi Forest Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "758",
+      "park_name": "Puketi Recreation Area Campsite",
+      "facilities": [
+        {
+          "facility_id": "2526",
+          "facility_name": "Puketi Recreation Area Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "820",
+      "park_name": "Pureora Forest Park campsites",
+      "facilities": [
+        {
+          "facility_id": "2721",
+          "facility_name": "Kakaho Campsite"
+        },
+        {
+          "facility_id": "2722",
+          "facility_name": "Ngaherenga Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "760",
+      "park_name": "Puriri Bay (Whangaruru North Head) Campsite",
+      "facilities": [
+        {
+          "facility_id": "2528",
+          "facility_name": "Puriri Bay (Whangaruru North Head) Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "930",
+      "park_name": "Putangirua Pinnacles Scenic Reserve Campsite",
+      "facilities": [
+        {
+          "facility_id": "3044",
+          "facility_name": "Putangirua Pinnacles Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "913",
+      "park_name": "Queen Charlotte Area",
+      "facilities": [
+        {
+          "facility_id": "3028",
+          "facility_name": "Aussie Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "869",
+      "park_name": "Queen Charlotte Track",
+      "facilities": [
+        {
+          "facility_id": "2841",
+          "facility_name": "Bay of Many Coves Campsite"
+        },
+        {
+          "facility_id": "2842",
+          "facility_name": "Black Rock Campsite"
+        },
+        {
+          "facility_id": "2843",
+          "facility_name": "Camp Bay Campsite"
+        },
+        {
+          "facility_id": "2844",
+          "facility_name": "Cowshed Bay Campsite"
+        },
+        {
+          "facility_id": "2845",
+          "facility_name": "Davies Bay Campsite"
+        },
+        {
+          "facility_id": "2846",
+          "facility_name": "Schoolhouse Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "870",
+      "park_name": "Queen Charlotte Water Access Campsites",
+      "facilities": [
+        {
+          "facility_id": "3005",
+          "facility_name": "Blumine Island/Oruawairua Campsite"
+        },
+        {
+          "facility_id": "3006",
+          "facility_name": "Cannibal Cove Campsite"
+        },
+        {
+          "facility_id": "3007",
+          "facility_name": "Kumutoto Bay Campsite"
+        },
+        {
+          "facility_id": "3032",
+          "facility_name": "Ngaruru Bay Campsite"
+        },
+        {
+          "facility_id": "3008",
+          "facility_name": "Ratimera Bay Campsite"
+        },
+        {
+          "facility_id": "3009",
+          "facility_name": "Wharehunga Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "761",
+      "park_name": "Rangiwahia Hut",
+      "facilities": [
+        {
+          "facility_id": "2545",
+          "facility_name": "Rangiwahia Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "810",
+      "park_name": "Rarangi Campsite",
+      "facilities": [
+        {
+          "facility_id": "2837",
+          "facility_name": "Grassed Surface Sites"
+        },
+        {
+          "facility_id": "2836",
+          "facility_name": "Hard Surface Sites"
+        },
+        {
+          "facility_id": "2838",
+          "facility_name": "Park and Walk Tent sites"
+        }
+      ]
+    },
+    {
+      "park_id": "706",
+      "park_name": "Remutaka Forest Park accommodation",
+      "facilities": [
+        {
+          "facility_id": "2370",
+          "facility_name": "Boar Inn"
+        },
+        {
+          "facility_id": "2674",
+          "facility_name": "Haurangi Hut"
+        },
+        {
+          "facility_id": "2670",
+          "facility_name": "Jans Hut"
+        },
+        {
+          "facility_id": "2671",
+          "facility_name": "Papatahi Hut"
+        },
+        {
+          "facility_id": "2672",
+          "facility_name": "Raukawa Lodge"
+        },
+        {
+          "facility_id": "2673",
+          "facility_name": "Turere Lodge - Kapowai Room"
+        },
+        {
+          "facility_id": "2675",
+          "facility_name": "Turere Lodge - Kea Room"
+        },
+        {
+          "facility_id": "2676",
+          "facility_name": "Turere Lodge - Kiwi Room"
+        },
+        {
+          "facility_id": "2677",
+          "facility_name": "Turere Lodge - Kokopu Room"
+        }
+      ]
+    },
+    {
+      "park_id": "763",
+      "park_name": "Robson's Lodge",
+      "facilities": [
+        {
+          "facility_id": "2547",
+          "facility_name": "Robson's Lodge"
+        }
+      ]
+    },
+    {
+      "park_id": "927",
+      "park_name": "Round the Mountain Track",
+      "facilities": [
+        {
+          "facility_id": "3039",
+          "facility_name": "Blyth Hut"
+        },
+        {
+          "facility_id": "3040",
+          "facility_name": "Mangaehuehu Hut"
+        },
+        {
+          "facility_id": "3041",
+          "facility_name": "Mangaturuturu Hut"
+        },
+        {
+          "facility_id": "3042",
+          "facility_name": "Rangipo Hut"
+        },
+        {
+          "facility_id": "3043",
+          "facility_name": "Whakapapaiti Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "920",
+      "park_name": "Salisbury Lodge",
+      "facilities": [
+        {
+          "facility_id": "3036",
+          "facility_name": "Salisbury Lodge"
+        }
+      ]
+    },
+    {
+      "park_id": "735",
+      "park_name": "Sandy Bay Hut",
+      "facilities": [
+        {
+          "facility_id": "2441",
+          "facility_name": "Sandy Bay Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "884",
+      "park_name": "Skippers Campsite",
+      "facilities": [
+        {
+          "facility_id": "2943",
+          "facility_name": "Skippers Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "891",
+      "park_name": "St James Walkway",
+      "facilities": [
+        {
+          "facility_id": "2951",
+          "facility_name": "Ada Pass Hut"
+        },
+        {
+          "facility_id": "2952",
+          "facility_name": "Anne Hut"
+        },
+        {
+          "facility_id": "2953",
+          "facility_name": "Boyle Flat Hut"
+        },
+        {
+          "facility_id": "2954",
+          "facility_name": "Cannibal Gorge Hut"
+        },
+        {
+          "facility_id": "2955",
+          "facility_name": "Christopher Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "765",
+      "park_name": "Stony Bay Bach",
+      "facilities": [
+        {
+          "facility_id": "2549",
+          "facility_name": "Stony Bay Bach"
+        }
+      ]
+    },
+    {
+      "park_id": "766",
+      "park_name": "Stony Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2780",
+          "facility_name": "Stony Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "767",
+      "park_name": "Sunrise Hut",
+      "facilities": [
+        {
+          "facility_id": "2558",
+          "facility_name": "Sunrise Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "816",
+      "park_name": "Sylvan Campsite",
+      "facilities": [
+        {
+          "facility_id": "2839",
+          "facility_name": "Campervan, tent or caravan sites"
+        }
+      ]
+    },
+    {
+      "park_id": "918",
+      "park_name": "Sylvester Hut",
+      "facilities": [
+        {
+          "facility_id": "3034",
+          "facility_name": "Sylvester Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "814",
+      "park_name": "Tawanui Campsite",
+      "facilities": [
+        {
+          "facility_id": "2715",
+          "facility_name": "Tawanui Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "769",
+      "park_name": "Te Ara Pataka/Summit Walkway",
+      "facilities": [
+        {
+          "facility_id": "2560",
+          "facility_name": "Packhorse Hut"
+        },
+        {
+          "facility_id": "2561",
+          "facility_name": "Rod Donald Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "770",
+      "park_name": "Te Kopi Cottage and Homestead",
+      "facilities": [
+        {
+          "facility_id": "2562",
+          "facility_name": "Te Kopi Cottage"
+        },
+        {
+          "facility_id": "2563",
+          "facility_name": "Te Kopi Homestead"
+        }
+      ]
+    },
+    {
+      "park_id": "802",
+      "park_name": "Te Rereatukahia Hut",
+      "facilities": [
+        {
+          "facility_id": "2693",
+          "facility_name": "Te Rereatukahia Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "792",
+      "park_name": "Te Whare Okioki",
+      "facilities": [
+        {
+          "facility_id": "2653",
+          "facility_name": "Te Whare Okioki"
+        }
+      ]
+    },
+    {
+      "park_id": "914",
+      "park_name": "Tennyson Inlet",
+      "facilities": [
+        {
+          "facility_id": "3029",
+          "facility_name": "Elaine Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "746",
+      "park_name": "The Camphouse",
+      "facilities": [
+        {
+          "facility_id": "2482",
+          "facility_name": "Bunkroom 1"
+        },
+        {
+          "facility_id": "2484",
+          "facility_name": "Bunkroom 3"
+        },
+        {
+          "facility_id": "2485",
+          "facility_name": "Bunkroom 4"
+        },
+        {
+          "facility_id": "2486",
+          "facility_name": "Bunkroom 5"
+        }
+      ]
+    },
+    {
+      "park_id": "772",
+      "park_name": "Tiritiri Matangi Island bunkhouse",
+      "facilities": [
+        {
+          "facility_id": "2566",
+          "facility_name": "K\u0101hu Room"
+        },
+        {
+          "facility_id": "2567",
+          "facility_name": "K\u014dkako Room"
+        },
+        {
+          "facility_id": "2568",
+          "facility_name": "Tuatara Room"
+        }
+      ]
+    },
+    {
+      "park_id": "856",
+      "park_name": "Totara Flats Hut",
+      "facilities": [
+        {
+          "facility_id": "2820",
+          "facility_name": "Totara Flats Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "883",
+      "park_name": "Totara Flats Non vehicle Campsite (Marlborough)",
+      "facilities": [
+        {
+          "facility_id": "2942",
+          "facility_name": "Totara Flats Campsite (Marlborough)"
+        }
+      ]
+    },
+    {
+      "park_id": "773",
+      "park_name": "Totaranui Campground",
+      "facilities": [
+        {
+          "facility_id": "2569",
+          "facility_name": "Totaranui Campground"
+        }
+      ]
+    },
+    {
+      "park_id": "893",
+      "park_name": "Travers Sabine Circuit",
+      "facilities": [
+        {
+          "facility_id": "2977",
+          "facility_name": "Blue Lake Hut"
+        },
+        {
+          "facility_id": "2974",
+          "facility_name": "John Tait Hut"
+        },
+        {
+          "facility_id": "2973",
+          "facility_name": "Lakehead Hut"
+        },
+        {
+          "facility_id": "2978",
+          "facility_name": "Sabine Hut"
+        },
+        {
+          "facility_id": "2979",
+          "facility_name": "Speargrass Hut"
+        },
+        {
+          "facility_id": "2975",
+          "facility_name": "Upper Travers Hut"
+        },
+        {
+          "facility_id": "2976",
+          "facility_name": "West Sabine Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "855",
+      "park_name": "Triplex Hut",
+      "facilities": [
+        {
+          "facility_id": "2812",
+          "facility_name": "Triplex Hut"
+        }
+      ]
+    },
+    {
+      "park_id": "812",
+      "park_name": "Trotters Gorge Campsite",
+      "facilities": [
+        {
+          "facility_id": "2713",
+          "facility_name": "Trotters Gorge Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "774",
+      "park_name": "Trounson Kauri Park Campground",
+      "facilities": [
+        {
+          "facility_id": "2595",
+          "facility_name": "Campervan/caravan sites"
+        },
+        {
+          "facility_id": "2594",
+          "facility_name": "Tent/campervan/caravan sites"
+        }
+      ]
+    },
+    {
+      "park_id": "777",
+      "park_name": "Uretiti Beach Campsite",
+      "facilities": [
+        {
+          "facility_id": "2601",
+          "facility_name": "Uretiti Beach Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "708",
+      "park_name": "Urupukapuka Island campsites",
+      "facilities": [
+        {
+          "facility_id": "2372",
+          "facility_name": "Cable Bay Campsite - Pohutukawa zone"
+        },
+        {
+          "facility_id": "2373",
+          "facility_name": "Cable Bay Campsite - Titoki zone"
+        },
+        {
+          "facility_id": "2678",
+          "facility_name": "Sunset Bay Campsite"
+        },
+        {
+          "facility_id": "2679",
+          "facility_name": "Urupukapuka Bay Campsite - Cattle Yard zone"
+        },
+        {
+          "facility_id": "2680",
+          "facility_name": "Urupukapuka Bay Campsite - Kukupa zone"
+        },
+        {
+          "facility_id": "2681",
+          "facility_name": "Urupukapuka Bay Campsite - NZ Dotterel zone"
+        },
+        {
+          "facility_id": "2683",
+          "facility_name": "Urupukapuka Bay Campsite - Oyster Catcher zone"
+        }
+      ]
+    },
+    {
+      "park_id": "824",
+      "park_name": "Victoria Forest Park huts and campsites",
+      "facilities": [
+        {
+          "facility_id": "2731",
+          "facility_name": "Big River Hut"
+        },
+        {
+          "facility_id": "2732",
+          "facility_name": "Kirwans Hut"
+        },
+        {
+          "facility_id": "2730",
+          "facility_name": "Slab Hut Creek Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "779",
+      "park_name": "Waikahoa Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2611",
+          "facility_name": "Waikahoa Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "780",
+      "park_name": "Waikawau Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2778",
+          "facility_name": "Beachside- unpowered"
+        },
+        {
+          "facility_id": "2825",
+          "facility_name": "Bushside unpowered"
+        },
+        {
+          "facility_id": "2620",
+          "facility_name": "Powered sites"
+        }
+      ]
+    },
+    {
+      "park_id": "782",
+      "park_name": "Waikuku Lodge",
+      "facilities": [
+        {
+          "facility_id": "2626",
+          "facility_name": "Waikuku Lodge to 30/06/2026"
+        }
+      ]
+    },
+    {
+      "park_id": "934",
+      "park_name": "Waiohine Gorge Campsite",
+      "facilities": [
+        {
+          "facility_id": "3048",
+          "facility_name": "Waiohine Gorge Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "783",
+      "park_name": "Waitawheta Hut",
+      "facilities": [
+        {
+          "facility_id": "2627",
+          "facility_name": "Waitawheta Hut"
+        },
+        {
+          "facility_id": "2774",
+          "facility_name": "Waitawheta Hut campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "784",
+      "park_name": "Waiuta Lodge",
+      "facilities": [
+        {
+          "facility_id": "2628",
+          "facility_name": "Waiuta Lodge"
+        }
+      ]
+    },
+    {
+      "park_id": "785",
+      "park_name": "Welcome Flat Hut, Campsite & Sole Occupancy Room",
+      "facilities": [
+        {
+          "facility_id": "2629",
+          "facility_name": "Sierra Room"
+        },
+        {
+          "facility_id": "2631",
+          "facility_name": "Welcome Flat Hut"
+        },
+        {
+          "facility_id": "2630",
+          "facility_name": "Welcome Flat Hut campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "786",
+      "park_name": "West Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2636",
+          "facility_name": "Buller area - P\u014dk\u0101k\u0101 zone"
+        },
+        {
+          "facility_id": "2637",
+          "facility_name": "Buller area - Rata zone"
+        },
+        {
+          "facility_id": "2638",
+          "facility_name": "Buller area - Tawai zone"
+        },
+        {
+          "facility_id": "2639",
+          "facility_name": "Buller area - T\u014dtara zone"
+        },
+        {
+          "facility_id": "2632",
+          "facility_name": "Jetty area - Astelia zone"
+        },
+        {
+          "facility_id": "2633",
+          "facility_name": "Jetty area - K\u0101nuka zone"
+        },
+        {
+          "facility_id": "2634",
+          "facility_name": "Jetty area - M\u0101pou zone"
+        }
+      ]
+    },
+    {
+      "park_id": "788",
+      "park_name": "Whatamango Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2641",
+          "facility_name": "Whatamango Bay Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "789",
+      "park_name": "Whirinaki Recreation Camp",
+      "facilities": [
+        {
+          "facility_id": "2642",
+          "facility_name": "Whirinaki Recreation Camp"
+        }
+      ]
+    },
+    {
+      "park_id": "837",
+      "park_name": "White Horse Hill Campsite",
+      "facilities": [
+        {
+          "facility_id": "2758",
+          "facility_name": "White Horse Hill Campsite"
+        }
+      ]
+    },
+    {
+      "park_id": "807",
+      "park_name": "Whites Bay Campsite",
+      "facilities": [
+        {
+          "facility_id": "2834",
+          "facility_name": "BOTTOM CAMP"
+        },
+        {
+          "facility_id": "2831",
+          "facility_name": "MIDDLE CAMP"
+        },
+        {
+          "facility_id": "2832",
+          "facility_name": "TOP CAMP"
+        }
+      ]
+    },
+    {
+      "park_id": "887",
+      "park_name": "William Hartree Memorial Lodge",
+      "facilities": [
+        {
+          "facility_id": "2946",
+          "facility_name": "William Hartree Memorial Lodge"
+        }
+      ]
+    },
+    {
+      "park_id": "838",
+      "park_name": "Wooded Gully (Mt Thomas) Campsite",
+      "facilities": [
+        {
+          "facility_id": "2759",
+          "facility_name": "Wooded Gully (Mt Thomas) Campsite"
+        }
+      ]
+    }
+  ]
+}
