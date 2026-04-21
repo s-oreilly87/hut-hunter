@@ -672,6 +672,10 @@ function MonitoringSection({
   const countdownSeconds = isOn && job.next_check_at
     ? (new Date(job.next_check_at).getTime() - nowMs) / 1000
     : null
+  const holdPausesMonitoring =
+    displayStatus === 'hold_placed'
+    || displayStatus === 'attempting_hold'
+  const disableTrigger = holdPausesMonitoring || displayStatus === 'checking'
 
   return (
     <section>
@@ -707,7 +711,13 @@ function MonitoringSection({
           ) : (
             <p>{formatRelativeTime(job.last_checked_at)}</p>
           )}
-          {isOn && (
+          {holdPausesMonitoring ? (
+            <p>
+              {displayStatus === 'hold_placed'
+                ? 'Paused while the active hold waits for payment.'
+                : 'Paused while Hut Hunter tries to secure the hold.'}
+            </p>
+          ) : isOn && (
             <p>Every {job.interval_minutes} min</p>
           )}
         </div>
@@ -718,11 +728,13 @@ function MonitoringSection({
               size="sm"
               variant="outline"
               className="w-full"
-              disabled={triggerQueued || displayStatus === 'checking'}
+              disabled={triggerQueued || disableTrigger}
               onClick={onTrigger}
             >
               {displayStatus === 'checking' ? (
                 <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…</>
+              ) : holdPausesMonitoring ? (
+                <><Pause className="h-3.5 w-3.5" /> Check Now</>
               ) : triggerQueued ? (
                 'Queued…'
               ) : countdownSeconds !== null ? (
@@ -1030,6 +1042,23 @@ export function JobCard({
                   </div>
                 </div>
               </div>
+              {job.last_result && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Latest availability that triggered the booking attempt:
+                  </p>
+                  <LastResultView
+                    result={job.last_result}
+                    artifactPng={job.last_artifact_png}
+                    artifactHtml={job.last_artifact_html}
+                  />
+                  {jobHasPartialAvailability(job) && (
+                    <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+                      <PartialAvailabilityHelp />
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           )}
 

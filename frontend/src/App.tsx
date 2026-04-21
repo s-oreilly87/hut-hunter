@@ -154,28 +154,70 @@ function CreateJobButton({
   )
 }
 
-function MobileActionBar({
-  backLabel,
-  onBack,
-  actions,
+function BrandLockup({
+  iconOnly = false,
+  className,
 }: {
-  backLabel?: string
-  onBack?: () => void
-  actions?: ReactNode
+  iconOnly?: boolean
+  className?: string
 }) {
-  if (!onBack && !actions) return null
+  if (iconOnly) {
+    return (
+      <div className={cn('inline-flex items-center', className)}>
+        <img src="/favicon.svg" alt="Hut Hunter" className="h-8 w-8" />
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-      <div className="flex flex-wrap gap-2">
-        {onBack && (
-          <Button size="sm" variant="ghost" className="-ml-2 w-fit" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-            {backLabel ?? 'Back'}
-          </Button>
-        )}
+    <div
+      className={cn(
+        'inline-flex items-center gap-3 rounded-2xl border border-border/70 bg-background/88 px-3 py-2 shadow-sm backdrop-blur-sm',
+        className,
+      )}
+    >
+      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/15">
+        <img src="/favicon.svg" alt="" className="h-6 w-6" />
+      </span>
+      <span className="text-sm font-semibold tracking-tight text-foreground">
+        Hut Hunter
+      </span>
+    </div>
+  )
+}
+
+function MobileActionBar({
+  leading,
+  actions,
+}: {
+  leading?: ReactNode
+  actions?: ReactNode
+}) {
+  if (!leading && !actions) return null
+
+  return (
+    <div className="-mx-4 sticky top-0 z-30 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">{leading}</div>
+        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+    </div>
+  )
+}
+
+function MobileBackBar({
+  backLabel,
+  onBack,
+}: {
+  backLabel?: string
+  onBack: () => void
+}) {
+  return (
+    <div className="px-1 pt-3">
+      <Button size="sm" variant="ghost" className="-ml-2 w-fit" onClick={onBack}>
+        <ArrowLeft className="h-4 w-4" />
+        {backLabel ?? 'Back'}
+      </Button>
     </div>
   )
 }
@@ -217,6 +259,7 @@ function DesktopApp({
   route,
   navigate,
   selectedJob,
+  setSelectedJobId,
   statusFilter,
   onStatusFilterChange,
   onDashboardJobSelect,
@@ -226,6 +269,7 @@ function DesktopApp({
   route: AppRoute
   navigate: (route: AppRoute, options?: { replace?: boolean }) => void
   selectedJob: WatchJob | null
+  setSelectedJobId: (jobId: string | null) => void
   statusFilter: JobFilterKey
   onStatusFilterChange: (filterKey: JobFilterKey) => void
   onDashboardJobSelect: (filterKey: JobFilterKey, jobId: string) => void
@@ -238,6 +282,7 @@ function DesktopApp({
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl space-y-4">
               <div className="space-y-3">
+                <BrandLockup />
                 <h1 className="max-w-2xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
                   Never miss a chance to book your hut!
                 </h1>
@@ -291,9 +336,13 @@ function DesktopApp({
 
       <CreateJobDialog
         open={route.name === 'create-job'}
+        onDone={(job) => {
+          setSelectedJobId(job.id)
+          navigate({ name: 'dashboard' }, { replace: true })
+        }}
         onOpenChange={(open) => {
           if (!open) {
-            navigate(selectedJob ? { name: 'job-detail', jobId: selectedJob.id } : { name: 'dashboard' }, { replace: true })
+            navigate({ name: 'dashboard' }, { replace: true })
           }
         }}
         hideTrigger
@@ -318,6 +367,7 @@ function MobileApp({
   route,
   navigate,
   selectedJob,
+  setSelectedJobId,
   statusFilter,
   onStatusFilterChange,
   onDashboardJobSelect,
@@ -326,23 +376,25 @@ function MobileApp({
   route: AppRoute
   navigate: (route: AppRoute, options?: { replace?: boolean }) => void
   selectedJob: WatchJob | null
+  setSelectedJobId: (jobId: string | null) => void
   statusFilter: JobFilterKey
   onStatusFilterChange: (filterKey: JobFilterKey) => void
   onDashboardJobSelect: (filterKey: JobFilterKey, jobId: string) => void
 }) {
   return (
     <div className="app-shell min-h-screen pb-24">
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 px-4 py-4">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 px-4 pb-4 pt-0">
         {route.name === 'dashboard' && (
           <>
             <MobileActionBar
+              leading={<BrandLockup iconOnly className="shrink-0" />}
               actions={(
                 <>
                   <OccupantsDialog />
                   <CreateJobButton
                     onClick={() => navigate({ name: 'create-job' })}
                     size="sm"
-                    className="flex-1 sm:flex-none"
+                    className="sm:flex-none"
                   />
                 </>
               )}
@@ -359,6 +411,7 @@ function MobileApp({
         {route.name === 'jobs' && (
           <>
             <MobileActionBar
+              leading={<BrandLockup iconOnly className="shrink-0" />}
               actions={(
                 <>
                   <OccupantsDialog />
@@ -388,7 +441,8 @@ function MobileApp({
 
         {route.name === 'job-detail' && (
           <>
-            <MobileActionBar
+            <MobileActionBar leading={<BrandLockup iconOnly className="shrink-0" />} />
+            <MobileBackBar
               backLabel="Watch Jobs"
               onBack={() => navigate({ name: 'jobs' })}
             />
@@ -401,23 +455,28 @@ function MobileApp({
 
         {route.name === 'create-job' && (
           <>
-            <MobileActionBar
+            <MobileBackBar
               backLabel="Watch Jobs"
               onBack={() => navigate({ name: 'jobs' })}
             />
-            <CreateJobPage onDone={() => navigate({ name: 'jobs' }, { replace: true })} />
+            <CreateJobPage
+              onDone={(job) => {
+                setSelectedJobId(job.id)
+                navigate({ name: 'jobs' }, { replace: true })
+              }}
+            />
           </>
         )}
 
         {route.name === 'edit-job' && selectedJob && (
           <>
-            <MobileActionBar
+            <MobileBackBar
               backLabel="Job Card"
               onBack={() => navigate({ name: 'job-detail', jobId: selectedJob.id })}
             />
             <EditJobPage
               job={selectedJob}
-              onDone={() => navigate({ name: 'job-detail', jobId: selectedJob.id }, { replace: true })}
+              onDone={(job) => navigate({ name: 'job-detail', jobId: job.id }, { replace: true })}
             />
           </>
         )}
@@ -466,7 +525,7 @@ export default function App() {
 
     const nextJobs = sortedJobs.filter((job) => matchesJobFilter(job, nextFilter, pendingBookings))
     if (!selectedJobId || !nextJobs.some((job) => job.id === selectedJobId)) {
-      setSelectedJobId(nextJobs[0]?.id ?? null)
+      setSelectedJobId(null)
     }
 
     if (isMobile && route.name === 'dashboard') {
@@ -549,7 +608,7 @@ export default function App() {
     if (!selectedJobId) return
     if (filteredJobs.some((job) => job.id === selectedJobId)) return
 
-    setSelectedJobId(filteredJobs[0]?.id ?? null)
+    setSelectedJobId(null)
   }, [filteredJobs, route, selectedJobId, setSelectedJobId])
 
   useEffect(() => {
@@ -593,6 +652,7 @@ export default function App() {
         route={route}
         navigate={navigate}
         selectedJob={selectedJob}
+        setSelectedJobId={setSelectedJobId}
         statusFilter={statusFilter}
         onStatusFilterChange={applyStatusFilter}
         onDashboardJobSelect={handleDashboardJobSelect}
@@ -607,6 +667,7 @@ export default function App() {
       route={route}
       navigate={navigate}
       selectedJob={selectedJob}
+      setSelectedJobId={setSelectedJobId}
       statusFilter={statusFilter}
       onStatusFilterChange={applyStatusFilter}
       onDashboardJobSelect={handleDashboardJobSelect}
