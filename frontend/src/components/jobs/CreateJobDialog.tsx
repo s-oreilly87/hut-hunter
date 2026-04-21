@@ -402,6 +402,7 @@ function JobFormDialog({
           mode={mode}
           initialJob={initialJob}
           onDone={() => onOpenChange(false)}
+          presentation="dialog"
         />
       </DialogContent>
     </Dialog>
@@ -412,10 +413,12 @@ function JobFormBody({
   mode,
   initialJob,
   onDone,
+  presentation,
 }: {
   mode: Mode
   initialJob?: WatchJob
   onDone: () => void
+  presentation: 'dialog' | 'page'
 }) {
   const qc = useQueryClient()
   const [name, setName] = useState(
@@ -634,15 +637,32 @@ function JobFormBody({
 
   return (
     <>
-      <DialogHeader>
-        <div className="flex items-center gap-2">
-          <DialogTitle>{title}</DialogTitle>
-          <InfoTooltip
-            content="Set the adapter inputs, choose the saved occupants, and decide whether this job should monitor on a schedule or only run on demand."
-            align="start"
-          />
+      {presentation === 'dialog' ? (
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <DialogTitle>{title}</DialogTitle>
+            <InfoTooltip
+              content="Set the adapter inputs, choose the saved occupants, and decide whether this job should monitor on a schedule or only run on demand."
+              align="start"
+            />
+          </div>
+        </DialogHeader>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              {title}
+            </h1>
+            <InfoTooltip
+              content="Set the adapter inputs, choose the saved occupants, and decide whether this job should monitor on a schedule or only run on demand."
+              align="start"
+            />
+          </div>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            Configure the booking adapter, confirm the party details, and choose whether this job should watch automatically or stay manual.
+          </p>
         </div>
-      </DialogHeader>
+      )}
       <div className="grid gap-4 py-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
         <div className="space-y-4">
           <FormSection
@@ -828,21 +848,69 @@ function JobFormBody({
   )
 }
 
+function JobFormPage({
+  mode,
+  initialJob,
+  onDone,
+}: {
+  mode: Mode
+  initialJob?: WatchJob
+  onDone: () => void
+}) {
+  return (
+    <section className="app-panel px-4 py-5 sm:px-6">
+      <JobFormBody
+        key={`${mode}:${initialJob?.id ?? 'new'}:page`}
+        mode={mode}
+        initialJob={initialJob}
+        onDone={onDone}
+        presentation="page"
+      />
+    </section>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Public wrappers
 // ---------------------------------------------------------------------------
 
-export function CreateJobDialog() {
-  const [open, setOpen] = useState(false)
+export function CreateJobDialog({
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+}: {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
+} = {}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = controlledOpen ?? uncontrolledOpen
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (controlledOpen == null) {
+      setUncontrolledOpen(nextOpen)
+    }
+    onOpenChange?.(nextOpen)
+  }
+
   return (
     <>
-      <Button onClick={() => setOpen(true)} className="sm:min-w-40">
-        <Plus className="h-4 w-4" />
-        New Watch Job
-      </Button>
-      <JobFormDialog open={open} onOpenChange={setOpen} mode="create" />
+      {!hideTrigger && (
+        <Button onClick={() => handleOpenChange(true)} className="sm:min-w-40">
+          <Plus className="h-4 w-4" />
+          New Watch Job
+        </Button>
+      )}
+      <JobFormDialog open={open} onOpenChange={handleOpenChange} mode="create" />
     </>
   )
+}
+
+export function CreateJobPage({
+  onDone,
+}: {
+  onDone: () => void
+}) {
+  return <JobFormPage mode="create" onDone={onDone} />
 }
 
 export function EditJobDialog({
@@ -862,4 +930,14 @@ export function EditJobDialog({
       initialJob={job}
     />
   )
+}
+
+export function EditJobPage({
+  job,
+  onDone,
+}: {
+  job: WatchJob
+  onDone: () => void
+}) {
+  return <JobFormPage mode="edit" initialJob={job} onDone={onDone} />
 }

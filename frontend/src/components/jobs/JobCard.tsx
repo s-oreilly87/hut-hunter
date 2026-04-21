@@ -768,7 +768,13 @@ function MonitoringSection({
   )
 }
 
-export function JobCard() {
+export function JobCard({
+  onRequestEdit,
+  onDeleted,
+}: {
+  onRequestEdit?: (job: WatchJob) => void
+  onDeleted?: () => void
+} = {}) {
   const queryClient = useQueryClient()
   const {
     selectedJobId,
@@ -799,6 +805,7 @@ export function JobCard() {
     onSuccess: (_, id) => {
       if (selectedJobId === id) setSelectedJobId(null)
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      onDeleted?.()
     },
   })
 
@@ -859,6 +866,15 @@ export function JobCard() {
 
   if (!job) return null
 
+  const handleEdit = () => {
+    if (onRequestEdit) {
+      onRequestEdit(job)
+      return
+    }
+
+    setEditOpen(true)
+  }
+
   const displayStatus = getDisplayStatus(job, pendingBookings)
   const hideTrigger =
     job.status === 'booking_complete'
@@ -895,7 +911,7 @@ export function JobCard() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
-                <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+                <Button size="sm" variant="outline" onClick={handleEdit}>
                   <Settings2 className="h-4 w-4" />
                   Edit
                 </Button>
@@ -1062,7 +1078,9 @@ export function JobCard() {
         </CardContent>
       </Card>
 
-      <EditJobDialog open={editOpen} onOpenChange={setEditOpen} job={job} />
+      {!onRequestEdit && (
+        <EditJobDialog open={editOpen} onOpenChange={setEditOpen} job={job} />
+      )}
     </>
   )
 }
