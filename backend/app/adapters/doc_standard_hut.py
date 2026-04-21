@@ -236,7 +236,6 @@ class DocStandardHutAdapter(BaseAdapter):
     @classmethod
     def param_fields(cls) -> list[ParamField]:
         options_tree = _facility_options_tree()
-        default_facility = options_tree[0]["items"][0] if options_tree and options_tree[0]["items"] else ""
 
         return [
             ParamField(
@@ -244,7 +243,7 @@ class DocStandardHutAdapter(BaseAdapter):
                 label="Hut",
                 type="select",
                 options_tree=options_tree,
-                default=default_facility,
+                default="",
                 required=True,
             ),
             ParamField(

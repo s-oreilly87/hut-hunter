@@ -34,7 +34,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { EditJobDialog } from '@/components/jobs/CreateJobDialog'
 import {
   BookButton,
@@ -407,28 +406,27 @@ function LastResultView({
           return (
             <div
               key={index}
-              className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}
+              className={`relative rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}
             >
-              <div className="flex flex-wrap items-start gap-3">
+              <Badge
+                variant={entry.status === 'unknown' ? 'outline' : 'default'}
+                className={`absolute right-3 top-3 ${visual.badgeClass}`}
+              >
+                {titleize(entry.status)}
+              </Badge>
+
+              <div className="flex items-start gap-3 pr-20">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium tracking-tight text-foreground">
-                        {entry.site}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-foreground/85">
-                        {copy.summary}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={entry.status === 'unknown' ? 'outline' : 'default'}
-                      className={visual.badgeClass}
-                    >
-                      {titleize(entry.status)}
-                    </Badge>
+                  <div>
+                    <p className="font-medium tracking-tight text-foreground">
+                      {entry.site}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-foreground/85">
+                      {copy.summary}
+                    </p>
                   </div>
 
                   {copy.details.length > 0 && (
@@ -522,10 +520,21 @@ function HeaderParamSummary({
             const textClass = field.isSubtitle ? 'text-xs text-muted-foreground/70' : ''
 
             return (
-              <span key={field.key} className={`inline-flex items-center gap-2 ${textClass}`}>
-                <Icon className={field.isSubtitle ? 'h-3 w-3 text-foreground/45' : 'h-3.5 w-3.5 text-foreground/65'} />
+              <span key={field.key} className={`inline-flex items-start gap-2 ${textClass}`}>
+                <Icon className={`mt-0.5 shrink-0 ${field.isSubtitle ? 'h-3 w-3 text-foreground/45' : 'h-3.5 w-3.5 text-foreground/65'}`} />
                 <span className="sr-only">{field.label}: </span>
-                {field.href ? (
+                {field.tags ? (
+                  <span className="flex flex-wrap gap-1">
+                    {field.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground/75"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </span>
+                ) : field.href ? (
                   <a
                     href={field.href}
                     target="_blank"
@@ -883,7 +892,6 @@ export function JobCard({
     || displayStatus === 'attempting_hold'
   const queued = optimisticTriggers.has(job.id)
   const deleting = remove.isPending
-  const showStatusBadge = displayStatus !== 'paused' && displayStatus !== 'checking'
   const receiptArtifact = getReceiptArtifact(job.artifact_history) ?? (
     job.status === 'booking_complete' && job.last_artifact_png && job.last_artifact_html
       ? {
@@ -899,39 +907,27 @@ export function JobCard({
     <>
       <Card className="app-panel border-border/80 bg-card/90">
         <CardHeader className="gap-4 border-b border-border/70 pb-5">
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                {showStatusBadge && (
-                  <StatusBadge
-                    status={displayStatus}
-                    jobId={job.id}
-                    artifactUrl={job.last_artifact_png}
-                  />
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                <Button size="sm" variant="outline" onClick={handleEdit}>
-                  <Settings2 className="h-4 w-4" />
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={deleting}
-                  onClick={() => handleDelete(job.id, job.name)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {deleting ? 'Deleting...' : 'Delete'}
-                </Button>
-              </div>
-            </div>
-
-            <div className="min-w-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
               <CardTitle className="text-xl tracking-tight">{job.name}</CardTitle>
               <CardDescription className="mt-2 max-w-3xl text-sm leading-5">
                 <HeaderParamSummary params={job.params} />
               </CardDescription>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={handleEdit}>
+                <Settings2 className="h-4 w-4" />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={deleting}
+                onClick={() => handleDelete(job.id, job.name)}
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleting ? 'Deleting...' : 'Delete'}
+              </Button>
             </div>
           </div>
         </CardHeader>

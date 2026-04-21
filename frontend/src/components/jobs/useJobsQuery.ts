@@ -16,6 +16,7 @@ export function useJobsQuery<TData = WatchJob[]>(
     queryKey: JOBS_QUERY_KEY,
     queryFn: jobsApi.list,
     refetchInterval: JOBS_POLL_INTERVAL_MS,
+    refetchIntervalInBackground: true,
     ...options,
   })
 }

@@ -95,7 +95,7 @@ export interface UpdateWatchJobDto {
 export interface ParamField {
   key: string
   label: string
-  type: 'text' | 'date' | 'number' | 'select'
+  type: 'text' | 'date' | 'number' | 'select' | 'multiselect'
   options: string[] | null
   default: unknown
   required: boolean

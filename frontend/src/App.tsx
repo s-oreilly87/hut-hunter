@@ -210,20 +210,10 @@ function DesktopApp({
 
         <main className="dashboard-enter-late mt-5 grid flex-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)]">
           <section className="app-panel flex min-h-104 flex-col overflow-hidden">
-            <div className="flex flex-col gap-2 border-b border-border/80 px-5 py-5 sm:px-6">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                    Watch Jobs
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Recent jobs, live status, and fast actions for checks and booking.
-                  </p>
-                </div>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  Polling every 5 seconds
-                </p>
-              </div>
+            <div className="border-b border-border/80 px-5 py-5 sm:px-6">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                Watch Jobs
+              </h2>
             </div>
             <div className="min-h-0 flex-1 px-4 py-4 sm:px-6">
               <JobList onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })} />
@@ -304,18 +294,10 @@ function MobileApp({
               )}
             />
             <section className="app-panel px-4 py-5">
-              <div className="mb-4 flex items-end justify-between gap-3 border-b border-border/80 pb-4">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                    Watch Jobs
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Accordion groups default closed on mobile so the job card stays separate.
-                  </p>
-                </div>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  Polling every 5 seconds
-                </p>
+              <div className="mb-4 border-b border-border/80 pb-4">
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  Watch Jobs
+                </h2>
               </div>
               <JobList
                 collapseGroupsByDefault

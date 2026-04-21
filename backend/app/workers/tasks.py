@@ -620,15 +620,20 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
 
     # --- 2. Notifications (hold outcome only) ---
     if booking and booking.held and booking.reservation_url:
-        for r in fully_available:
-            await notify_gotify(
-                title="🏕️ Hold Secured!",
-                message=(
-                    f"{r.site} — {r.total_available} spot(s) on {params.get('date')}.\n"
-                    f"25 mins to complete payment:\n{booking.reservation_url}"
-                ),
-                priority=10,
-            )
+        # One notification listing all held sites.
+        site_lines = [
+            f"  • {r.site} — {r.total_available} spot(s)"
+            for r in fully_available
+        ]
+        await notify_gotify(
+            title="🏕️ Hold Secured!",
+            message=(
+                f"Hold placed for {params.get('date')}:\n"
+                + "\n".join(site_lines)
+                + f"\n\n25 mins to complete payment:\n{booking.reservation_url}"
+            ),
+            priority=10,
+        )
     elif availability_dropped:
         # fully_available is empty here, but we still know something was
         # available at poll time — surface the miss in a terse notification.
@@ -641,13 +646,19 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             priority=7,
         )
     else:
+        # One notification listing all sites that were available but couldn't
+        # be held (covers both single-site and multi-night multi-site cases).
         msg = booking.message if booking else "Hold not attempted"
-        for r in fully_available:
+        if fully_available:
+            site_lines = [
+                f"  • {r.site} — {r.total_available} spot(s)"
+                for r in fully_available
+            ]
             await notify_gotify(
                 title="🏕️ Available but hold failed",
                 message=(
-                    f"{r.site} has {r.total_available} spot(s) on {params.get('date')} "
-                    f"but hold failed: {msg}"
+                    f"Sites available on {params.get('date')} but hold failed: {msg}\n"
+                    + "\n".join(site_lines)
                 ),
                 priority=8,
             )

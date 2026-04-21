@@ -3,6 +3,7 @@ import re
 import logging
 import asyncio
 from datetime import time
+from pathlib import Path
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 from app.adapters.base import (
     BaseAdapter, ParamField, AvailabilityResult, AvailabilityStatus, BookingResult
@@ -33,7 +34,15 @@ class GreatWalkInfo:
     def single_direction(self) -> bool:
         return len(self.directions) == 1
 
-GREAT_WALK_REGISTRY: list[GreatWalkInfo] = [
+# ---------------------------------------------------------------------------
+# Load great_walks.json (written by scrape_great_walks.py) and build the
+# registry + sites lookup from it.  Falls back to the hardcoded list when
+# the JSON file is absent so the adapter still works before the scraper runs.
+# ---------------------------------------------------------------------------
+
+_GREAT_WALKS_JSON = Path(__file__).resolve().parent / "great_walks.json"
+
+_HARDCODED_REGISTRY: list[GreatWalkInfo] = [
     GreatWalkInfo("Abel Tasman Coast Track", ["Marahau – Wainui Bay", "Wainui Bay - Marahau"]),
     GreatWalkInfo("Heaphy Track", ["Golden Bay – West Coast", "West Coast - Golden Bay"]),
     GreatWalkInfo("Kepler Track", ["Anti – clockwise (Brod Bay first)", "Clockwise (Moturau Hut first)"]),
@@ -46,11 +55,53 @@ GREAT_WALK_REGISTRY: list[GreatWalkInfo] = [
     GreatWalkInfo("Whanganui Journey", ["Taumarunui-Pipiriki"]),  # single direction
 ]
 
+
+def _load_registry_from_json() -> tuple[list[GreatWalkInfo], dict[str, list[str]]]:
+    """Return (registry, sites_by_track) loaded from great_walks.json.
+
+    Returns the hardcoded fallback (with empty sites) if the file is missing
+    or malformed.
+    """
+    try:
+        data = json.loads(_GREAT_WALKS_JSON.read_text())
+        walks = data.get("great_walks", [])
+        if not walks:
+            raise ValueError("empty great_walks list")
+        registry = [
+            GreatWalkInfo(w["name"], w.get("directions", []))
+            for w in walks
+        ]
+        sites_by_track: dict[str, list[str]] = {
+            w["name"]: [s["siteName"] for s in w.get("sites", [])]
+            for w in walks
+        }
+        logger.debug("Loaded %d great walks from %s", len(registry), _GREAT_WALKS_JSON)
+        return registry, sites_by_track
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, KeyError) as exc:
+        logger.debug(
+            "great_walks.json not found or invalid (%s) — using hardcoded registry",
+            exc,
+        )
+        return _HARDCODED_REGISTRY, {}
+
+
+GREAT_WALK_REGISTRY, _SITES_BY_TRACK = _load_registry_from_json()
+
 # Derived lookups — no duplication
 GREAT_WALKS = [w.name for w in GREAT_WALK_REGISTRY]
 GREAT_WALK_MAP = {w.name: w for w in GREAT_WALK_REGISTRY}
 
 PEOPLE_OPTIONS = [str(i) for i in range(1, 26)]  # 1-25, always consistent
+
+
+def _parse_sites(params: dict) -> list[str]:
+    """Parse the ``sites`` param, supporting both the new list format and the
+    legacy comma-separated string format for backward compatibility."""
+    sites_param = params.get("sites", "")
+    if isinstance(sites_param, list):
+        return [s.strip() for s in sites_param if isinstance(s, str) and s.strip()]
+    # Legacy: comma-separated string
+    return [s.strip() for s in str(sites_param).split(",") if s.strip()]
 
 
 def parse_month_header(text: str) -> dict:
@@ -81,7 +132,7 @@ class DocGreatWalkAdapter(BaseAdapter):
                 label="Track",
                 type="select",
                 options=GREAT_WALKS,
-                default="Routeburn Track",
+                default="",
             ),
             ParamField(
                 key="date",
@@ -120,9 +171,13 @@ class DocGreatWalkAdapter(BaseAdapter):
             ),
             ParamField(
                 key="sites",
-                label="Sites to Watch (comma separated)",
-                type="text",
-                default="",
+                label="Sites",
+                type="multiselect",
+                options=[s for sites in _SITES_BY_TRACK.values() for s in sites],
+                default=[],
+                required=False,
+                filter_by="track",
+                options_by=_SITES_BY_TRACK,
             ),
         ]
 
@@ -353,7 +408,7 @@ class DocGreatWalkAdapter(BaseAdapter):
         date_str = params["date"]
         nights = int(params.get("nights", 1))
         people_wanted = int(params.get("people", 2))
-        sites = [s.strip() for s in params.get("sites", "").split(",") if s.strip()]
+        sites = _parse_sites(params)
 
         # Build per-night dates so each site is checked on the date it will
         # actually be booked. Checking every site against the start date gives
@@ -458,7 +513,7 @@ class DocGreatWalkAdapter(BaseAdapter):
     async def attempt_hold(self, page: Page, params: dict) -> BookingResult:
         date_str = params["date"]  # start date DD/MM/YYYY
         nights = int(params.get("nights", 1))
-        sites = [s.strip() for s in params.get("sites", "").split(",") if s.strip()]
+        sites = _parse_sites(params)
         occupants = params.get("occupants", [])
 
         if not occupants:
@@ -618,25 +673,41 @@ class DocGreatWalkAdapter(BaseAdapter):
                 message="Did not reach Reservation Details page",
             )
 
-        # --- 7. Expand occupant details, snapshot, then click Book Great Walk ---
+        # --- 7a. Wait for Book Great Walk button ---
         try:
             book_link = page.locator("#mainContent_bReserve")
             await book_link.wait_for(state="visible", timeout=15_000)
+        except PlaywrightTimeoutError:
+            await self.snapshot(page, "book_great_walk_timeout")
+            return BookingResult(
+                success=False,
+                held=False,
+                message="Book Great Walk button did not appear on Reservation Details page",
+            )
 
-            # Open the View Occupants modal so the snapshot captures what was
-            # actually saved rather than just the per-night grid.
+        # --- 7b. Best-effort: open View Occupants modal for a richer snapshot ---
+        # This is snapshot-only; any failure here must not abort the booking.
+        try:
             view_occ_btn = page.locator("#aViewOccupant")
             if await view_occ_btn.count() > 0:
                 await view_occ_btn.click()
                 logger.info("Opened View Occupants modal on Reservation Details page")
-                await page.locator("#myModal_occu").wait_for(state="visible", timeout=5_000)
+                await page.locator("#myModal_occu").wait_for(state="visible", timeout=6_000)
                 await page.wait_for_timeout(300)
                 await self.snapshot(page, "reservation_details")
                 await page.locator("#myModal_occu .close").first.click()
-                await page.locator("#myModal_occu").wait_for(state="hidden", timeout=5_000)
+                await page.locator("#myModal_occu").wait_for(state="hidden", timeout=8_000)
             else:
                 await self.snapshot(page, "reservation_details")
+        except Exception as modal_err:
+            logger.warning(f"View Occupants modal snapshot failed (non-fatal): {modal_err}")
+            try:
+                await self.snapshot(page, "reservation_details")
+            except Exception:
+                pass
 
+        # --- 7c. Click Book Great Walk ---
+        try:
             await book_link.click()
             logger.info("Clicked Book Great Walk")
         except PlaywrightTimeoutError:
@@ -644,7 +715,7 @@ class DocGreatWalkAdapter(BaseAdapter):
             return BookingResult(
                 success=False,
                 held=False,
-                message="Book Great Walk link not found — check artifact for page state",
+                message="Book Great Walk button click timed out — check artifact for page state",
             )
 
         # --- 8. Wait for Shopping Cart ---

@@ -1,0 +1,446 @@
+{
+  "scraped_at": "2026-04-21T15:38:30Z",
+  "source": "bookings.doc.govt.nz",
+  "great_walks": [
+    {
+      "id": "abel-tasman-coast-track",
+      "name": "Abel Tasman Coast Track",
+      "directions": [
+        "Marahau \u2013 Wainui Bay",
+        "Wainui Bay - Marahau"
+      ],
+      "sites": [
+        {
+          "siteName": "Tinline Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Coquille Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Apple Tree Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Akersten Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Observation Beach Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Watering Cove Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Te Pukatea Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Anchorage Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Anchorage Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Torrent Bay Village Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Bark Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Bark Bay Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Mosquito Bay Campsite (private boat access only)",
+          "type": "camp"
+        },
+        {
+          "siteName": "Onetahuti Bay Campsite",
+          "type": "hut"
+        },
+        {
+          "siteName": "Awaroa Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Awaroa Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Waiharakeke Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Totaranui Great Walk Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Anapai Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Mutton Cove Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Whariwharangi Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Whariwharangi Hut",
+          "type": "hut"
+        }
+      ]
+    },
+    {
+      "id": "heaphy-track",
+      "name": "Heaphy Track",
+      "directions": [
+        "Golden Bay \u2013 West Coast",
+        "West Coast - Golden Bay"
+      ],
+      "sites": [
+        {
+          "siteName": "Brown Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Brown Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Aorere Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Perry Saddle Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Perry Saddle Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Gouland Downs Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Gouland Downs Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Saxon Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Saxon Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "James Mackay Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "James Mackay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Heaphy Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Heaphy Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Katipo Creek Shelter Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Scotts Beach Campsite",
+          "type": "camp"
+        }
+      ]
+    },
+    {
+      "id": "kepler-track",
+      "name": "Kepler Track",
+      "directions": [
+        "Anti \u2013 clockwise (Brod Bay first)",
+        "Clockwise (Moturau Hut first)"
+      ],
+      "sites": [
+        {
+          "siteName": "Brod Bay Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Luxmore Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Iris Burn Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Iris Burn Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Moturau Hut",
+          "type": "hut"
+        }
+      ]
+    },
+    {
+      "id": "lake-waikaremoana-track",
+      "name": "Lake Waikaremoana Track",
+      "directions": [
+        "Onepoto \u2013 Hopuruahine Landing",
+        "Hopuruahine Landing - Onepoto"
+      ],
+      "sites": [
+        {
+          "siteName": "Panekire Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Waiopaoa Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Waiopaoa Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Korokoro Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Maraunui Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Marauiti Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Waiharuru Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Waiharuru Campsite",
+          "type": "camp"
+        }
+      ]
+    },
+    {
+      "id": "milford-track",
+      "name": "Milford Track",
+      "directions": [],
+      "sites": [
+        {
+          "siteName": "Clinton Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Mintaro Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Dumpling Hut",
+          "type": "hut"
+        }
+      ]
+    },
+    {
+      "id": "paparoa-track",
+      "name": "Paparoa Track",
+      "directions": [
+        "Blackball - Punakaiki",
+        "Punakaiki - Blackball"
+      ],
+      "sites": [
+        {
+          "siteName": "Ces Clark Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Moonlight Tops Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Pororari Hut",
+          "type": "hut"
+        }
+      ]
+    },
+    {
+      "id": "rakiura-track",
+      "name": "Rakiura Track",
+      "directions": [
+        "Lee Bay \u2013 Main Road/Fern Gully car park",
+        "Main Road/Fern Gully car park \u2013 Lee Bay"
+      ],
+      "sites": [
+        {
+          "siteName": "Maori Beach Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Port William Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Port William Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "North Arm Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "North Arm Campsite",
+          "type": "camp"
+        }
+      ]
+    },
+    {
+      "id": "routeburn-track",
+      "name": "Routeburn Track",
+      "directions": [
+        "Routeburn Shelter \u2013 The Divide",
+        "The Divide - Routeburn Shelter"
+      ],
+      "sites": [
+        {
+          "siteName": "Routeburn Flats Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Routeburn Flats Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Routeburn Falls Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Lake Mackenzie Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Lake Mackenzie Campsite",
+          "type": "camp"
+        }
+      ]
+    },
+    {
+      "id": "tongariro-northern-circuit",
+      "name": "Tongariro Northern Circuit",
+      "directions": [
+        "Clockwise (Mangatepopo first)",
+        "Anti-Clockwise (Waihohonu first)"
+      ],
+      "sites": [
+        {
+          "siteName": "Mangatepopo Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Mangatepopo Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Oturere Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Oturere Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Waihohonu Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "Waihohonu Campsite",
+          "type": "camp"
+        }
+      ]
+    },
+    {
+      "id": "whanganui-journey",
+      "name": "Whanganui Journey",
+      "directions": [
+        "Taumarunui-Pipiriki"
+      ],
+      "sites": [
+        {
+          "siteName": "\u014chinepane Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Poukaria Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Maharanui Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Whakahoro Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Whakahoro Bunkroom",
+          "type": "hut"
+        },
+        {
+          "siteName": "Mangapapa Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "\u014chauora Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "John Coull Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "John Coull Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Mangawaiiti Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Mangapurua Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "T\u012beke K\u0101inga Hut",
+          "type": "hut"
+        },
+        {
+          "siteName": "T\u012beke Campsite",
+          "type": "camp"
+        },
+        {
+          "siteName": "Ng\u0101poro Campsite",
+          "type": "camp"
+        }
+      ]
+    }
+  ]
+}
