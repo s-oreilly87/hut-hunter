@@ -103,6 +103,10 @@ export interface ParamField {
   // `filter_by`. Use options_by[<value of filter_by>] as the options.
   filter_by?: string | null
   options_by?: Record<string, string[]> | null
+  // When set, the select should be rendered as a grouped dropdown with one
+  // <SelectGroup> per entry. Each entry is { group: string; items: string[] }.
+  // `options` is still present as the flattened list for backwards compat.
+  options_tree?: { group: string; items: string[] }[] | null
 }
 
 export interface AdapterInfo {

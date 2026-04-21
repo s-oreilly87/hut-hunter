@@ -104,12 +104,27 @@ function getJobTitle(job: WatchJob): string {
   return trimmed || 'Untitled Job'
 }
 
+// Regex matches the DOC standard facility option string format:
+//   "Mueller Hut (747/2487) — Aoraki/Mount Cook National Park"
+const FACILITY_OPTION_RE = /^(.+?)\s*\(\d+\/\d+\)(?:\s*—\s*(.+))?$/
+
 function getJobSubtitle(
   job: WatchJob,
   adapterDateFieldKeyById: Map<string, string>,
   adapterTrackFieldKeyById: Map<string, string>,
 ): string {
   const dateFieldKey = getDateFieldKey(job, adapterDateFieldKeyById)
+
+  // DOC standard hut — derive subtitle from facility + date
+  const facilityStr = typeof job.params.facility === 'string' ? job.params.facility.trim() : ''
+  if (facilityStr) {
+    const m = FACILITY_OPTION_RE.exec(facilityStr)
+    const facilityName = m ? m[1].trim() : facilityStr
+    const startDate = dateFieldKey ? formatStartDate(job.params[dateFieldKey]) : null
+    if (facilityName && startDate) return `${facilityName}, ${startDate}`
+    if (facilityName) return facilityName
+  }
+
   const trackFieldKey = getTrackFieldKey(job, adapterTrackFieldKeyById)
   const trackName = trackFieldKey ? String(job.params[trackFieldKey] ?? '').trim() : ''
   const startDate = dateFieldKey ? formatStartDate(job.params[dateFieldKey]) : null
@@ -281,16 +296,23 @@ export function JobList() {
                     const showStatusBadge = displayStatus !== 'checking'
 
                     return (
-                      <button
+                      <div
                         key={job.id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         className={[
-                          'w-full rounded-[1.35rem] border px-4 py-4 text-left transition-all',
+                          'w-full rounded-[1.35rem] border px-4 py-4 text-left transition-all cursor-pointer',
                           isSelected
                             ? 'border-primary/45 bg-primary/8 ring-2 ring-primary/20 shadow-[0_22px_55px_-34px_rgba(22,53,40,0.7)]'
                             : 'border-border/80 bg-background/75 hover:border-primary/20 hover:bg-background',
                         ].join(' ')}
                         onClick={() => setSelectedJobId(job.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setSelectedJobId(job.id)
+                          }
+                        }}
                       >
                         <div className="space-y-4">
                           <div className="space-y-1">
@@ -338,7 +360,7 @@ export function JobList() {
                             )}
                           </div>
                         </div>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>

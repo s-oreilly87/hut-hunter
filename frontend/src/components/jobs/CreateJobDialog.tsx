@@ -23,7 +23,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Select, SelectContent, SelectItem,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel,
   SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
@@ -37,6 +37,18 @@ import {
 // Field rendering
 // ---------------------------------------------------------------------------
 
+// For the DOC standard hut "facility" select, each option value encodes:
+//   "Mueller Hut (747/2487) — Aoraki/Mount Cook National Park"
+// We strip the IDs and park suffix so the select shows only the facility name.
+// Items are already grouped by park via SelectGroup, so the park is visible
+// as the group header label.
+const FACILITY_OPTION_DISPLAY_RE = /^(.+?)\s*\(\d+\/\d+\)(?:\s*—\s*.+)?$/
+
+function facilityDisplayName(opt: string): string {
+  const m = FACILITY_OPTION_DISPLAY_RE.exec(opt.trim())
+  return m ? m[1].trim() : opt
+}
+
 function ParamFieldInput({
   field,
   value,
@@ -49,16 +61,32 @@ function ParamFieldInput({
   options?: string[] | null
 }) {
   const selectOptions = options ?? field.options
-  if (field.type === 'select' && selectOptions) {
+  if (field.type === 'select' && (field.options_tree || selectOptions)) {
+    const tree = field.options_tree
+    const isFacility = field.key === 'facility'
     return (
       <Select value={String(value ?? '')} onValueChange={onChange}>
         <SelectTrigger>
           <SelectValue placeholder={`Select ${field.label}`} />
         </SelectTrigger>
         <SelectContent>
-          {selectOptions.map(opt => (
-            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-          ))}
+          {tree
+            ? tree.map(group => (
+                <SelectGroup key={group.group}>
+                  <SelectLabel>{group.group}</SelectLabel>
+                  {group.items.map(opt => (
+                    <SelectItem key={opt} value={opt}>
+                      {isFacility ? facilityDisplayName(opt) : opt}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))
+            : selectOptions!.map(opt => (
+                <SelectItem key={opt} value={opt}>
+                  {isFacility ? facilityDisplayName(opt) : opt}
+                </SelectItem>
+              ))
+          }
         </SelectContent>
       </Select>
     )

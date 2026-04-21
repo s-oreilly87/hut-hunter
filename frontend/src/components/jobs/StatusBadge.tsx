@@ -14,27 +14,29 @@ interface Props {
 
 // Label overrides for display-only statuses not in JOB_STATUS_LABEL
 const DISPLAY_LABEL: Record<string, string> = {
-  booking:            'Booking…',
-  attempting_hold:    'Securing Hold…',
-  result_available:   'Available',
-  result_partial:     'Partially Available',
-  result_unavailable: 'Unavailable',
+  booking:              'Booking…',
+  attempting_hold:      'Securing Hold…',
+  result_available:     'Available',
+  result_partial:       'Partially Available',
+  result_unavailable:   'Unavailable',
+  result_hold_failed:   'Hold Failed',
 }
 
 // Tailwind colour classes per display status. Undefined → secondary variant.
 const STATUS_CLASS: Record<string, string | undefined> = {
-  paused:             undefined,
-  checking:           'bg-blue-600 hover:bg-blue-600 text-white',
-  booking:            'bg-blue-600 hover:bg-blue-600 text-white',
-  attempting_hold:    'bg-amber-500 hover:bg-amber-500 text-white',
-  waiting:            'bg-slate-500 hover:bg-slate-500 text-white',
-  hold_placed:        'bg-amber-500 hover:bg-amber-600 text-white',
-  booking_complete:   'bg-emerald-600 hover:bg-emerald-600 text-white',
-  cancelled:          undefined,
-  expired:            'bg-zinc-400 hover:bg-zinc-400 text-white',
-  result_available:   'bg-emerald-600 hover:bg-emerald-600 text-white',
-  result_partial:     'bg-amber-500 hover:bg-amber-500 text-white',
-  result_unavailable: undefined,
+  paused:               undefined,
+  checking:             'bg-blue-600 hover:bg-blue-600 text-white',
+  booking:              'bg-blue-600 hover:bg-blue-600 text-white',
+  attempting_hold:      'bg-amber-500 hover:bg-amber-500 text-white',
+  waiting:              'bg-slate-500 hover:bg-slate-500 text-white',
+  hold_placed:          'bg-amber-500 hover:bg-amber-600 text-white',
+  booking_complete:     'bg-emerald-600 hover:bg-emerald-600 text-white',
+  cancelled:            undefined,
+  expired:              'bg-zinc-400 hover:bg-zinc-400 text-white',
+  result_available:     'bg-emerald-600 hover:bg-emerald-600 text-white',
+  result_partial:       'bg-amber-500 hover:bg-amber-500 text-white',
+  result_unavailable:   undefined,
+  result_hold_failed:   'bg-rose-600 hover:bg-rose-600 text-white',
 }
 
 const SPINNER_STATUSES = new Set(['booking', 'attempting_hold'])

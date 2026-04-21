@@ -14,6 +14,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: true,  // bind to 0.0.0.0 so LAN devices (e.g. phone on WiFi) can reach the dev server
     proxy: {
       '/api': 'http://localhost:8000',  // proxy API calls to FastAPI
       // Artifact snapshots (PNG + HTML) are saved by the worker and served

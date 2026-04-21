@@ -13,6 +13,10 @@ export type JobHeaderField = {
   label: string
   value: string
   icon: LucideIcon
+  /** If set, the value renders as an external link pointing to this URL. */
+  href?: string
+  /** When true, renders the field in a smaller, muted subtitle typeface. */
+  isSubtitle?: boolean
 }
 
 export function formatDateLabel(value: unknown): string | null {
@@ -49,6 +53,37 @@ function formatSitesLabel(value: unknown): string | null {
   return sites.join(' / ')
 }
 
+// ---------------------------------------------------------------------------
+// DOC standard hut facility option parsing.
+// Option strings are encoded as:
+//   "Mueller Hut (747/2487) — Aoraki/Mount Cook National Park"
+// ---------------------------------------------------------------------------
+
+const FACILITY_OPTION_RE = /^(.+?)\s*\((\d+)\/(\d+)\)(?:\s*—\s*(.+))?$/
+
+interface ParsedFacility {
+  facilityName: string
+  parkId: string
+  facilityId: string
+  parkName: string
+  href: string
+}
+
+export function parseFacilityOption(value: unknown): ParsedFacility | null {
+  if (typeof value !== 'string') return null
+  const m = FACILITY_OPTION_RE.exec(value.trim())
+  if (!m) return null
+  const parkId = m[2]
+  const facilityId = m[3]
+  return {
+    facilityName: m[1].trim(),
+    parkId,
+    facilityId,
+    parkName: m[4]?.trim() ?? '',
+    href: `https://bookings.doc.govt.nz/Web/#!park/${parkId}/${facilityId}`,
+  }
+}
+
 export function getJobParamIcon(key: string): LucideIcon | null {
   switch (key) {
     case 'track':
@@ -70,6 +105,28 @@ export function getJobParamIcon(key: string): LucideIcon | null {
 }
 
 export function getHeaderFields(params: Record<string, unknown>): JobHeaderField[] {
+  // DOC standard hut — facility encodes name + IDs + park name in one string.
+  const facilityParsed = parseFacilityOption(params.facility)
+  const facility: JobHeaderField | null = facilityParsed
+    ? {
+        key: 'facility',
+        label: 'Facility',
+        value: facilityParsed.facilityName,
+        icon: MapPinned,
+        href: facilityParsed.href,
+      }
+    : null
+  const facilityPark: JobHeaderField | null = facilityParsed?.parkName
+    ? {
+        key: 'facility_park',
+        label: 'Park',
+        value: facilityParsed.parkName,
+        icon: Map,
+        href: facilityParsed.href,
+        isSubtitle: true,
+      }
+    : null
+
   const track = typeof params.track === 'string' && params.track.trim()
     ? {
         key: 'track',
@@ -119,7 +176,7 @@ export function getHeaderFields(params: Record<string, unknown>): JobHeaderField
       }
     : null
 
-  return [track, date, nights, people, direction, sites].filter(
+  return [facility, facilityPark, track, date, nights, people, direction, sites].filter(
     (field): field is JobHeaderField => Boolean(field),
   )
 }

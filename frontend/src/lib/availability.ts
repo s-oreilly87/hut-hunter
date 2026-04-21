@@ -27,6 +27,7 @@ export type DisplayStatus =
   | 'result_available'
   | 'result_partial'
   | 'result_unavailable'
+  | 'result_hold_failed'
   | string  // JobStatus passthrough
 
 export function getDisplayStatus(
@@ -57,6 +58,14 @@ export function getDisplayStatus(
     (job.status === 'paused' || job.status === 'waiting')
     && job.last_result?.length
   ) {
+    // Hold-failure entries take priority — show a dedicated failed status so
+    // the UI can surface a distinct visual with artifact links.
+    const hasHoldFailed = job.last_result.some(
+      e => typeof e === 'object' && e !== null && 'type' in e
+        && (e as Record<string, unknown>).type === 'hold_failed',
+    )
+    if (hasHoldFailed) return 'result_hold_failed'
+
     const avail = job.last_result.filter(
       e => typeof e === 'object' && e !== null && 'status' in e,
     ) as AvailabilityResult[]

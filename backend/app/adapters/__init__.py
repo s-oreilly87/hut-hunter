@@ -1,10 +1,10 @@
 from app.adapters.base import BaseAdapter
 from app.adapters.doc_great_walk import DocGreatWalkAdapter
-# from app.adapters.doc_standard_hut import DocStandardHutAdapter
+from app.adapters.doc_standard_hut import DocStandardHutAdapter
 
 _REGISTRY: dict[str, type[BaseAdapter]] = {
     DocGreatWalkAdapter.adapter_id: DocGreatWalkAdapter,
-    # DocStandardHutAdapter.adapter_id: DocStandardHutAdapter,
+    DocStandardHutAdapter.adapter_id: DocStandardHutAdapter,
 }
 
 def get_adapter(adapter_id: str) -> BaseAdapter:
