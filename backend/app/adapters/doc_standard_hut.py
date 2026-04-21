@@ -176,6 +176,29 @@ def _normalize(s: str | None) -> str:
     return re.sub(r"\s+", " ", s or "").strip()
 
 
+def _parse_site_cell_status(site_cell_html: str) -> tuple[bool, str, str | None]:
+    """Return ``(bookable, aria_status, icon)`` for a site-list cell button."""
+    icon_match = re.search(
+        r"(?:Keechma/icons|themes/[^/]+)/([^\"'()/]+)\.svg",
+        site_cell_html, re.IGNORECASE,
+    )
+    icon = icon_match.group(1) if icon_match else None
+
+    aria_label_match = re.search(
+        r'aria-label=["\'][^"\']*-\s*([^"\']+)["\']', site_cell_html, re.IGNORECASE
+    )
+    aria_status = aria_label_match.group(1).strip().lower() if aria_label_match else ""
+
+    cell_is_bookable = bool(re.search(r'tabindex=["\']0["\']', site_cell_html))
+    if not cell_is_bookable and aria_status:
+        cell_is_bookable = not re.search(
+            r"booked|closed|unavailable|not.available|outside|locked|walk-?in",
+            aria_status,
+        )
+
+    return cell_is_bookable, aria_status, icon
+
+
 def _build_booking_bar_regexes(start: _DateParts, end: _DateParts) -> dict:
     """Regexes that match the booking-bar label once the date range is set.
 
@@ -714,15 +737,27 @@ class DocStandardHutAdapter(BaseDOCAdapter):
     async def _get_site_list_table(self, page: Page) -> Locator:
         """Locate the main Site List table.
 
-        Anchor on the combination of text markers that uniquely identify the
-        results table — it contains a "Site" header and an "Available # of
-        People" row.
+        Some DOC facilities render summary rows like "Available # of People" /
+        "Number of sites available"; others render only per-unit rows. Anchor
+        on the "Site List" section first, then fall back to any visible table
+        whose first header looks like a site-name column.
         """
+        site_list_heading = page.get_by_text(
+            re.compile(r"^Site List$", re.IGNORECASE)
+        ).first
+        try:
+            await site_list_heading.wait_for(state="visible", timeout=20_000)
+            for depth in range(1, 7):
+                container = site_list_heading.locator(f"xpath=ancestor::div[{depth}]")
+                table = container.locator("table").first
+                if await table.count() > 0:
+                    await table.wait_for(state="visible", timeout=5_000)
+                    return table
+        except PlaywrightTimeoutError:
+            pass
+
         table = page.locator("table").filter(
-            has_text=re.compile(
-                r"Available # of People|Number of sites available",
-                re.IGNORECASE,
-            )
+            has_text=re.compile(r"\bSite\b", re.IGNORECASE)
         ).first
         await table.wait_for(state="visible", timeout=20_000)
         return table
@@ -763,9 +798,9 @@ class DocStandardHutAdapter(BaseDOCAdapter):
     ) -> dict:
         """Parse the Site List table and pull the cells for ``target_day``.
 
-        Returns a dict with ``ok=True`` plus ``site_cell_text`` /
-        ``site_cell_html`` / ``people_cell_text`` / ``sites_cell_text`` when
-        the target column is found, or ``ok=False`` + ``reason`` otherwise.
+        Returns a dict with ``ok=True`` plus either summary-row cell data
+        (hut-style / campsite-summary pages) or ``unit_cells`` for per-unit
+        campsite grids. Returns ``ok=False`` + ``reason`` otherwise.
         """
         table = await self._get_site_list_table(page)
         rows = table.locator("tr")
@@ -807,6 +842,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         site_row_idx = -1
         people_row_idx = -1
         sites_row_idx = -1
+        unit_row_indices: list[int] = []
 
         for i, row_cells in enumerate(seen_rows):
             first = row_cells[0] if row_cells else ""
@@ -825,6 +861,16 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 and row_len > col_idx
             ):
                 sites_row_idx = i
+            if (
+                row_len > col_idx
+                and first
+                and not re.search(
+                    r"^(Site|Available # of People|Number of sites available)$",
+                    first,
+                    re.IGNORECASE,
+                )
+            ):
+                unit_row_indices.append(i)
 
         async def _read_cell(row_idx: int) -> dict:
             if row_idx < 0 or col_idx < 0:
@@ -843,6 +889,23 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         site_cell = await _read_cell(site_row_idx)
         people_cell = await _read_cell(people_row_idx)
         sites_cell = await _read_cell(sites_row_idx)
+        unit_cells: list[dict] = []
+        for row_idx in unit_row_indices:
+            row_cells = rows.nth(row_idx).locator("th, td")
+            try:
+                site_name = _normalize(await row_cells.nth(0).inner_text())
+            except Exception:
+                site_name = ""
+            if not site_name or site_name == hut_name:
+                continue
+            cell = await _read_cell(row_idx)
+            unit_cells.append(
+                {
+                    "site_name": site_name,
+                    "text": cell["text"],
+                    "html": cell["html"],
+                }
+            )
 
         return {
             "ok": True,
@@ -851,10 +914,12 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             "site_cell_html": site_cell["html"],
             "people_cell_text": people_cell["text"],
             "sites_cell_text": sites_cell["text"],
+            "unit_cells": unit_cells,
             "debug": {
                 "site_row_idx": site_row_idx,
                 "people_row_idx": people_row_idx,
                 "sites_row_idx": sites_row_idx,
+                "unit_row_count": len(unit_cells),
             },
         }
 
@@ -883,28 +948,8 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         people_num = int(people_text) if re.fullmatch(r"\d+", people_text) else None
         sites_num = int(sites_text) if re.fullmatch(r"\d+", sites_text) else None
 
-        icon_match = re.search(
-            r"(?:Keechma/icons|themes/[^/]+)/([^\"'()/]+)\.svg",
-            site_cell_html, re.IGNORECASE,
-        )
-        icon = icon_match.group(1) if icon_match else None
-
-        # ── PRIMARY GATE: tabindex="0" on the site-row button ─────────────────
-        # DOC renders each date cell as a <button>.  Bookable dates have
-        # tabindex="0" (in the tab order / interactive).  Non-bookable dates
-        # (Booked, Walk-in Only) have tabindex="-1" (removed from tab order).
-        # This is the same signal as the aria-label "- available" suffix and
-        # is more reliable than keyword-matching icon filenames or class names.
-        cell_is_bookable = bool(
-            re.search(r'tabindex=["\']0["\']', site_cell_html)
-        )
-
-        # aria-label carries the definitive status string, e.g.
-        # "Mueller Hut 04/28/2026 - Booked" or "... - available"
-        aria_label_match = re.search(
-            r'aria-label=["\'][^"\']*-\s*([^"\']+)["\']', site_cell_html, re.IGNORECASE
-        )
-        aria_status = aria_label_match.group(1).strip().lower() if aria_label_match else ""
+        unit_cells = parsed.get("unit_cells") or []
+        cell_is_bookable, aria_status, icon = _parse_site_cell_status(site_cell_html)
 
         logger.debug(
             "_classify: hut=%r people=%r sites=%r icon=%r bookable=%s aria_status=%r",
@@ -934,7 +979,13 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         count_source = "people" if people_num is not None else "sites"
 
         if count is not None:
-            if count >= people_wanted:
+            if count_source == "sites":
+                avail_status = (
+                    AvailabilityStatus.AVAILABLE
+                    if count > 0
+                    else AvailabilityStatus.UNAVAILABLE
+                )
+            elif count >= people_wanted:
                 avail_status = AvailabilityStatus.AVAILABLE
             elif count > 0:
                 avail_status = AvailabilityStatus.PARTIALLY_AVAILABLE
@@ -949,6 +1000,36 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 ),
                 total_available=count,
                 icon=icon,
+            )
+
+        if unit_cells:
+            available_units = 0
+            sample_icon = icon
+            sample_statuses: list[str] = []
+            for unit in unit_cells:
+                unit_html = unit.get("html") or ""
+                unit_bookable, unit_status, unit_icon = _parse_site_cell_status(unit_html)
+                if unit_bookable:
+                    available_units += 1
+                if unit_status:
+                    sample_statuses.append(f"{unit.get('site_name')}: {unit_status}")
+                if sample_icon is None and unit_icon is not None:
+                    sample_icon = unit_icon
+
+            avail_status = (
+                AvailabilityStatus.AVAILABLE
+                if available_units > 0
+                else AvailabilityStatus.UNAVAILABLE
+            )
+            return AvailabilityResult(
+                site=hut_name,
+                status=avail_status,
+                evidence=(
+                    f"unitCells available={available_units}/{len(unit_cells)} "
+                    f"sampleStatuses={sample_statuses[:4]!r}"
+                ),
+                total_available=available_units,
+                icon=sample_icon,
             )
 
         return AvailabilityResult(
@@ -974,14 +1055,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         read availability directly without touching the datepicker at all.
         """
         try:
-            table = page.locator("table").filter(
-                has_text=re.compile(
-                    r"Available # of People|Number of sites available",
-                    re.IGNORECASE,
-                )
-            ).first
-            if await table.count() == 0:
-                return False
+            table = await self._get_site_list_table(page)
             # The header row contains day numbers — look for an exact match
             header_row = table.locator("tr").first
             cells = header_row.locator("th, td")
@@ -1126,11 +1200,22 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         target_date_str = f"{month_num:02d}/{start.day:02d}/{start.year}"
 
         # Build candidates in order of specificity:
-        #   1. Exact site-name + date match (most specific)
-        #   2. Date-only match scoped to the Site List table (broader fallback)
+        #   1. Exact site-name + date match on a bookable cell
+        #   2. Any bookable cell for the target date (campsite unit grids)
+        #   3. Non-bookable fallbacks for diagnostics only
         site_btn = page.locator(
-            f'button[aria-label*="{hut_name}"][aria-label*="{target_date_str}"]'
+            f'button[aria-label*="{hut_name}"][aria-label*="{target_date_str}"][tabindex="0"]'
         )
+        if await site_btn.count() == 0:
+            site_btn = page.locator(
+                f'button[aria-label*="{target_date_str}"][tabindex="0"]'
+            ).filter(has=page.locator("img"))
+
+        if await site_btn.count() == 0:
+            site_btn = page.locator(
+                f'button[aria-label*="{hut_name}"][aria-label*="{target_date_str}"]'
+            )
+
         if await site_btn.count() == 0:
             # Fallback: any button whose aria-label contains the date and
             # contains an <img> (icon), excluding the datepicker buttons which

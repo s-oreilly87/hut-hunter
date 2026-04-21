@@ -54,7 +54,6 @@ router = APIRouter(prefix="/api/v1", tags=["jobs"])
 # notifications, so it lives outside /api/v1 to keep the URL short and stable.
 public_router = APIRouter(tags=["public"])
 
-
 @router.get("/adapters")
 async def get_adapters():
     return list_adapters()
@@ -69,11 +68,20 @@ async def get_redis():
         await pool.aclose()
 
 
+async def _serialize_job(
+    session: AsyncSession,
+    job: WatchJob,
+) -> WatchJobRead:
+    cart = await _latest_cart(session, job.id)
+    cart_expires_at = cart.expires_at if cart is not None else None
+    return WatchJobRead.from_db(job, cart_expires_at=cart_expires_at)
+
+
 @router.get("/jobs", response_model=List[WatchJobRead])
 async def list_jobs(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(WatchJob))
     jobs = result.scalars().all()
-    return [WatchJobRead.from_db(j) for j in jobs]
+    return [await _serialize_job(session, job) for job in jobs]
 
 
 @router.post("/jobs", response_model=WatchJobRead, status_code=201)
@@ -130,7 +138,7 @@ async def create_job(
                 f"Failed to enqueue first check for new job {job.id}"
             )
 
-    return WatchJobRead.from_db(job)
+    return await _serialize_job(session, job)
 
 
 @router.get("/jobs/{job_id}", response_model=WatchJobRead)
@@ -138,7 +146,7 @@ async def get_job(job_id: str, session: AsyncSession = Depends(get_session)):
     job = cast(WatchJob | None, await session.get(WatchJob, job_id))
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return WatchJobRead.from_db(job)
+    return await _serialize_job(session, job)
 
 
 @router.patch("/jobs/{job_id}", response_model=WatchJobRead)
@@ -242,7 +250,7 @@ async def update_job(
                 f"Failed to enqueue immediate check on monitoring-enable for {job.id}"
             )
 
-    return WatchJobRead.from_db(job)
+    return await _serialize_job(session, job)
 
 
 @router.delete("/jobs/{job_id}", status_code=204)
@@ -325,6 +333,10 @@ async def trigger_job(
             )
         # Lazy expiry: hold timed out without explicit signal. Flip back.
         logger.info(f"Lazy-expiring HOLD_PLACED for job {job_id} (cart expired)")
+        try:
+            await _enqueue_browser_close(job_id, redis)
+        except Exception:
+            logger.exception("Failed to enqueue browser close after hold expiry")
 
     job.status = JobStatus.CHECKING.value
     # If monitoring is enabled, push the next scheduled check one interval
@@ -391,6 +403,10 @@ async def book_job(
                 ),
             )
         # Lazy expiry — fall through, we'll flip to CHECKING below.
+        try:
+            await _enqueue_browser_close(job_id, redis)
+        except Exception:
+            logger.exception("Failed to enqueue browser close after hold expiry")
 
     if job.status == JobStatus.BOOKING_COMPLETE.value:
         raise HTTPException(

@@ -62,6 +62,14 @@ export function MonitoringBadge({ job, displayStatus }: Props) {
     )
   }
 
+  if (displayStatus === 'hold_expired') {
+    return (
+      <Badge variant="outline" className="border-zinc-500 text-zinc-600">
+        Hold expired
+      </Badge>
+    )
+  }
+
   // Hold worker is running — transient, not toggleable. StatusBadge already
   // shows "Securing Hold…" so this badge stays quiet.
   if (displayStatus === 'attempting_hold') {

@@ -1,11 +1,14 @@
+import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { JOB_STATUS_LABEL } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
+import { formatCountdown } from '@/lib/time'
 
 interface Props {
   status: DisplayStatus
   jobId: string
+  cartExpiresAt?: string | null
   // If set and status is `booking_complete`, the badge links to this URL —
   // typically the receipt snapshot captured when the user hit "Booking
   // Complete" on the /pay page. Null/undefined renders a plain badge.
@@ -16,6 +19,7 @@ interface Props {
 const DISPLAY_LABEL: Record<string, string> = {
   booking:              'Booking…',
   attempting_hold:      'Securing Hold…',
+  hold_expired:         'Hold Expired',
   result_available:     'Available',
   result_partial:       'Partially Available',
   result_unavailable:   'Unavailable',
@@ -28,6 +32,7 @@ const STATUS_CLASS: Record<string, string | undefined> = {
   checking:             'bg-blue-600 hover:bg-blue-600 text-white',
   booking:              'bg-blue-600 hover:bg-blue-600 text-white',
   attempting_hold:      'bg-amber-500 hover:bg-amber-500 text-white',
+  hold_expired:         'bg-zinc-500 hover:bg-zinc-500 text-white',
   waiting:              'bg-slate-500 hover:bg-slate-500 text-white',
   hold_placed:          'bg-amber-500 hover:bg-amber-600 text-white',
   booking_complete:     'bg-emerald-600 hover:bg-emerald-600 text-white',
@@ -41,8 +46,23 @@ const STATUS_CLASS: Record<string, string | undefined> = {
 
 const SPINNER_STATUSES = new Set(['booking', 'attempting_hold'])
 
-export function StatusBadge({ status, jobId, artifactUrl }: Props) {
-  const label = DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
+export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props) {
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (status !== 'hold_placed' || !cartExpiresAt) return undefined
+
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(intervalId)
+  }, [cartExpiresAt, status])
+
+  const countdownSeconds = status === 'hold_placed' && cartExpiresAt
+    ? Math.max(0, (new Date(cartExpiresAt).getTime() - nowMs) / 1000)
+    : null
+  const baseLabel = DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
+  const label = countdownSeconds !== null
+    ? `${baseLabel} (${formatCountdown(countdownSeconds)})`
+    : baseLabel
   const isSecondary = status === 'paused' || status === 'cancelled' || status === 'result_unavailable'
   const badge = (
     <Badge

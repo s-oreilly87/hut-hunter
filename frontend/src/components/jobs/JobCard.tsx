@@ -42,6 +42,7 @@ import {
 import {
   type DisplayStatus,
   getDisplayStatus,
+  hasHoldExpired,
   jobHasPartialAvailability,
 } from '@/lib/availability'
 import {
@@ -737,6 +738,30 @@ function MonitoringSection({
   )
 }
 
+function HoldExpiryCountdown({ cartExpiresAt }: { cartExpiresAt: string | null }) {
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!cartExpiresAt) return undefined
+
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(intervalId)
+  }, [cartExpiresAt])
+
+  if (!cartExpiresAt) return null
+
+  const countdownSeconds = Math.max(0, (new Date(cartExpiresAt).getTime() - nowMs) / 1000)
+
+  return (
+    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+      Time remaining to complete payment:{' '}
+      <span className="font-medium tabular-nums text-foreground">
+        {formatCountdown(countdownSeconds)}
+      </span>
+    </p>
+  )
+}
+
 export function JobCard({
   onRequestEdit,
   onDeleted,
@@ -845,6 +870,7 @@ export function JobCard({
   }
 
   const displayStatus = getDisplayStatus(job, pendingBookings)
+  const holdExpired = hasHoldExpired(job)
   const hideTrigger =
     job.status === 'booking_complete'
     || job.status === 'expired'
@@ -918,7 +944,7 @@ export function JobCard({
             </section>
           )}
 
-          {job.status === 'hold_placed' && (
+          {job.status === 'hold_placed' && !holdExpired && (
             <section className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
@@ -936,6 +962,7 @@ export function JobCard({
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Review the captured cart stages below if you want to confirm the itinerary before paying.
                 </p>
+                <HoldExpiryCountdown cartExpiresAt={job.cart_expires_at} />
               </div>
               {holdArtifacts.length > 0 ? (
                 <ArtifactGallery artifacts={holdArtifacts} />
@@ -949,7 +976,38 @@ export function JobCard({
             </section>
           )}
 
-          {job.status !== 'booking_complete' && job.status !== 'hold_placed' && (
+          {holdExpired && (
+            <section className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Hold Expired
+                  </h3>
+                </div>
+                <BookButton job={job} className="w-full sm:w-auto" size="default" />
+              </div>
+              <div className="rounded-[1.25rem] border border-zinc-500/25 bg-zinc-500/8 px-4 py-4">
+                <p className="text-base font-medium tracking-tight text-foreground">
+                  The 25-minute payment window has closed.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  You can attempt the hold again from here, or run a fresh check first if you want to reconfirm availability.
+                </p>
+              </div>
+              {holdArtifacts.length > 0 ? (
+                <ArtifactGallery artifacts={holdArtifacts} />
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
+                  <p className="text-sm text-muted-foreground">
+                    No cart-stage snapshots are available from the expired hold.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed' && (
             displayStatus === 'booking' || displayStatus === 'attempting_hold'
           ) && (
             <section className="space-y-3">
@@ -975,7 +1033,7 @@ export function JobCard({
             </section>
           )}
 
-          {job.status !== 'booking_complete' && job.status !== 'hold_placed'
+          {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
             && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
             && job.last_result && (
             <section className="space-y-3">
@@ -1006,7 +1064,7 @@ export function JobCard({
             </section>
           )}
 
-          {job.status !== 'booking_complete' && job.status !== 'hold_placed'
+          {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
             && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
             && !job.last_result && (
             <section className="space-y-3">

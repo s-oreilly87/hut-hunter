@@ -138,3 +138,95 @@ class TestDocStandardHutParamFields:
             assert group["items"] == sorted(group["items"], key=str.lower), (
                 f"Items in group {group['group']!r} are not sorted"
             )
+
+
+class TestDocStandardHutClassification:
+    def test_campsite_summary_count_uses_sites_not_people(self):
+        adapter = DocStandardHutAdapter()
+
+        result = adapter._classify(
+            {
+                "ok": True,
+                "site_cell_text": "",
+                "site_cell_html": (
+                    '<button tabindex="0" aria-label="Unpowered #1 04/24/2026 - available">'
+                    '<div style="background: url(&quot;themes/NewZealand/Arrival.svg&quot;);"></div>'
+                    "</button>"
+                ),
+                "people_cell_text": "",
+                "sites_cell_text": "1",
+                "unit_cells": [],
+            },
+            hut_name="Anaura Bay Campsite",
+            people_wanted=4,
+        )
+
+        assert result.status.value == "available"
+        assert result.total_available == 1
+
+    def test_campsite_unit_grid_counts_bookable_cells(self):
+        adapter = DocStandardHutAdapter()
+
+        result = adapter._classify(
+            {
+                "ok": True,
+                "site_cell_text": "",
+                "site_cell_html": "",
+                "people_cell_text": "",
+                "sites_cell_text": "",
+                "unit_cells": [
+                    {
+                        "site_name": "Unpowered #1",
+                        "text": "",
+                        "html": (
+                            '<button tabindex="0" aria-label="Unpowered #1 04/24/2026 - available">'
+                            '<div style="background: url(&quot;themes/NewZealand/Arrival.svg&quot;);"></div>'
+                            "</button>"
+                        ),
+                    },
+                    {
+                        "site_name": "Unpowered #2",
+                        "text": "",
+                        "html": (
+                            '<button tabindex="-1" aria-label="Unpowered #2 04/24/2026 - not available">'
+                            '<div style="background: url(&quot;themes/NewZealand/NA.svg&quot;);"></div>'
+                            "</button>"
+                        ),
+                    },
+                ],
+            },
+            hut_name="Anaura Bay Campsite",
+            people_wanted=2,
+        )
+
+        assert result.status.value == "available"
+        assert result.total_available == 1
+
+    def test_campsite_unit_grid_all_unavailable(self):
+        adapter = DocStandardHutAdapter()
+
+        result = adapter._classify(
+            {
+                "ok": True,
+                "site_cell_text": "",
+                "site_cell_html": "",
+                "people_cell_text": "",
+                "sites_cell_text": "",
+                "unit_cells": [
+                    {
+                        "site_name": "Unpowered #1",
+                        "text": "",
+                        "html": (
+                            '<button tabindex="-1" aria-label="Unpowered #1 04/24/2026 - not available">'
+                            '<div style="background: url(&quot;themes/NewZealand/NA.svg&quot;);"></div>'
+                            "</button>"
+                        ),
+                    },
+                ],
+            },
+            hut_name="Anaura Bay Campsite",
+            people_wanted=2,
+        )
+
+        assert result.status.value == "unavailable"
+        assert result.total_available == 0

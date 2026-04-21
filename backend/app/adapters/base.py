@@ -72,6 +72,12 @@ class BaseAdapter(ABC):
     #   Defaults to 23:59 — end of the start date in local time.
     booking_timezone: str | None = None   # None → server local TZ
     booking_cutoff_time: time = time(23, 59)
+    # Optional hold-page activity config. Adapters that park a live checkout
+    # page can override these to keep the session warm before the site-level
+    # inactivity timeout expires.
+    cart_hold_minutes: int | None = None
+    cart_inactive_after_minutes: int | None = None
+    cart_keepalive_interval_minutes: int | None = None
 
     def __init__(self) -> None:
         self._artifact_log: list[ArtifactSnapshot] = []

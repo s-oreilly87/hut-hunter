@@ -157,6 +157,7 @@ class WatchJobRead(SQLModel):
     enable_monitoring: bool
     interval_minutes: int
     next_check_at: Optional[datetime]
+    cart_expires_at: Optional[datetime]
     created_at: datetime
     last_checked_at: Optional[datetime]
     last_result: list[dict] | None = None
@@ -168,7 +169,12 @@ class WatchJobRead(SQLModel):
     artifact_history: list[dict] | None = None
 
     @classmethod
-    def from_db(cls, job: WatchJob) -> "WatchJobRead":
+    def from_db(
+        cls,
+        job: WatchJob,
+        *,
+        cart_expires_at: Optional[datetime] = None,
+    ) -> "WatchJobRead":
         raw = json.loads(job.last_result) if job.last_result else None
         if isinstance(raw, list):
             last_result = raw
@@ -237,6 +243,7 @@ class WatchJobRead(SQLModel):
             enable_monitoring=job.enable_monitoring,
             interval_minutes=job.interval_minutes,
             next_check_at=as_optional_utc(job.next_check_at),
+            cart_expires_at=as_optional_utc(cart_expires_at),
             created_at=as_utc(job.created_at),
             last_checked_at=as_optional_utc(job.last_checked_at),
             last_result=last_result,

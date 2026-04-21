@@ -53,6 +53,9 @@ class BaseDOCAdapter(BaseAdapter):
 
     booking_timezone: str = "Pacific/Auckland"
     booking_cutoff_time: time = time(20, 0)  # 8 pm NZ time
+    cart_hold_minutes: int = 25
+    cart_inactive_after_minutes: int = 15
+    cart_keepalive_interval_minutes: int = 5
 
     # ------------------------------------------------------------------
     # Low-level Playwright helpers
@@ -207,12 +210,14 @@ class BaseDOCAdapter(BaseAdapter):
         from app.models.session import CartSession
         from sqlalchemy import delete
 
+        hold_duration_minutes = self.cart_hold_minutes or 25
+        hold_expires_at = utcnow() + timedelta(minutes=hold_duration_minutes)
         cookies = await page.context.cookies()
         cart_session = CartSession(
             job_id=job_id,
             encrypted_cookies=encrypt(json.dumps(cookies)),
             cart_url=cart_url,
-            expires_at=utcnow() + timedelta(minutes=24),
+            expires_at=hold_expires_at,
         )
         async with AsyncSessionLocal() as db_session:
             # Remove any prior carts for this job — the new one supersedes them
