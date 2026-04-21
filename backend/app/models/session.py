@@ -21,7 +21,7 @@ class CartSession(SQLModel, table=True):
     )
     expires_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
-    )  # 25 minutes from cart creation
+    )  # Adapter-defined hold expiry from cart creation
     # Set when the app signals the booking was successfully completed by the user.
     # While this is NULL and expires_at is in the future, the job is considered
     # to have an active cart and check_availability will skip it.

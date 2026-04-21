@@ -54,6 +54,7 @@ export interface WatchJob {
   enable_monitoring: boolean
   interval_minutes: number
   next_check_at: string | null
+  cart_expires_at: string | null
   created_at: string
   last_checked_at: string | null
   last_result: LastResultEntry[] | null

@@ -45,7 +45,7 @@ async def test_create_job_without_monitoring_starts_paused(client, fake_redis, m
     assert fake_redis.calls == []
 
 
-async def test_get_job_surfaces_expiry_and_artifact_urls(client, seed_job, make_job_params):
+async def test_get_job_surfaces_expiry_and_artifact_urls(client, seed_job, seed_cart, make_job_params):
     job = await seed_job(
         params=make_job_params(date="01/01/2000"),
         status=JobStatus.PAUSED.value,
@@ -56,12 +56,14 @@ async def test_get_job_surfaces_expiry_and_artifact_urls(client, seed_job, make_
             {"label": "cart", "base": "cart-step"},
         ],
     )
+    await seed_cart(job.id, expires_at=utcnow() + timedelta(minutes=25))
 
     response = await client.get(f"/api/v1/jobs/{job.id}")
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == JobStatus.EXPIRED.value
+    assert payload["cart_expires_at"] is not None
     assert payload["params"]["date"] == "01/01/2000"
     assert payload["last_result"] == [
         {"site": "Lake Mackenzie Hut", "status": "unavailable", "evidence": "sold out"}
@@ -213,6 +215,41 @@ async def test_trigger_job_handles_arq_dedup_and_reschedules_monitoring(
     assert scheduled_at > utcnow() + timedelta(minutes=44)
 
 
+async def test_trigger_job_allows_retry_after_hold_expired(
+    client,
+    fake_redis,
+    seed_job,
+    seed_cart,
+    fetch_job,
+):
+    job = await seed_job(
+        status=JobStatus.HOLD_PLACED.value,
+        enable_monitoring=True,
+        interval_minutes=30,
+    )
+    await seed_cart(job.id, expires_at=utcnow() - timedelta(minutes=1))
+
+    response = await client.post(f"/api/v1/jobs/{job.id}/trigger")
+
+    assert response.status_code == 202
+    assert response.json() == {"status": "enqueued", "job_id": job.id}
+    refreshed = await fetch_job(job.id)
+    assert refreshed is not None
+    assert refreshed.status == JobStatus.CHECKING.value
+    assert fake_redis.calls == [
+        {
+            "job_name": "close_browser_task",
+            "args": [job.id],
+            "kwargs": {"_queue_name": "arq:holds"},
+        },
+        {
+            "job_name": "check_availability",
+            "args": [job.id],
+            "kwargs": {"_job_id": f"check_availability:{job.id}"},
+        }
+    ]
+
+
 async def test_book_job_requires_full_recent_availability(client, seed_job):
     job = await seed_job(
         last_result=[
@@ -254,6 +291,42 @@ async def test_book_job_enqueues_hold_worker_when_all_sites_available(
     assert refreshed is not None
     assert refreshed.status == JobStatus.CHECKING.value
     assert fake_redis.calls == [
+        {
+            "job_name": "attempt_hold_task",
+            "args": [job.id],
+            "kwargs": {"_queue_name": "arq:holds"},
+        }
+    ]
+
+
+async def test_book_job_allows_retry_after_hold_expired(
+    client,
+    fake_redis,
+    seed_job,
+    seed_cart,
+    fetch_job,
+):
+    job = await seed_job(
+        status=JobStatus.HOLD_PLACED.value,
+        last_result=[
+            {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
+        ],
+    )
+    await seed_cart(job.id, expires_at=utcnow() - timedelta(minutes=1))
+
+    response = await client.post(f"/api/v1/jobs/{job.id}/book")
+
+    assert response.status_code == 202
+    assert response.json() == {"status": "enqueued", "job_id": job.id}
+    refreshed = await fetch_job(job.id)
+    assert refreshed is not None
+    assert refreshed.status == JobStatus.CHECKING.value
+    assert fake_redis.calls == [
+        {
+            "job_name": "close_browser_task",
+            "args": [job.id],
+            "kwargs": {"_queue_name": "arq:holds"},
+        },
         {
             "job_name": "attempt_hold_task",
             "args": [job.id],

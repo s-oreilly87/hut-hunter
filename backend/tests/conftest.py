@@ -269,5 +269,3 @@ def list_carts(session_factory):
             return list(result.scalars().all())
 
     return _list_carts
-
-

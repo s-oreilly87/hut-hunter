@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { jobsApi, type WatchJob } from '@/lib/api'
-import { getDisplayStatus, jobAllFullyAvailable } from '@/lib/availability'
+import { getDisplayStatus, hasHoldExpired, jobAllFullyAvailable } from '@/lib/availability'
 import { useJobsStore } from '@/store/jobs'
 import { Button } from '@/components/ui/button'
 
@@ -72,14 +72,16 @@ export function BookButton({
   // Self-gate visibility so callers don't have to reproduce the logic.
   // Render when: (a) we think a book would succeed right now, (b) we're in
   // the middle of booking, or (c) a hold has landed and we want to be the
-  // pay entry point. Never render for terminal states (completed, expired),
-  // or when the hold worker is already running (attempting_hold).
+  // pay entry point. Never render for terminal states (completed, adapter-
+  // expired), or when the hold worker is already running (attempting_hold).
   const isTerminal = job.status === 'booking_complete' || job.status === 'expired'
+  const holdExpired = hasHoldExpired(job)
   const visible =
     !isTerminal
     && displayStatus !== 'attempting_hold'
     && (
-      job.status === 'hold_placed'
+      (job.status === 'hold_placed' && !holdExpired)
+      || (holdExpired && jobAllFullyAvailable(job))
       || showBooking
       || jobAllFullyAvailable(job)
     )
@@ -88,7 +90,7 @@ export function BookButton({
   // Hold landed — show a link to the pay page. StatusBadge already does this
   // but the Book button is what the user just clicked, so it's natural for
   // *it* to become the entry point.
-  if (job.status === 'hold_placed') {
+  if (job.status === 'hold_placed' && !holdExpired) {
     return (
       <Button
         asChild
@@ -143,7 +145,7 @@ export function BookButton({
         + 'payment in the /pay page.'
       )}
     >
-      Attempt Booking
+      {holdExpired ? 'Attempt Hold Again' : 'Attempt Booking'}
     </Button>
   )
 

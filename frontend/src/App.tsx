@@ -1,16 +1,23 @@
-import { useEffect, type ComponentProps, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
 import {
   Activity,
   ArrowLeft,
   Clock3,
+  Hand,
   LayoutDashboard,
   Plus,
-  Radar,
   Search,
   TentTree,
+  XCircle,
 } from 'lucide-react'
 import { JobList } from '@/components/jobs/JobList'
 import { JobCard } from '@/components/jobs/JobCard'
+import {
+  type JobFilterKey,
+  getJobFilterDefinition,
+  isLiveJob,
+  matchesJobFilter,
+} from '@/components/jobs/jobFilters'
 import {
   CreateJobDialog,
   CreateJobPage,
@@ -21,19 +28,9 @@ import { OccupantsDialog } from '@/components/occupants/OccupantsDialog'
 import { Button } from '@/components/ui/button'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import type { WatchJob } from '@/lib/api'
-import { getDisplayStatus } from '@/lib/availability'
 import { type AppRoute, useAppRoute, useIsMobile } from '@/lib/navigation'
-import { formatDueIn } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useJobsStore } from '@/store/jobs'
-
-function isLiveJob(job: WatchJob): boolean {
-  return (
-    job.status !== 'booking_complete'
-    && job.status !== 'cancelled'
-    && job.status !== 'expired'
-  )
-}
 
 function getPrimarySection(route: AppRoute): 'dashboard' | 'jobs' {
   return route.name === 'dashboard' ? 'dashboard' : 'jobs'
@@ -47,24 +44,46 @@ function getJobSelector(jobId: string): string {
   return `[data-job-id="${escapedId}"]`
 }
 
+function getJobTitle(job: WatchJob): string {
+  const trimmed = job.name.trim()
+  return trimmed || 'Untitled Job'
+}
+
+type DashboardStat = {
+  filterKey: JobFilterKey
+  label: string
+  value: number
+  description: string
+  icon: typeof Activity
+  jobs: WatchJob[]
+}
+
 function StatsGrid({
   stats,
+  activeFilter,
+  onFilterSelect,
+  onJobSelect,
 }: {
-  stats: Array<{
-    label: string
-    value: number | string
-    description: string
-    icon: typeof Activity
-  }>
+  stats: DashboardStat[]
+  activeFilter: JobFilterKey
+  onFilterSelect: (filterKey: JobFilterKey) => void
+  onJobSelect: (filterKey: JobFilterKey, jobId: string) => void
 }) {
   return (
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {stats.map((stat) => (
         <article
-          key={stat.label}
-          className="app-panel flex min-h-36 flex-col justify-between px-5 py-5"
+          key={stat.filterKey}
+          className={cn(
+            'app-panel flex min-h-60 flex-col px-5 py-5 transition-all',
+            activeFilter === stat.filterKey && 'ring-2 ring-primary/25',
+          )}
         >
-          <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            className="flex w-full items-start justify-between gap-3 text-left"
+            onClick={() => onFilterSelect(stat.filterKey)}
+          >
             <div>
               <p className="text-sm font-medium text-muted-foreground">
                 {stat.label}
@@ -76,10 +95,38 @@ function StatsGrid({
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <stat.icon className="h-5 w-5" />
             </div>
-          </div>
-          <p className="mt-6 text-sm leading-6 text-muted-foreground">
+          </button>
+
+          <p className="mt-4 text-sm leading-6 text-muted-foreground">
             {stat.description}
           </p>
+
+          <div className="mt-4 min-h-0 flex-1">
+            {stat.jobs.length ? (
+              <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+                {stat.jobs.map((job) => (
+                  <button
+                    key={job.id}
+                    type="button"
+                    className="block w-full truncate rounded-xl px-2 py-1.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary/70 hover:text-primary"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onJobSelect(stat.filterKey, job.id)
+                    }}
+                    title={getJobTitle(job)}
+                  >
+                    {getJobTitle(job)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full items-center">
+                <p className="text-sm text-muted-foreground">
+                  {getJobFilterDefinition(stat.filterKey).emptyLabel}
+                </p>
+              </div>
+            )}
+          </div>
         </article>
       ))}
     </section>
@@ -170,17 +217,18 @@ function DesktopApp({
   route,
   navigate,
   selectedJob,
+  statusFilter,
+  onStatusFilterChange,
+  onDashboardJobSelect,
 }: {
-  stats: Array<{
-    label: string
-    value: number | string
-    description: string
-    icon: typeof Activity
-  }>
+  stats: DashboardStat[]
   activeJobsCount: number
   route: AppRoute
   navigate: (route: AppRoute, options?: { replace?: boolean }) => void
   selectedJob: WatchJob | null
+  statusFilter: JobFilterKey
+  onStatusFilterChange: (filterKey: JobFilterKey) => void
+  onDashboardJobSelect: (filterKey: JobFilterKey, jobId: string) => void
 }) {
   return (
     <div className="app-shell min-h-screen">
@@ -209,7 +257,12 @@ function DesktopApp({
         </header>
 
         <div className="dashboard-enter-delay mt-5">
-          <StatsGrid stats={stats} />
+          <StatsGrid
+            stats={stats}
+            activeFilter={statusFilter}
+            onFilterSelect={onStatusFilterChange}
+            onJobSelect={onDashboardJobSelect}
+          />
         </div>
 
         <main className="dashboard-enter-late mt-5 grid flex-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)]">
@@ -220,7 +273,11 @@ function DesktopApp({
               </h2>
             </div>
             <div className="min-h-0 flex-1 px-4 py-4 sm:px-6">
-              <JobList onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })} />
+              <JobList
+                statusFilter={statusFilter}
+                onStatusFilterChange={onStatusFilterChange}
+                onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
+              />
             </div>
           </section>
 
@@ -261,16 +318,17 @@ function MobileApp({
   route,
   navigate,
   selectedJob,
+  statusFilter,
+  onStatusFilterChange,
+  onDashboardJobSelect,
 }: {
-  stats: Array<{
-    label: string
-    value: number | string
-    description: string
-    icon: typeof Activity
-  }>
+  stats: DashboardStat[]
   route: AppRoute
   navigate: (route: AppRoute, options?: { replace?: boolean }) => void
   selectedJob: WatchJob | null
+  statusFilter: JobFilterKey
+  onStatusFilterChange: (filterKey: JobFilterKey) => void
+  onDashboardJobSelect: (filterKey: JobFilterKey, jobId: string) => void
 }) {
   return (
     <div className="app-shell min-h-screen pb-24">
@@ -289,7 +347,12 @@ function MobileApp({
                 </>
               )}
             />
-            <StatsGrid stats={stats} />
+            <StatsGrid
+              stats={stats}
+              activeFilter={statusFilter}
+              onFilterSelect={onStatusFilterChange}
+              onJobSelect={onDashboardJobSelect}
+            />
           </>
         )}
 
@@ -315,6 +378,8 @@ function MobileApp({
               <JobList
                 collapseGroupsByDefault
                 showIndexes
+                statusFilter={statusFilter}
+                onStatusFilterChange={onStatusFilterChange}
                 onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
               />
             </section>
@@ -372,50 +437,92 @@ export default function App() {
     setSelectedJobId,
   } = useJobsStore()
   const { data: jobs = [], isFetched } = useJobsQuery()
+  const [statusFilter, setStatusFilter] = useState<JobFilterKey>('all')
 
-  const activeJobs = jobs.filter(isLiveJob)
-  const availableJobs = jobs.filter(
-    (job) => getDisplayStatus(job, pendingBookings) === 'result_available',
-  ).length
-  const holdCount = jobs.filter((job) => job.status === 'hold_placed').length
-  const monitoringCount = jobs.filter(
-    (job) => job.enable_monitoring && isLiveJob(job),
-  ).length
-  const nextCheck = activeJobs
-    .filter((job) => job.next_check_at)
-    .sort((a, b) => {
-      const aTime = new Date(a.next_check_at ?? 0).getTime()
-      const bTime = new Date(b.next_check_at ?? 0).getTime()
-      return aTime - bTime
-    })[0]?.next_check_at ?? null
+  const sortedJobs = useMemo(
+    () => [...jobs].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    ),
+    [jobs],
+  )
+
+  const activeJobs = useMemo(
+    () => sortedJobs.filter(isLiveJob),
+    [sortedJobs],
+  )
+
+  const filteredJobs = useMemo(
+    () => sortedJobs.filter((job) => matchesJobFilter(job, statusFilter, pendingBookings)),
+    [pendingBookings, sortedJobs, statusFilter],
+  )
+
   const selectedJob = selectedJobId
-    ? jobs.find((job) => job.id === selectedJobId) ?? null
+    ? sortedJobs.find((job) => job.id === selectedJobId) ?? null
     : null
 
-  const stats = [
+  const applyStatusFilter = (nextFilter: JobFilterKey) => {
+    setStatusFilter(nextFilter)
+
+    const nextJobs = sortedJobs.filter((job) => matchesJobFilter(job, nextFilter, pendingBookings))
+    if (!selectedJobId || !nextJobs.some((job) => job.id === selectedJobId)) {
+      setSelectedJobId(nextJobs[0]?.id ?? null)
+    }
+
+    if (isMobile && route.name === 'dashboard') {
+      navigate({ name: 'jobs' })
+    }
+  }
+
+  const handleDashboardJobSelect = (filterKey: JobFilterKey, jobId: string) => {
+    setStatusFilter(filterKey)
+    setSelectedJobId(jobId)
+
+    if (isMobile) {
+      navigate({ name: 'job-detail', jobId })
+    }
+  }
+
+  const stats: DashboardStat[] = [
     {
-      label: 'Live Holds',
-      value: holdCount,
-      description: 'Jobs waiting on payment completion',
+      filterKey: 'active',
+      label: 'Active',
+      value: activeJobs.length,
+      description: 'Jobs still in play and ready for action.',
       icon: Activity,
+      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'active', pendingBookings)),
     },
     {
+      filterKey: 'ready',
       label: 'Ready To Book',
-      value: availableJobs,
-      description: 'Latest results show all sites available',
+      value: sortedJobs.filter((job) => matchesJobFilter(job, 'ready', pendingBookings)).length,
+      description: 'Latest checks show every requested site available.',
       icon: TentTree,
+      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'ready', pendingBookings)),
     },
     {
-      label: 'Watching',
-      value: monitoringCount,
-      description: 'Jobs on an automatic check schedule',
-      icon: Radar,
+      filterKey: 'holds',
+      label: 'Live Holds',
+      value: sortedJobs.filter((job) => matchesJobFilter(job, 'holds', pendingBookings)).length,
+      description: 'Jobs currently holding inventory pending checkout.',
+      icon: Hand,
+      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'holds', pendingBookings)),
     },
     {
-      label: 'Next Check',
-      value: formatDueIn(nextCheck),
-      description: 'Earliest scheduled monitoring run',
+      filterKey: 'cancelled',
+      label: 'Cancelled',
+      value: sortedJobs.filter((job) => matchesJobFilter(job, 'cancelled', pendingBookings)).length,
+      description: 'Jobs manually stopped before completion.',
+      icon: XCircle,
+      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'cancelled', pendingBookings)),
+    },
+    {
+      filterKey: 'expired',
+      label: 'Expired',
+      value: sortedJobs.filter((job) => matchesJobFilter(job, 'expired', pendingBookings)).length,
+      description: 'Jobs whose booking windows have already passed.',
       icon: Clock3,
+      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'expired', pendingBookings)),
     },
   ]
 
@@ -431,11 +538,19 @@ export default function App() {
     if (
       isFetched
       && (route.name === 'job-detail' || route.name === 'edit-job')
-      && !jobs.some((job) => job.id === route.jobId)
+      && !sortedJobs.some((job) => job.id === route.jobId)
     ) {
       navigate({ name: 'jobs' }, { replace: true })
     }
-  }, [isFetched, jobs, navigate, route])
+  }, [isFetched, navigate, route, sortedJobs])
+
+  useEffect(() => {
+    if (route.name === 'job-detail' || route.name === 'edit-job') return
+    if (!selectedJobId) return
+    if (filteredJobs.some((job) => job.id === selectedJobId)) return
+
+    setSelectedJobId(filteredJobs[0]?.id ?? null)
+  }, [filteredJobs, route, selectedJobId, setSelectedJobId])
 
   useEffect(() => {
     if (!isMobile) return
@@ -478,6 +593,9 @@ export default function App() {
         route={route}
         navigate={navigate}
         selectedJob={selectedJob}
+        statusFilter={statusFilter}
+        onStatusFilterChange={applyStatusFilter}
+        onDashboardJobSelect={handleDashboardJobSelect}
       />
     )
   }
@@ -489,6 +607,9 @@ export default function App() {
       route={route}
       navigate={navigate}
       selectedJob={selectedJob}
+      statusFilter={statusFilter}
+      onStatusFilterChange={applyStatusFilter}
+      onDashboardJobSelect={handleDashboardJobSelect}
     />
   )
 }

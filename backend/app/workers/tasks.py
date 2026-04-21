@@ -194,6 +194,127 @@ async def _resolve_lazy_expired_hold(session, job: WatchJob) -> None:
         await _set_status(session, job, JobStatus.CHECKING)
 
 
+async def _touch_live_payment_page(page) -> None:
+    """Best-effort activity heartbeat for the DOC payment page.
+
+    The DOC checkout can expire from inactivity before the full cart hold
+    window ends. We avoid disruptive actions like reloads or key presses and
+    instead combine a same-origin fetch with lightweight DOM activity events.
+    """
+    await page.evaluate(
+        """async () => {
+          const dispatch = (target, type, init = {}) => {
+            target.dispatchEvent(new MouseEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              clientX: 18,
+              clientY: 18,
+              ...init,
+            }));
+          };
+
+          try {
+            await fetch(window.location.href, {
+              method: 'GET',
+              credentials: 'include',
+              cache: 'no-store',
+            });
+          } catch (_error) {
+            // Network heartbeat is best-effort only.
+          }
+
+          if (document.body) {
+            dispatch(document.body, 'mousemove');
+            dispatch(document.body, 'mousedown');
+            dispatch(document.body, 'mouseup');
+          }
+          dispatch(document, 'mousemove');
+          window.dispatchEvent(new Event('focus'));
+        }"""
+    )
+
+
+async def keep_live_carts_active(ctx: dict) -> dict:
+    """Hold-worker heartbeat for pages parked on CreditCardPayment.
+
+    Runs on the hold queue so it can access LIVE_BROWSERS in-process. Any live
+    browser that no longer has an active HOLD_PLACED cart is closed. Active,
+    unpaid carts get a lightweight heartbeat often enough to stay under DOC's
+    15-minute inactivity timeout.
+    """
+    if not LIVE_BROWSERS:
+        return {"checked": 0, "touched": 0, "closed": 0}
+
+    now = utcnow()
+    touched = 0
+    closed = 0
+    checked = 0
+
+    async with AsyncSessionLocal() as session:
+        for job_id, entry in list(LIVE_BROWSERS.items()):
+            checked += 1
+            job = cast(WatchJob | None, await session.get(WatchJob, job_id))
+            active_cart = await _get_active_cart(session, job_id)
+
+            if (
+                job is None
+                or job.status != JobStatus.HOLD_PLACED.value
+                or active_cart is None
+            ):
+                if await close_live_browser(job_id):
+                    closed += 1
+                continue
+
+            try:
+                adapter = get_adapter(job.adapter_id)
+            except ValueError as e:
+                logger.warning(
+                    f"keep_live_carts_active: unknown adapter for job {job_id}: {e}"
+                )
+                continue
+
+            keepalive_minutes = adapter.cart_keepalive_interval_minutes
+            if not keepalive_minutes:
+                continue
+
+            inactive_after_minutes = adapter.cart_inactive_after_minutes
+            if (
+                inactive_after_minutes is not None
+                and keepalive_minutes >= inactive_after_minutes
+            ):
+                logger.warning(
+                    "Adapter %s keepalive interval (%s min) is not below the "
+                    "inactivity timeout (%s min)",
+                    adapter.adapter_id,
+                    keepalive_minutes,
+                    inactive_after_minutes,
+                )
+
+            keepalive_every = timedelta(minutes=keepalive_minutes)
+            last_keepalive_at = entry.get("last_keepalive_at") or entry.get("created_at") or now
+            if now - last_keepalive_at < keepalive_every:
+                continue
+
+            page = entry.get("page")
+            if page is None:
+                if await close_live_browser(job_id):
+                    closed += 1
+                continue
+
+            try:
+                await _touch_live_payment_page(page)
+                entry["last_keepalive_at"] = now
+                touched += 1
+                logger.info(f"Sent payment-page keepalive heartbeat for job {job_id}")
+            except Exception as e:
+                logger.warning(
+                    f"Failed keepalive heartbeat for job {job_id}: {e}",
+                    exc_info=True,
+                )
+
+    return {"checked": checked, "touched": touched, "closed": closed}
+
+
 @asynccontextmanager
 async def _browser_page(
     *,
@@ -263,6 +384,7 @@ async def _browser_page(
                 "context": context,
                 "page": page,
                 "created_at": utcnow(),
+                "last_keepalive_at": utcnow(),
             }
             logger.info(
                 f"Browser kept alive for job {keep_key[0]} "
@@ -550,6 +672,13 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             )
             return {"job_id": job_id, "status": f"skipped_{job.status}"}
 
+    # If an expired hold left a headed browser open on the VNC display,
+    # close it before launching a fresh hold attempt so the next /pay view
+    # reconnects to the new cart instead of a stale expired one.
+    stale_closed = await close_live_browser(job_id)
+    if stale_closed:
+        logger.info(f"Closed stale live browser before retrying hold for {job_id}")
+
     booking: BookingResult | None = None
     availability_dropped = False
     fully_available: list = []
@@ -615,6 +744,12 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
 
     # --- 2. Notifications (hold outcome only) ---
     if booking and booking.held and booking.reservation_url:
+        hold_minutes = adapter.cart_hold_minutes
+        hold_window_copy = (
+            f"{hold_minutes} mins to complete payment"
+            if hold_minutes
+            else "Complete payment before the cart expires"
+        )
         # One notification listing all held sites.
         site_lines = [
             f"  • {r.site} — {r.total_available} spot(s)"
@@ -625,7 +760,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             message=(
                 f"Hold placed for {params.get('date')}:\n"
                 + "\n".join(site_lines)
-                + f"\n\n25 mins to complete payment:\n{booking.reservation_url}"
+                + f"\n\n{hold_window_copy}:\n{booking.reservation_url}"
             ),
             priority=10,
         )
@@ -787,6 +922,11 @@ async def scheduler_tick(ctx: dict) -> dict:
             job.next_check_at = now
             session.add(job)
             resumed_from_hold += 1
+            await redis.enqueue_job(
+                "close_browser_task",
+                job.id,
+                _queue_name=HOLD_QUEUE_NAME,
+            )
         if resumed_from_hold:
             await session.commit()
 
@@ -976,7 +1116,22 @@ class WorkerSettings:
 
 class HoldWorkerSettings:
     """Hold worker — runs attempt_hold_task on the dedicated hold queue."""
-    functions = [attempt_hold_task, close_browser_task, snapshot_complete_task]
+    functions = [
+        attempt_hold_task,
+        close_browser_task,
+        snapshot_complete_task,
+        keep_live_carts_active,
+    ]
+    cron_jobs = [
+        cron(
+            keep_live_carts_active,
+            minute=set(range(60)),
+            second=0,
+            run_at_startup=True,
+            unique=True,
+            timeout=60,
+        ),
+    ]
     on_startup = startup
     on_shutdown = hold_worker_shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)

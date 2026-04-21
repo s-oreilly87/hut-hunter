@@ -24,11 +24,17 @@ import type {
 export type DisplayStatus =
   | 'booking'
   | 'attempting_hold'
+  | 'hold_expired'
   | 'result_available'
   | 'result_partial'
   | 'result_unavailable'
   | 'result_hold_failed'
   | string  // JobStatus passthrough
+
+export function hasHoldExpired(job: WatchJob): boolean {
+  if (job.status !== 'hold_placed' || !job.cart_expires_at) return false
+  return new Date(job.cart_expires_at).getTime() <= Date.now()
+}
 
 export function getDisplayStatus(
   job: WatchJob,
@@ -47,6 +53,10 @@ export function getDisplayStatus(
     && jobAllFullyAvailable(job)
   ) {
     return 'attempting_hold'
+  }
+
+  if (hasHoldExpired(job)) {
+    return 'hold_expired'
   }
 
   // Paused / Waiting with results — derive from what the last check found.

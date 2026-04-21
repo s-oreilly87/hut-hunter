@@ -5,9 +5,16 @@ import { adaptersApi, type WatchJob } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { type DisplayStatus, getDisplayStatus } from '@/lib/availability'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
+import {
+  type JobFilterKey,
+  JOB_FILTERS,
+  getJobFilterDefinition,
+  matchesJobFilter,
+} from '@/components/jobs/jobFilters'
 import {
   formatCountLabel,
   formatDateLabel,
@@ -161,10 +168,14 @@ export function JobList({
   collapseGroupsByDefault = false,
   showIndexes = false,
   onJobSelect,
+  statusFilter = 'all',
+  onStatusFilterChange,
 }: {
   collapseGroupsByDefault?: boolean
   showIndexes?: boolean
   onJobSelect?: (jobId: string) => void
+  statusFilter?: JobFilterKey
+  onStatusFilterChange?: (filter: JobFilterKey) => void
 } = {}) {
   const { selectedJobId, setSelectedJobId, pendingBookings } = useJobsStore()
   const [expandedAdapters, setExpandedAdapters] = useState<Set<string> | null>(null)
@@ -211,10 +222,25 @@ export function JobList({
     [adapters],
   )
 
+  const filteredJobs = useMemo(
+    () => jobs.filter((job) => matchesJobFilter(job, statusFilter, pendingBookings)),
+    [jobs, pendingBookings, statusFilter],
+  )
+
+  const filterCounts = useMemo(
+    () => new Map(
+      JOB_FILTERS.map((filter) => [
+        filter.key,
+        jobs.filter((job) => filter.matches(job, pendingBookings)).length,
+      ]),
+    ),
+    [jobs, pendingBookings],
+  )
+
   const groupedJobs = useMemo(() => {
     const groups = new Map<string, WatchJob[]>()
 
-    for (const job of jobs) {
+    for (const job of filteredJobs) {
       const list = groups.get(job.adapter_id)
       if (list) {
         list.push(job)
@@ -228,7 +254,7 @@ export function JobList({
       adapterName: getAdapterDisplayName(adapterId, adapterNameById),
       jobs: adapterJobs,
     }))
-  }, [adapterNameById, jobs])
+  }, [adapterNameById, filteredJobs])
 
   const groupsWithIndexes = useMemo(() => {
     let startIndex = 0
@@ -346,8 +372,89 @@ export function JobList({
     )
   }
 
+  if (!filteredJobs.length) {
+    const filter = getJobFilterDefinition(statusFilter)
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {JOB_FILTERS.map((filterOption) => {
+            const isActive = filterOption.key === statusFilter
+            const count = filterCounts.get(filterOption.key) ?? 0
+
+            return (
+              <Button
+                key={filterOption.key}
+                type="button"
+                size="sm"
+                variant={isActive ? 'default' : 'outline'}
+                onClick={() => onStatusFilterChange?.(filterOption.key)}
+              >
+                {filterOption.label}
+                <Badge
+                  variant={isActive ? 'secondary' : 'outline'}
+                  className="ml-1.5"
+                >
+                  {count}
+                </Badge>
+              </Button>
+            )
+          })}
+        </div>
+
+        <div className="flex min-h-56 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border/80 bg-muted/25 px-6 py-10 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Clock3 className="h-5 w-5" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
+            No matching jobs
+          </h3>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+            {filter.emptyLabel}
+          </p>
+          {statusFilter !== 'all' && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-4"
+              onClick={() => onStatusFilterChange?.('all')}
+            >
+              Clear Filter
+            </Button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {JOB_FILTERS.map((filter) => {
+          const isActive = filter.key === statusFilter
+          const count = filterCounts.get(filter.key) ?? 0
+
+          return (
+            <Button
+              key={filter.key}
+              type="button"
+              size="sm"
+              variant={isActive ? 'default' : 'outline'}
+              onClick={() => onStatusFilterChange?.(filter.key)}
+            >
+              {filter.label}
+              <Badge
+                variant={isActive ? 'secondary' : 'outline'}
+                className="ml-1.5"
+              >
+                {count}
+              </Badge>
+            </Button>
+          )
+        })}
+      </div>
+
       {groupsWithIndexes.map((group) => {
         const isExpanded = effectiveExpandedAdapters.has(group.adapterId)
 
@@ -421,6 +528,7 @@ export function JobList({
                               <StatusBadge
                                 status={displayStatus}
                                 jobId={job.id}
+                                cartExpiresAt={job.cart_expires_at}
                                 artifactUrl={job.last_artifact_png}
                               />
                             </div>
@@ -483,6 +591,7 @@ export function JobList({
                                   <StatusBadge
                                     status={displayStatus}
                                     jobId={job.id}
+                                    cartExpiresAt={job.cart_expires_at}
                                     artifactUrl={job.last_artifact_png}
                                   />
                                 )}
