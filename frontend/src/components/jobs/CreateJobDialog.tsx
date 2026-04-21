@@ -363,11 +363,13 @@ function JobFormDialog({
   onOpenChange,
   mode,
   initialJob,
+  onDone,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   mode: Mode
   initialJob?: WatchJob
+  onDone?: (job: WatchJob) => void
 }) {
   // Radix Dialog unmounts children when closed, but we also key the body on
   // mode + job id so that opening the same dialog for a different job reliably
@@ -380,7 +382,10 @@ function JobFormDialog({
           key={`${mode}:${initialJob?.id ?? 'new'}`}
           mode={mode}
           initialJob={initialJob}
-          onDone={() => onOpenChange(false)}
+          onDone={(job) => {
+            onDone?.(job)
+            onOpenChange(false)
+          }}
           presentation="dialog"
         />
       </DialogContent>
@@ -396,7 +401,7 @@ function JobFormBody({
 }: {
   mode: Mode
   initialJob?: WatchJob
-  onDone: () => void
+  onDone: (job: WatchJob) => void
   presentation: 'dialog' | 'page'
 }) {
   const qc = useQueryClient()
@@ -527,6 +532,14 @@ function JobFormBody({
     })
   }
 
+  const upsertJob = (job: WatchJob) => {
+    qc.setQueryData<WatchJob[]>(['jobs'], (current = []) => {
+      const withoutCurrent = current.filter((candidate) => candidate.id !== job.id)
+      return [job, ...withoutCurrent]
+    })
+    qc.setQueryData(['jobs', job.id], job)
+  }
+
   const invalidateJob = (id?: string) => {
     qc.invalidateQueries({ queryKey: ['jobs'] })
     if (id) qc.invalidateQueries({ queryKey: ['jobs', id] })
@@ -535,8 +548,9 @@ function JobFormBody({
   const create = useMutation({
     mutationFn: jobsApi.create,
     onSuccess: (job) => {
+      upsertJob(job)
       invalidateJob(job.id)
-      onDone()
+      onDone(job)
     },
     onError: (e: Error) => setError(e.message),
   })
@@ -545,8 +559,9 @@ function JobFormBody({
     mutationFn: (payload: { id: string; patch: Parameters<typeof jobsApi.update>[1] }) =>
       jobsApi.update(payload.id, payload.patch),
     onSuccess: (job) => {
+      upsertJob(job)
       invalidateJob(job.id)
-      onDone()
+      onDone(job)
     },
     onError: (e: Error) => setError(e.message),
   })
@@ -858,7 +873,7 @@ function JobFormPage({
 }: {
   mode: Mode
   initialJob?: WatchJob
-  onDone: () => void
+  onDone: (job: WatchJob) => void
 }) {
   return (
     <section className="app-panel px-4 py-5 sm:px-6">
@@ -880,10 +895,12 @@ function JobFormPage({
 export function CreateJobDialog({
   open: controlledOpen,
   onOpenChange,
+  onDone,
   hideTrigger = false,
 }: {
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onDone?: (job: WatchJob) => void
   hideTrigger?: boolean
 } = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
@@ -903,7 +920,7 @@ export function CreateJobDialog({
           New Watch Job
         </Button>
       )}
-      <JobFormDialog open={open} onOpenChange={handleOpenChange} mode="create" />
+      <JobFormDialog open={open} onOpenChange={handleOpenChange} mode="create" onDone={onDone} />
     </>
   )
 }
@@ -911,7 +928,7 @@ export function CreateJobDialog({
 export function CreateJobPage({
   onDone,
 }: {
-  onDone: () => void
+  onDone: (job: WatchJob) => void
 }) {
   return <JobFormPage mode="create" onDone={onDone} />
 }
@@ -940,7 +957,7 @@ export function EditJobPage({
   onDone,
 }: {
   job: WatchJob
-  onDone: () => void
+  onDone: (job: WatchJob) => void
 }) {
   return <JobFormPage mode="edit" initialJob={job} onDone={onDone} />
 }
