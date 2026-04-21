@@ -4,20 +4,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { jobsApi, type WatchJob } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
+import { formatCountdown } from '@/lib/time'
 
 interface Props {
   job: WatchJob
   displayStatus: DisplayStatus
-}
-
-// Pad a positive number of seconds as MM:SS. Negative values render as 00:00
-// so the UI doesn't flash something weird right as next_check_at passes and
-// the server hasn't yet refreshed.
-function formatCountdown(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds))
-  const mm = Math.floor(s / 60).toString().padStart(2, '0')
-  const ss = (s % 60).toString().padStart(2, '0')
-  return `${mm}:${ss}`
 }
 
 // The monitoring status pill. When the monitoring state is user-toggleable

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, Pencil, Trash2, Plus, X, CircleHelp } from 'lucide-react'
+import { Users, Pencil, Trash2, Plus, X } from 'lucide-react'
 import { occupantsApi, type Occupant, type OccupantCreate } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,12 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { InfoTooltip, SectionHeading } from '@/components/ui/section-heading'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -43,55 +38,6 @@ const EMPTY_FORM: OccupantCreate = {
   gender: '',
   country: '',
   category: '',
-}
-
-function InfoTooltip({
-  content,
-  align = 'center',
-}: {
-  content: string
-  align?: 'center' | 'start' | 'end'
-}) {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="More information"
-          >
-            <CircleHelp className="h-4 w-4" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent align={align} side="bottom">
-          {content}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
-
-function SectionHeading({
-  title,
-  tooltip,
-  tone = 'section',
-}: {
-  title: string
-  tooltip: string
-  tone?: 'section' | 'body'
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <h3 className={tone === 'section'
-        ? 'text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground'
-        : 'text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground'}
-      >
-        {title}
-      </h3>
-      <InfoTooltip content={tooltip} />
-    </div>
-  )
 }
 
 function OccupantForm({
@@ -205,12 +151,14 @@ function OccupantRow({
 }) {
   return (
     <div className="flex items-start justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm">
-      <div className="min-w-0">
-        <span className="font-medium">{occupant.first_name} {occupant.last_name}</span>
-        <span className="ml-2 text-muted-foreground">
+      <div className="min-w-0 space-y-1">
+        <p className="truncate font-medium text-foreground">
+          {occupant.first_name} {occupant.last_name}
+        </p>
+        <p className="text-xs text-muted-foreground">
           {occupant.age}y · {occupant.gender} · {occupant.country}
-        </span>
-        <div className="mt-1 text-xs text-muted-foreground">{occupant.category}</div>
+        </p>
+        <p className="text-xs text-muted-foreground">{occupant.category}</p>
       </div>
       <div className="flex gap-1 shrink-0">
         <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}>
@@ -356,21 +304,19 @@ export function OccupantsDialog() {
               {editing.mode !== 'none' ? (
                 <>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        {editing.mode === 'new' ? 'New Occupant' : 'Edit Occupant'}
-                      </p>
-                    </div>
+                    <SectionHeading
+                      title={editing.mode === 'new' ? 'New Occupant' : 'Edit Occupant'}
+                      tooltip="Save the details exactly as they should be sent to the booking flow."
+                    />
                     <div className="flex items-center gap-2">
-                      <InfoTooltip content="Save the details exactly as they should be sent to the booking flow." />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={cancelForm}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={cancelForm}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
                   <OccupantForm
@@ -392,9 +338,9 @@ export function OccupantsDialog() {
                   <p className="text-base font-medium text-foreground">
                     Select a roster entry to edit it
                   </p>
-                  <div className="mt-2 flex justify-center">
-                    <InfoTooltip content="The form panel stays here so editing does not push the list around on smaller screens." />
-                  </div>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Keeping the form pinned here avoids the roster list jumping around on smaller screens.
+                  </p>
                 </div>
               )}
             </div>

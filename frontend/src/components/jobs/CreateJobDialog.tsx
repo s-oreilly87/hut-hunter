@@ -1,15 +1,8 @@
-import { useState, type ReactNode } from 'react'
+import { createElement, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowRight,
-  CalendarDays,
-  CircleHelp,
-  Map,
-  MapPinned,
-  MoonStar,
   Plus,
   Settings2,
-  Users,
 } from 'lucide-react'
 import {
   jobsApi, adaptersApi, occupantsApi,
@@ -26,12 +19,8 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel,
   SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { InfoTooltip, SectionHeading } from '@/components/ui/section-heading'
+import { getJobParamIcon } from '@/components/jobs/jobParamDisplay'
 
 // ---------------------------------------------------------------------------
 // Field rendering
@@ -343,75 +332,6 @@ function SettingRow({
   )
 }
 
-function InfoTooltip({
-  content,
-  align = 'center',
-}: {
-  content: string
-  align?: 'center' | 'start' | 'end'
-}) {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="More information"
-          >
-            <CircleHelp className="h-4 w-4" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent align={align} side="bottom">
-          {content}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
-
-function SectionHeading({
-  title,
-  tooltip,
-  tone = 'section',
-}: {
-  title: string
-  tooltip?: string
-  tone?: 'section' | 'body'
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <h3 className={tone === 'section'
-        ? 'text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground'
-        : 'font-medium text-foreground'}
-      >
-        {title}
-      </h3>
-      {tooltip && <InfoTooltip content={tooltip} />}
-    </div>
-  )
-}
-
-function renderParamIcon(fieldKey: string) {
-  switch (fieldKey) {
-    case 'track':
-      return <Map className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'date':
-      return <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'nights':
-      return <MoonStar className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'people':
-    case 'occupants':
-      return <Users className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'direction':
-      return <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'sites':
-      return <MapPinned className="h-3.5 w-3.5 text-muted-foreground" />
-    default:
-      return null
-  }
-}
-
 function ParamLabel({
   fieldKey,
   children,
@@ -421,9 +341,11 @@ function ParamLabel({
   children: ReactNode
   required?: boolean
 }) {
+  const Icon = getJobParamIcon(fieldKey)
+
   return (
     <Label className="inline-flex items-center gap-2">
-      {renderParamIcon(fieldKey)}
+      {Icon && createElement(Icon, { className: 'h-3.5 w-3.5 text-muted-foreground' })}
       <span>{children}</span>
       {required && <span className="ml-1 text-destructive">*</span>}
     </Label>

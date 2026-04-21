@@ -44,6 +44,11 @@ import {
   getDisplayStatus,
   jobHasPartialAvailability,
 } from '@/lib/availability'
+import {
+  formatCountdown,
+  formatDateTime,
+  formatRelativeTimeFromNow,
+} from '@/lib/time'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import { getHeaderFields } from '@/components/jobs/jobParamDisplay'
 
@@ -53,34 +58,12 @@ function titleize(key: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
-
 function formatRelativeTime(value: string | null): string {
-  if (!value) return 'Never checked'
-
-  const diffSeconds = Math.round((new Date(value).getTime() - Date.now()) / 1000)
-  const absSeconds = Math.abs(diffSeconds)
-
-  if (absSeconds < 45) return 'Checked just now'
-
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ['minute', 60],
-    ['hour', 60 * 60],
-    ['day', 60 * 60 * 24],
-    ['week', 60 * 60 * 24 * 7],
-  ]
-
-  for (let index = units.length - 1; index >= 0; index -= 1) {
-    const [unit, unitSeconds] = units[index]
-    if (absSeconds >= unitSeconds || unit === 'minute') {
-      return `Checked ${relativeTimeFormatter.format(
-        Math.round(diffSeconds / unitSeconds),
-        unit,
-      )}`
-    }
-  }
-
-  return 'Checked just now'
+  return formatRelativeTimeFromNow(value, {
+    emptyLabel: 'Never checked',
+    justNowLabel: 'just now',
+    prefix: 'Checked',
+  })
 }
 
 function parseAvailabilityEvidence(evidence: string): {
@@ -211,6 +194,55 @@ function formatResultValue(value: unknown): string {
   }
 }
 
+function ArtifactLinkButton({
+  href,
+  icon: Icon,
+  children,
+}: {
+  href: string
+  icon: typeof ImageIcon
+  children: string
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+    >
+      <Icon className="h-4 w-4" />
+      {children}
+    </a>
+  )
+}
+
+function ArtifactActions({
+  artifactPng,
+  artifactHtml,
+  borderClass = 'border-border/70',
+}: {
+  artifactPng?: string | null
+  artifactHtml?: string | null
+  borderClass?: string
+}) {
+  if (!artifactPng && !artifactHtml) return null
+
+  return (
+    <div className={`flex flex-wrap gap-2 border-t pt-4 ${borderClass}`}>
+      {artifactPng && (
+        <ArtifactLinkButton href={artifactPng} icon={ImageIcon}>
+          Screenshot
+        </ArtifactLinkButton>
+      )}
+      {artifactHtml && (
+        <ArtifactLinkButton href={artifactHtml} icon={FileCode2}>
+          HTML
+        </ArtifactLinkButton>
+      )}
+    </div>
+  )
+}
+
 function GenericResultView({
   entry,
   artifactPng,
@@ -266,32 +298,11 @@ function GenericResultView({
             </div>
           )}
 
-          {(artifactPng || artifactHtml) && (
-            <div className="flex flex-wrap gap-2 border-t border-destructive/15 pt-4">
-              {artifactPng && (
-                <a
-                  href={artifactPng}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  <ImageIcon className="h-4 w-4" />
-                  Screenshot
-                </a>
-              )}
-              {artifactHtml && (
-                <a
-                  href={artifactHtml}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  <FileCode2 className="h-4 w-4" />
-                  HTML
-                </a>
-              )}
-            </div>
-          )}
+          <ArtifactActions
+            artifactPng={artifactPng}
+            artifactHtml={artifactHtml}
+            borderClass="border-destructive/15"
+          />
         </div>
       </div>
     </div>
@@ -350,32 +361,11 @@ function HoldFailedView({
             </Badge>
           </div>
 
-          {(artifactPng || artifactHtml) && (
-            <div className="flex flex-wrap gap-2 border-t border-rose-500/15 pt-3">
-              {artifactPng && (
-                <a
-                  href={artifactPng}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  <ImageIcon className="h-4 w-4" />
-                  Screenshot
-                </a>
-              )}
-              {artifactHtml && (
-                <a
-                  href={artifactHtml}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  <FileCode2 className="h-4 w-4" />
-                  HTML
-                </a>
-              )}
-            </div>
-          )}
+          <ArtifactActions
+            artifactPng={artifactPng}
+            artifactHtml={artifactHtml}
+            borderClass="border-rose-500/15"
+          />
         </div>
       </div>
     </div>
@@ -615,50 +605,20 @@ function ArtifactGallery({
 
           <div className="flex flex-wrap gap-2 px-4 py-3">
             {artifact.png_url && (
-              <a
-                href={artifact.png_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                <ImageIcon className="h-4 w-4" />
+              <ArtifactLinkButton href={artifact.png_url} icon={ImageIcon}>
                 Screenshot
-              </a>
+              </ArtifactLinkButton>
             )}
             {artifact.html_url && (
-              <a
-                href={artifact.html_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                <FileCode2 className="h-4 w-4" />
+              <ArtifactLinkButton href={artifact.html_url} icon={FileCode2}>
                 HTML
-              </a>
+              </ArtifactLinkButton>
             )}
           </div>
         </div>
       ))}
     </div>
   )
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) return '—'
-  return new Date(value).toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatCountdown(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds))
-  const mm = Math.floor(s / 60).toString().padStart(2, '0')
-  const ss = (s % 60).toString().padStart(2, '0')
-  return `${mm}:${ss}`
 }
 
 // ---------------------------------------------------------------------------
