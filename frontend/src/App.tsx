@@ -44,6 +44,15 @@ function getJobSelector(jobId: string): string {
   return `[data-job-id="${escapedId}"]`
 }
 
+function getMobileStickyHeaderOffset(): number {
+  if (typeof window === 'undefined') return 96
+
+  const stickyHeader = document.querySelector<HTMLElement>('[data-mobile-sticky-header="true"]')
+  const headerHeight = stickyHeader?.getBoundingClientRect().height ?? 0
+
+  return headerHeight + 16
+}
+
 function getJobTitle(job: WatchJob): string {
   const trimmed = job.name.trim()
   return trimmed || 'Untitled Job'
@@ -196,7 +205,10 @@ function MobileActionBar({
   if (!leading && !actions) return null
 
   return (
-    <div className="-mx-4 sticky top-0 z-30 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <div
+      data-mobile-sticky-header="true"
+      className="-mx-4 sticky top-0 z-30 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">{leading}</div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -629,7 +641,10 @@ export default function App() {
       const selectedNode = document.querySelector<HTMLElement>(getJobSelector(selectedJobId))
       if (!selectedNode) return
 
-      const top = Math.max(0, selectedNode.getBoundingClientRect().top + window.scrollY - 16)
+      const top = Math.max(
+        0,
+        selectedNode.getBoundingClientRect().top + window.scrollY - getMobileStickyHeaderOffset(),
+      )
       window.scrollTo({ top, left: 0, behavior: 'auto' })
     }
 
