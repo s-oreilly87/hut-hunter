@@ -3,11 +3,16 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, Clock3, Stamp } from 'lucide-react'
 import { adaptersApi, type WatchJob } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
-import { getDisplayStatus } from '@/lib/availability'
+import { type DisplayStatus, getDisplayStatus } from '@/lib/availability'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
+import {
+  formatCountLabel,
+  formatDateLabel,
+  parseFacilityOption,
+} from '@/components/jobs/jobParamDisplay'
 import {
   Table,
   TableBody,
@@ -16,8 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+import { formatDateTime, formatRelativeTimeFromNow } from '@/lib/time'
+import { cn } from '@/lib/utils'
 
 function getAdapterDisplayName(
   adapterId: string,
@@ -27,62 +32,7 @@ function getAdapterDisplayName(
 }
 
 function formatTimeAgo(value: string | null): string {
-  if (!value) return 'Never'
-
-  const diffMs = new Date(value).getTime() - Date.now()
-  const diffSeconds = Math.round(diffMs / 1000)
-  const absSeconds = Math.abs(diffSeconds)
-
-  if (absSeconds < 45) return 'just now'
-
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ['minute', 60],
-    ['hour', 60 * 60],
-    ['day', 60 * 60 * 24],
-    ['week', 60 * 60 * 24 * 7],
-    ['month', 60 * 60 * 24 * 30],
-    ['year', 60 * 60 * 24 * 365],
-  ]
-
-  for (let index = units.length - 1; index >= 0; index -= 1) {
-    const [unit, unitSeconds] = units[index]
-    if (absSeconds >= unitSeconds || unit === 'minute') {
-      return relativeTimeFormatter.format(
-        Math.round(diffSeconds / unitSeconds),
-        unit,
-      )
-    }
-  }
-
-  return 'just now'
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) return '—'
-  return new Date(value).toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatStartDate(value: unknown): string | null {
-  if (typeof value !== 'string' || !value.trim()) return null
-
-  const parts = value.split('/')
-  if (parts.length !== 3) return value
-
-  const [dd, mm, yyyy] = parts.map(Number)
-  if ([dd, mm, yyyy].some(Number.isNaN)) return value
-
-  const date = new Date(yyyy, mm - 1, dd)
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  return formatRelativeTimeFromNow(value, { justNowLabel: 'just now' })
 }
 
 function getDateFieldKey(
@@ -104,10 +54,6 @@ function getJobTitle(job: WatchJob): string {
   return trimmed || 'Untitled Job'
 }
 
-// Regex matches the DOC standard facility option string format:
-//   "Mueller Hut (747/2487) — Aoraki/Mount Cook National Park"
-const FACILITY_OPTION_RE = /^(.+?)\s*\(\d+\/\d+\)(?:\s*—\s*(.+))?$/
-
 function getJobSubtitle(
   job: WatchJob,
   adapterDateFieldKeyById: Map<string, string>,
@@ -118,27 +64,21 @@ function getJobSubtitle(
   // DOC standard hut — derive subtitle from facility + date
   const facilityStr = typeof job.params.facility === 'string' ? job.params.facility.trim() : ''
   if (facilityStr) {
-    const m = FACILITY_OPTION_RE.exec(facilityStr)
-    const facilityName = m ? m[1].trim() : facilityStr
-    const startDate = dateFieldKey ? formatStartDate(job.params[dateFieldKey]) : null
+    const parsedFacility = parseFacilityOption(facilityStr)
+    const facilityName = parsedFacility?.facilityName ?? facilityStr
+    const startDate = dateFieldKey ? formatDateLabel(job.params[dateFieldKey]) : null
     if (facilityName && startDate) return `${facilityName}, ${startDate}`
     if (facilityName) return facilityName
   }
 
   const trackFieldKey = getTrackFieldKey(job, adapterTrackFieldKeyById)
   const trackName = trackFieldKey ? String(job.params[trackFieldKey] ?? '').trim() : ''
-  const startDate = dateFieldKey ? formatStartDate(job.params[dateFieldKey]) : null
+  const startDate = dateFieldKey ? formatDateLabel(job.params[dateFieldKey]) : null
 
   if (trackName && startDate) return `${trackName}, ${startDate}`
   if (trackName) return trackName
   if (startDate) return startDate
   return 'No track selected'
-}
-
-function formatCountLabel(value: unknown, singular: string, plural: string): string | null {
-  const raw = typeof value === 'number' ? value : Number(String(value ?? '').trim())
-  if (!Number.isFinite(raw) || raw <= 0) return null
-  return `${raw} ${raw === 1 ? singular : plural}`
 }
 
 function getJobMetaLine(job: WatchJob): string {
@@ -149,6 +89,72 @@ function getJobMetaLine(job: WatchJob): string {
   if (nights) return nights
   if (people) return people
   return 'Party details not set'
+}
+
+function JobIdentity({
+  job,
+  showIndexes,
+  jobIndex,
+  adapterDateFieldKeyById,
+  adapterTrackFieldKeyById,
+}: {
+  job: WatchJob
+  showIndexes: boolean
+  jobIndex: number
+  adapterDateFieldKeyById: Map<string, string>
+  adapterTrackFieldKeyById: Map<string, string>
+}) {
+  return (
+    <div className="space-y-1">
+      {showIndexes && (
+        <span className="inline-flex rounded-full border border-border/80 bg-secondary/55 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {jobIndex.toString().padStart(2, '0')}
+        </span>
+      )}
+      <p className="font-medium tracking-tight text-foreground">
+        {getJobTitle(job)}
+      </p>
+      <p className="font-mono text-xs tracking-wide text-muted-foreground">
+        {getJobSubtitle(job, adapterDateFieldKeyById, adapterTrackFieldKeyById)}
+      </p>
+      <p className="text-xs text-muted-foreground/85">
+        {getJobMetaLine(job)}
+      </p>
+    </div>
+  )
+}
+
+function JobActivityMeta({
+  job,
+  displayStatus,
+}: {
+  job: WatchJob
+  displayStatus: DisplayStatus
+}) {
+  if (displayStatus === 'booking_complete') {
+    return (
+      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Stamp className="h-3.5 w-3.5 shrink-0" />
+        {formatDateTime(job.last_checked_at)}
+      </p>
+    )
+  }
+
+  return (
+    <>
+      <p className="text-sm text-muted-foreground">
+        {formatTimeAgo(job.last_checked_at)}
+      </p>
+      <div>
+        <MonitoringBadge job={job} displayStatus={displayStatus} />
+      </div>
+      <div>
+        <Badge variant={job.auto_book ? 'default' : 'outline'}>
+          {job.auto_book ? 'Auto-book' : 'Check only'}
+        </Badge>
+      </div>
+    </>
+  )
 }
 
 export function JobList({
@@ -279,6 +285,17 @@ export function JobList({
     onJobSelect?.(jobId)
   }
 
+  const setJobRef = (
+    jobId: string,
+    node: HTMLDivElement | HTMLTableRowElement | null,
+  ) => {
+    if (node) {
+      jobRefs.current.set(jobId, node)
+    } else {
+      jobRefs.current.delete(jobId)
+    }
+  }
+
   useEffect(() => {
     if (!selectedJobId) {
       hasAutoScrolledRef.current = false
@@ -375,19 +392,13 @@ export function JobList({
                         role="button"
                         tabIndex={0}
                         data-job-id={job.id}
-                        ref={(node) => {
-                          if (node) {
-                            jobRefs.current.set(job.id, node)
-                          } else {
-                            jobRefs.current.delete(job.id)
-                          }
-                        }}
-                        className={[
-                          'w-full rounded-[1.35rem] border px-4 py-4 text-left transition-all cursor-pointer',
+                        ref={(node) => setJobRef(job.id, node)}
+                        className={cn(
+                          'w-full cursor-pointer rounded-[1.35rem] border px-4 py-4 text-left transition-all',
                           isSelected
                             ? 'border-primary/45 bg-primary/8 ring-2 ring-primary/20 shadow-[0_22px_55px_-34px_rgba(22,53,40,0.7)]'
                             : 'border-border/80 bg-background/75 hover:border-primary/20 hover:bg-background',
-                        ].join(' ')}
+                        )}
                         onClick={() => selectJob(job.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
@@ -397,22 +408,13 @@ export function JobList({
                         }}
                       >
                         <div className="space-y-4">
-                          <div className="space-y-1">
-                            {showIndexes && (
-                              <span className="inline-flex rounded-full border border-border/80 bg-secondary/55 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                {jobIndex.toString().padStart(2, '0')}
-                              </span>
-                            )}
-                            <h3 className="font-semibold tracking-tight text-foreground">
-                              {getJobTitle(job)}
-                            </h3>
-                            <p className="font-mono text-xs tracking-wide text-muted-foreground">
-                              {getJobSubtitle(job, adapterDateFieldKeyById, adapterTrackFieldKeyById)}
-                            </p>
-                            <p className="text-xs text-muted-foreground/85">
-                              {getJobMetaLine(job)}
-                            </p>
-                          </div>
+                          <JobIdentity
+                            job={job}
+                            showIndexes={showIndexes}
+                            jobIndex={jobIndex}
+                            adapterDateFieldKeyById={adapterDateFieldKeyById}
+                            adapterTrackFieldKeyById={adapterTrackFieldKeyById}
+                          />
 
                           {showStatusBadge && (
                             <div>
@@ -424,27 +426,8 @@ export function JobList({
                             </div>
                           )}
 
-                          <div className="rounded-2xl bg-secondary/55 px-3 py-3 space-y-2">
-                            {displayStatus === 'booking_complete' ? (
-                              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                                <Stamp className="h-3.5 w-3.5 shrink-0" />
-                                {formatDateTime(job.last_checked_at)}
-                              </p>
-                            ) : (
-                              <>
-                                <p className="text-sm text-muted-foreground">
-                                  {formatTimeAgo(job.last_checked_at)}
-                                </p>
-                                <div>
-                                  <MonitoringBadge job={job} displayStatus={displayStatus} />
-                                </div>
-                                <div>
-                                  <Badge variant={job.auto_book ? 'default' : 'outline'}>
-                                    {job.auto_book ? 'Auto-book' : 'Check only'}
-                                  </Badge>
-                                </div>
-                              </>
-                            )}
+                          <div className="space-y-2 rounded-2xl bg-secondary/55 px-3 py-3">
+                            <JobActivityMeta job={job} displayStatus={displayStatus} />
                           </div>
                         </div>
                       </div>
@@ -472,42 +455,27 @@ export function JobList({
                           <TableRow
                             key={job.id}
                             data-job-id={job.id}
-                            ref={(node) => {
-                              if (node) {
-                                jobRefs.current.set(job.id, node)
-                              } else {
-                                jobRefs.current.delete(job.id)
-                              }
-                            }}
-                            className={[
+                            ref={(node) => setJobRef(job.id, node)}
+                            className={cn(
                               'cursor-pointer border-border/70 bg-background/60 transition-colors',
-                              isSelected ? 'bg-primary/10 hover:bg-primary/10' : '',
-                            ].join(' ')}
+                              isSelected && 'bg-primary/10 hover:bg-primary/10',
+                            )}
                             onClick={() => selectJob(job.id)}
                           >
-                            <TableCell className={[
-                              'relative w-[48%] pl-4 whitespace-normal align-top',
-                              isSelected
-                                ? 'pl-7 before:absolute before:top-3 before:bottom-3 before:left-2 before:w-1 before:rounded-full before:bg-primary'
-                                : '',
-                            ].join(' ')}
+                            <TableCell
+                              className={cn(
+                                'relative w-[48%] whitespace-normal pl-4 align-top',
+                                isSelected
+                                  && 'pl-7 before:absolute before:top-3 before:bottom-3 before:left-2 before:w-1 before:rounded-full before:bg-primary',
+                              )}
                             >
-                              <div className="space-y-1">
-                                {showIndexes && (
-                                  <span className="inline-flex rounded-full border border-border/80 bg-secondary/55 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                    {jobIndex.toString().padStart(2, '0')}
-                                  </span>
-                                )}
-                                <p className="font-medium tracking-tight text-foreground">
-                                  {getJobTitle(job)}
-                                </p>
-                                <p className="font-mono text-xs tracking-wide text-muted-foreground">
-                                  {getJobSubtitle(job, adapterDateFieldKeyById, adapterTrackFieldKeyById)}
-                                </p>
-                                <p className="text-xs text-muted-foreground/85">
-                                  {getJobMetaLine(job)}
-                                </p>
-                              </div>
+                              <JobIdentity
+                                job={job}
+                                showIndexes={showIndexes}
+                                jobIndex={jobIndex}
+                                adapterDateFieldKeyById={adapterDateFieldKeyById}
+                                adapterTrackFieldKeyById={adapterTrackFieldKeyById}
+                              />
                             </TableCell>
                             <TableCell className="w-[32%]">
                               <div className="flex h-full items-center justify-center">
@@ -522,26 +490,7 @@ export function JobList({
                             </TableCell>
                             <TableCell className="pr-4 align-middle">
                               <div className="space-y-2">
-                                {displayStatus === 'booking_complete' ? (
-                                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                                    <Stamp className="h-3.5 w-3.5 shrink-0" />
-                                    {formatDateTime(job.last_checked_at)}
-                                  </p>
-                                ) : (
-                                  <>
-                                    <p className="text-sm text-muted-foreground">
-                                      {formatTimeAgo(job.last_checked_at)}
-                                    </p>
-                                    <div>
-                                      <MonitoringBadge job={job} displayStatus={displayStatus} />
-                                    </div>
-                                    <div>
-                                      <Badge variant={job.auto_book ? 'default' : 'outline'}>
-                                        {job.auto_book ? 'Auto-book' : 'Check only'}
-                                      </Badge>
-                                    </div>
-                                  </>
-                                )}
+                                <JobActivityMeta job={job} displayStatus={displayStatus} />
                               </div>
                             </TableCell>
                           </TableRow>

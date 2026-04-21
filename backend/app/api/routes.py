@@ -3,13 +3,14 @@ import logging
 from datetime import timedelta
 from typing import List, cast
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from arq.connections import RedisSettings, create_pool
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.core.crypto import encrypt, decrypt
+from app.core.crypto import decrypt
 from app.models.job import (
     JobStatus,
     WatchJob,
@@ -21,6 +22,9 @@ from app.models.job import (
     is_job_expired,
     utcnow,
 )
+from app.models.session import CartSession
+from app.models.occupant import Occupant, OccupantCreate, OccupantRead, OccupantUpdate
+from app.adapters import list_adapters
 
 # Minimum interval the UI should permit (matches the form's min=1). Enforced
 # at the API layer as well so programmatic callers can't set e.g. 0 and cause
@@ -41,9 +45,6 @@ def _check_job_arq_id(job_id: str) -> str:
     same `_job_id` while a job is pending or running — so this is our
     at-most-one-queued guarantee per watch job."""
     return f"check_availability:{job_id}"
-from app.models.session import AdapterSession, CartSession
-from app.models.occupant import Occupant, OccupantCreate, OccupantRead, OccupantUpdate
-from app.adapters import list_adapters
 
 
 
@@ -593,65 +594,11 @@ async def delete_occupant(
     return None
 
 
-# Sessions
-@router.post("/adapters/{adapter_id}/session", status_code=201)
-async def store_adapter_session(
-    adapter_id: str,
-    body: dict,
-    session: AsyncSession = Depends(get_session)
-):
-    """Store encrypted Playwright storageState for an adapter."""
-    from sqlmodel import select
-    existing = (await session.execute(
-        select(AdapterSession).where(AdapterSession.adapter_id == adapter_id)
-    )).scalar_one_or_none()
-
-    encrypted = encrypt(json.dumps(body))
-
-    if existing:
-        existing.encrypted_state = encrypted
-        existing.updated_at = utcnow()
-        session.add(existing)
-    else:
-        adapter_session = AdapterSession(
-            adapter_id=adapter_id,
-            encrypted_state=encrypted,
-        )
-        session.add(adapter_session)
-
-    await session.commit()
-    return {"status": "ok", "adapter_id": adapter_id}
-
-
-@router.get("/adapters/{adapter_id}/session/status")
-async def get_session_status(
-    adapter_id: str,
-    session: AsyncSession = Depends(get_session)
-):
-    """Check if a session exists for an adapter."""
-    from sqlmodel import select
-    existing = (await session.execute(
-        select(AdapterSession).where(AdapterSession.adapter_id == adapter_id)
-    )).scalar_one_or_none()
-
-    if not existing:
-        return {"has_session": False}
-
-    return {
-        "has_session": True,
-        "updated_at": as_utc(existing.updated_at),
-        "expires_at": as_optional_utc(existing.expires_at),
-    }
-
-
 @router.get("/jobs/{job_id}/resume")
 async def resume_cart(
     job_id: str,
     session: AsyncSession = Depends(get_session)
 ):
-    from fastapi.responses import HTMLResponse
-    from sqlmodel import select
-
     # Multiple cart sessions may exist per job if attempt_hold ran more than once;
     # always use the most recent.
     cart = (await session.execute(
@@ -709,8 +656,6 @@ async def pay(
     the iframe when the job is HOLD_PLACED and the cart is still within its
     25-minute window.
     """
-    from fastapi.responses import HTMLResponse
-
     job = await session.get(WatchJob, job_id)
     if not job:
         return HTMLResponse("<h1>Job not found</h1>", status_code=404)

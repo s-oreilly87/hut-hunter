@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, type ComponentProps, type ReactNode } from 'react'
 import {
   Activity,
   ArrowLeft,
@@ -23,20 +23,16 @@ import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import type { WatchJob } from '@/lib/api'
 import { getDisplayStatus } from '@/lib/availability'
 import { type AppRoute, useAppRoute, useIsMobile } from '@/lib/navigation'
+import { formatDueIn } from '@/lib/time'
+import { cn } from '@/lib/utils'
 import { useJobsStore } from '@/store/jobs'
 
-function formatNextCheck(nextCheckAt: string | null): string {
-  if (!nextCheckAt) return 'No scheduled checks'
-
-  const deltaMinutes = Math.round(
-    (new Date(nextCheckAt).getTime() - Date.now()) / 60_000,
+function isLiveJob(job: WatchJob): boolean {
+  return (
+    job.status !== 'booking_complete'
+    && job.status !== 'cancelled'
+    && job.status !== 'expired'
   )
-
-  if (deltaMinutes <= 1) return 'Due within a minute'
-  if (deltaMinutes < 60) return `Due in ${deltaMinutes} min`
-
-  const deltaHours = Math.round(deltaMinutes / 60)
-  return `Due in ${deltaHours} hr`
 }
 
 function getPrimarySection(route: AppRoute): 'dashboard' | 'jobs' {
@@ -92,11 +88,19 @@ function StatsGrid({
 
 function CreateJobButton({
   onClick,
+  className,
+  size,
 }: {
   onClick: () => void
+  className?: string
+  size?: ComponentProps<typeof Button>['size']
 }) {
   return (
-    <Button onClick={onClick} className="sm:min-w-40">
+    <Button
+      onClick={onClick}
+      size={size}
+      className={cn('sm:min-w-40', className)}
+    >
       <Plus className="h-4 w-4" />
       New Watch Job
     </Button>
@@ -210,20 +214,10 @@ function DesktopApp({
 
         <main className="dashboard-enter-late mt-5 grid flex-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)]">
           <section className="app-panel flex min-h-104 flex-col overflow-hidden">
-            <div className="flex flex-col gap-2 border-b border-border/80 px-5 py-5 sm:px-6">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                    Watch Jobs
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Recent jobs, live status, and fast actions for checks and booking.
-                  </p>
-                </div>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  Polling every 5 seconds
-                </p>
-              </div>
+            <div className="border-b border-border/80 px-5 py-5 sm:px-6">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                Watch Jobs
+              </h2>
             </div>
             <div className="min-h-0 flex-1 px-4 py-4 sm:px-6">
               <JobList onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })} />
@@ -284,11 +278,17 @@ function MobileApp({
         {route.name === 'dashboard' && (
           <>
             <MobileActionBar
-              actions={<OccupantsDialog />}
+              actions={(
+                <>
+                  <OccupantsDialog />
+                  <CreateJobButton
+                    onClick={() => navigate({ name: 'create-job' })}
+                    size="sm"
+                    className="flex-1 sm:flex-none"
+                  />
+                </>
+              )}
             />
-            <div className="px-1">
-              <CreateJobButton onClick={() => navigate({ name: 'create-job' })} />
-            </div>
             <StatsGrid stats={stats} />
           </>
         )}
@@ -299,23 +299,18 @@ function MobileApp({
               actions={(
                 <>
                   <OccupantsDialog />
-                  <CreateJobButton onClick={() => navigate({ name: 'create-job' })} />
+                  <CreateJobButton
+                    onClick={() => navigate({ name: 'create-job' })}
+                    size="sm"
+                  />
                 </>
               )}
             />
             <section className="app-panel px-4 py-5">
-              <div className="mb-4 flex items-end justify-between gap-3 border-b border-border/80 pb-4">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                    Watch Jobs
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Accordion groups default closed on mobile so the job card stays separate.
-                  </p>
-                </div>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  Polling every 5 seconds
-                </p>
+              <div className="mb-4 border-b border-border/80 pb-4">
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  Watch Jobs
+                </h2>
               </div>
               <JobList
                 collapseGroupsByDefault
@@ -378,22 +373,13 @@ export default function App() {
   } = useJobsStore()
   const { data: jobs = [], isFetched } = useJobsQuery()
 
-  const activeJobs = jobs.filter(
-    (job) =>
-      job.status !== 'booking_complete'
-      && job.status !== 'cancelled'
-      && job.status !== 'expired',
-  )
+  const activeJobs = jobs.filter(isLiveJob)
   const availableJobs = jobs.filter(
     (job) => getDisplayStatus(job, pendingBookings) === 'result_available',
   ).length
   const holdCount = jobs.filter((job) => job.status === 'hold_placed').length
   const monitoringCount = jobs.filter(
-    (job) =>
-      job.enable_monitoring
-      && job.status !== 'booking_complete'
-      && job.status !== 'cancelled'
-      && job.status !== 'expired',
+    (job) => job.enable_monitoring && isLiveJob(job),
   ).length
   const nextCheck = activeJobs
     .filter((job) => job.next_check_at)
@@ -427,7 +413,7 @@ export default function App() {
     },
     {
       label: 'Next Check',
-      value: formatNextCheck(nextCheck),
+      value: formatDueIn(nextCheck),
       description: 'Earliest scheduled monitoring run',
       icon: Clock3,
     },

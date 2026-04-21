@@ -196,7 +196,6 @@ async def _resolve_lazy_expired_hold(session, job: WatchJob) -> None:
 
 @asynccontextmanager
 async def _browser_page(
-    storage_state: dict | None,
     *,
     headless: bool,
     display: str | None = None,
@@ -251,7 +250,6 @@ async def _browser_page(
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/120.0.0.0 Safari/537.36"
             ),
-            storage_state=storage_state,  # type: ignore[arg-type]
         )
         page = await context.new_page()
         yield page, keep_alive
@@ -338,7 +336,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     # --- 2. Detect phase (headless) ---
     try:
         async with _browser_page(
-            None, headless=settings.browser_headless_detect
+            headless=settings.browser_headless_detect
         ) as (page, _keep_alive):
             try:
                 await adapter.fill_form(page, params)
@@ -552,15 +550,12 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             )
             return {"job_id": job_id, "status": f"skipped_{job.status}"}
 
-        storage_state = await adapter.get_storage_state(session)
-
     booking: BookingResult | None = None
     availability_dropped = False
     fully_available: list = []
 
     try:
         async with _browser_page(
-            storage_state,
             headless=False,
             display=settings.browser_display,
         ) as (page, keep_alive):
@@ -620,15 +615,20 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
 
     # --- 2. Notifications (hold outcome only) ---
     if booking and booking.held and booking.reservation_url:
-        for r in fully_available:
-            await notify_gotify(
-                title="🏕️ Hold Secured!",
-                message=(
-                    f"{r.site} — {r.total_available} spot(s) on {params.get('date')}.\n"
-                    f"25 mins to complete payment:\n{booking.reservation_url}"
-                ),
-                priority=10,
-            )
+        # One notification listing all held sites.
+        site_lines = [
+            f"  • {r.site} — {r.total_available} spot(s)"
+            for r in fully_available
+        ]
+        await notify_gotify(
+            title="🏕️ Hold Secured!",
+            message=(
+                f"Hold placed for {params.get('date')}:\n"
+                + "\n".join(site_lines)
+                + f"\n\n25 mins to complete payment:\n{booking.reservation_url}"
+            ),
+            priority=10,
+        )
     elif availability_dropped:
         # fully_available is empty here, but we still know something was
         # available at poll time — surface the miss in a terse notification.
@@ -641,13 +641,19 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             priority=7,
         )
     else:
+        # One notification listing all sites that were available but couldn't
+        # be held (covers both single-site and multi-night multi-site cases).
         msg = booking.message if booking else "Hold not attempted"
-        for r in fully_available:
+        if fully_available:
+            site_lines = [
+                f"  • {r.site} — {r.total_available} spot(s)"
+                for r in fully_available
+            ]
             await notify_gotify(
                 title="🏕️ Available but hold failed",
                 message=(
-                    f"{r.site} has {r.total_available} spot(s) on {params.get('date')} "
-                    f"but hold failed: {msg}"
+                    f"Sites available on {params.get('date')} but hold failed: {msg}\n"
+                    + "\n".join(site_lines)
                 ),
                 priority=8,
             )

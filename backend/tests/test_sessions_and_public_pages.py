@@ -1,46 +1,10 @@
-import json
 from datetime import timedelta
 
 import pytest
 
-from app.core.crypto import decrypt
 from app.models.job import JobStatus, utcnow
 
 pytestmark = pytest.mark.asyncio
-
-
-async def test_store_adapter_session_encrypts_and_updates_existing_record(
-    client,
-    fetch_adapter_sessions,
-):
-    first_state = {"cookies": [{"name": "doc", "value": "abc"}]}
-    second_state = {"cookies": [{"name": "doc", "value": "xyz"}]}
-
-    create_response = await client.post(
-        "/api/v1/adapters/doc_great_walk/session",
-        json=first_state,
-    )
-    assert create_response.status_code == 201
-    assert create_response.json() == {"status": "ok", "adapter_id": "doc_great_walk"}
-
-    sessions = await fetch_adapter_sessions()
-    assert len(sessions) == 1
-    assert sessions[0].encrypted_state != json.dumps(first_state)
-    assert json.loads(decrypt(sessions[0].encrypted_state)) == first_state
-
-    status_response = await client.get("/api/v1/adapters/doc_great_walk/session/status")
-    assert status_response.status_code == 200
-    assert status_response.json()["has_session"] is True
-
-    update_response = await client.post(
-        "/api/v1/adapters/doc_great_walk/session",
-        json=second_state,
-    )
-    assert update_response.status_code == 201
-
-    sessions = await fetch_adapter_sessions()
-    assert len(sessions) == 1
-    assert json.loads(decrypt(sessions[0].encrypted_state)) == second_state
 
 
 async def test_resume_cart_restores_cookies_and_redirects(client, seed_job, seed_cart):

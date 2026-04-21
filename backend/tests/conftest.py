@@ -31,7 +31,7 @@ os.environ.setdefault(
 from app.api import routes
 from app.core.crypto import encrypt
 from app.models.job import JobStatus, WatchJob, utcnow
-from app.models.session import AdapterSession, CartSession
+from app.models.session import CartSession
 from app.main import app
 import app.core.database as database
 
@@ -271,11 +271,3 @@ def list_carts(session_factory):
     return _list_carts
 
 
-@pytest.fixture
-def fetch_adapter_sessions(session_factory):
-    async def _fetch_adapter_sessions() -> list[AdapterSession]:
-        async with session_factory() as session:
-            result = await session.execute(select(AdapterSession))
-            return list(result.scalars().all())
-
-    return _fetch_adapter_sessions

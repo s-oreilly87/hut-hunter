@@ -1,15 +1,8 @@
-import { useState, type ReactNode } from 'react'
+import { createElement, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowRight,
-  CalendarDays,
-  CircleHelp,
-  Map,
-  MapPinned,
-  MoonStar,
   Plus,
   Settings2,
-  Users,
 } from 'lucide-react'
 import {
   jobsApi, adaptersApi, occupantsApi,
@@ -26,12 +19,8 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel,
   SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { InfoTooltip, SectionHeading } from '@/components/ui/section-heading'
+import { getJobParamIcon } from '@/components/jobs/jobParamDisplay'
 
 // ---------------------------------------------------------------------------
 // Field rendering
@@ -61,6 +50,58 @@ function ParamFieldInput({
   options?: string[] | null
 }) {
   const selectOptions = options ?? field.options
+
+  if (field.type === 'multiselect') {
+    const opts = selectOptions ?? []
+    const selected = Array.isArray(value) ? (value as string[]) : []
+
+    if (opts.length === 0) {
+      return (
+        <p className="text-xs text-muted-foreground italic">
+          Select a track first to see available sites.
+        </p>
+      )
+    }
+
+    const toggle = (site: string) => {
+      onChange(
+        selected.includes(site)
+          ? selected.filter(s => s !== site)
+          : [...selected, site],
+      )
+    }
+
+    return (
+      <div className="space-y-1.5">
+        <div className="max-h-52 overflow-y-auto rounded-md border p-1 space-y-0.5">
+          {opts.map(opt => {
+            const checked = selected.includes(opt)
+            return (
+              <label
+                key={opt}
+                className={`flex items-center gap-2.5 rounded px-2 py-1.5 cursor-pointer text-sm select-none
+                  ${checked ? 'bg-primary/10' : 'hover:bg-muted'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(opt)}
+                  className="accent-primary"
+                />
+                <span>{opt}</span>
+              </label>
+            )
+          })}
+        </div>
+        <p className={`text-xs ${selected.length === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+          {selected.length === 0
+            ? 'Select at least one site to watch'
+            : `${selected.length} of ${opts.length} selected`}
+        </p>
+      </div>
+    )
+  }
+
   if (field.type === 'select' && (field.options_tree || selectOptions)) {
     const tree = field.options_tree
     const isFacility = field.key === 'facility'
@@ -241,7 +282,12 @@ function buildParamsFromJob(job: WatchJob): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(job.params)) {
     if (k === 'occupants') continue  // handled by OccupantSelector, not params state
-    out[k] = v ?? ''
+    if (k === 'sites' && typeof v === 'string') {
+      // Backward compat: convert legacy comma-separated string to array for multiselect
+      out[k] = v.split(',').map(s => s.trim()).filter(Boolean)
+    } else {
+      out[k] = v ?? ''
+    }
   }
   return out
 }
@@ -252,7 +298,7 @@ function FormSection({
   children,
 }: {
   title: string
-  tooltip: string
+  tooltip?: string
   children: ReactNode
 }) {
   return (
@@ -271,7 +317,7 @@ function SettingRow({
   children,
 }: {
   title: string
-  tooltip: string
+  tooltip?: string
   children: ReactNode
 }) {
   return (
@@ -286,75 +332,6 @@ function SettingRow({
   )
 }
 
-function InfoTooltip({
-  content,
-  align = 'center',
-}: {
-  content: string
-  align?: 'center' | 'start' | 'end'
-}) {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="More information"
-          >
-            <CircleHelp className="h-4 w-4" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent align={align} side="bottom">
-          {content}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
-
-function SectionHeading({
-  title,
-  tooltip,
-  tone = 'section',
-}: {
-  title: string
-  tooltip: string
-  tone?: 'section' | 'body'
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <h3 className={tone === 'section'
-        ? 'text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground'
-        : 'font-medium text-foreground'}
-      >
-        {title}
-      </h3>
-      <InfoTooltip content={tooltip} />
-    </div>
-  )
-}
-
-function renderParamIcon(fieldKey: string) {
-  switch (fieldKey) {
-    case 'track':
-      return <Map className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'date':
-      return <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'nights':
-      return <MoonStar className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'people':
-    case 'occupants':
-      return <Users className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'direction':
-      return <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-    case 'sites':
-      return <MapPinned className="h-3.5 w-3.5 text-muted-foreground" />
-    default:
-      return null
-  }
-}
-
 function ParamLabel({
   fieldKey,
   children,
@@ -364,9 +341,11 @@ function ParamLabel({
   children: ReactNode
   required?: boolean
 }) {
+  const Icon = getJobParamIcon(fieldKey)
+
   return (
     <Label className="inline-flex items-center gap-2">
-      {renderParamIcon(fieldKey)}
+      {Icon && createElement(Icon, { className: 'h-3.5 w-3.5 text-muted-foreground' })}
       <span>{children}</span>
       {required && <span className="ml-1 text-destructive">*</span>}
     </Label>
@@ -477,7 +456,23 @@ function JobFormBody({
   ): string[] | null => {
     if (field.filter_by && field.options_by) {
       const key = String(currentParams[field.filter_by] ?? '')
-      return field.options_by[key] ?? []
+      let opts: string[] = field.options_by[key] ?? []
+
+      // Sites are always scraped in first-direction order. When the user has
+      // selected the second (or later) direction for the current track, reverse
+      // the list so huts/camps appear top-to-bottom matching that direction.
+      if (field.key === 'sites' && field.filter_by === 'track' && opts.length > 0) {
+        const direction = String(currentParams['direction'] ?? '')
+        if (direction) {
+          const dirField = selectedAdapter?.param_fields.find(f => f.key === 'direction')
+          const trackDirs = dirField?.options_by?.[key] ?? []
+          if (trackDirs.length >= 2 && trackDirs.indexOf(direction) >= 1) {
+            opts = [...opts].reverse()
+          }
+        }
+      }
+
+      return opts
     }
     return field.options ?? null
   }
@@ -493,15 +488,38 @@ function JobFormBody({
   const handleParamChange = (key: string, value: unknown) => {
     setParams(prev => {
       const next: Record<string, unknown> = { ...prev, [key]: value }
-      // If this field is used as a `filter_by` source for any other field,
-      // clear those dependent fields whose current value is no longer valid.
       if (selectedAdapter) {
+        // Reset fields that depend on this one via filter_by.
         for (const f of selectedAdapter.param_fields) {
           if (f.filter_by !== key || !f.options_by) continue
-          const valid = f.options_by[String(value ?? '')] ?? []
-          const current = next[f.key]
-          if (current && !valid.includes(String(current))) {
-            next[f.key] = ''
+          if (f.type === 'multiselect') {
+            // Always reset multiselect when the filter key changes
+            next[f.key] = []
+          } else {
+            const valid = f.options_by[String(value ?? '')] ?? []
+            const current = next[f.key]
+            if (current && !valid.includes(String(current))) {
+              next[f.key] = ''
+            }
+          }
+        }
+
+        // When track changes, auto-select the first available direction
+        // (and reset sites, which is already handled by the filter_by loop above).
+        if (key === 'track') {
+          const dirField = selectedAdapter.param_fields.find(f => f.key === 'direction')
+          if (dirField?.options_by) {
+            const dirs = dirField.options_by[String(value ?? '')] ?? []
+            next['direction'] = dirs.length > 0 ? dirs[0] : ''
+          }
+        }
+
+        // When direction changes, reset sites too — the site ordering flips
+        // for the second direction and any prior selection is stale.
+        if (key === 'direction') {
+          const sitesField = selectedAdapter.param_fields.find(f => f.key === 'sites')
+          if (sitesField?.type === 'multiselect') {
+            next['sites'] = []
           }
         }
       }
@@ -572,6 +590,21 @@ function JobFormBody({
     }
     parsedParams.occupants = snapshotOccupants
 
+    // Validate multiselect fields have at least one option selected
+    for (const field of selectedAdapter.param_fields) {
+      if (field.type === 'multiselect') {
+        const val = parsedParams[field.key]
+        // Only validate if options exist for the current track (i.e. JSON was scraped)
+        const opts = field.options_by
+          ? field.options_by[String(parsedParams[field.filter_by ?? ''] ?? '')] ?? []
+          : field.options ?? []
+        if (opts.length > 0 && (!Array.isArray(val) || val.length === 0)) {
+          setError(`Please select at least one site to watch`)
+          return
+        }
+      }
+    }
+
     // Validate any date field is today-or-future in the adapter's timezone.
     // Falls back to the browser's local timezone when the adapter doesn't
     // specify one (matches the server-side default of local server time).
@@ -639,36 +672,16 @@ function JobFormBody({
     <>
       {presentation === 'dialog' ? (
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <DialogTitle>{title}</DialogTitle>
-            <InfoTooltip
-              content="Set the adapter inputs, choose the saved occupants, and decide whether this job should monitor on a schedule or only run on demand."
-              align="start"
-            />
-          </div>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
       ) : (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">
-              {title}
-            </h1>
-            <InfoTooltip
-              content="Set the adapter inputs, choose the saved occupants, and decide whether this job should monitor on a schedule or only run on demand."
-              align="start"
-            />
-          </div>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Configure the booking adapter, confirm the party details, and choose whether this job should watch automatically or stay manual.
-          </p>
-        </div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          {title}
+        </h1>
       )}
       <div className="grid gap-4 py-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
         <div className="space-y-4">
-          <FormSection
-            title="Job Setup"
-            tooltip="Name the workflow and pick the booking adapter it should target."
-          >
+          <FormSection title="Job Setup">
             <div className="space-y-1.5">
               <Label>Job Name</Label>
               <Input
@@ -706,10 +719,7 @@ function JobFormBody({
           </FormSection>
 
           {selectedAdapter && (
-            <FormSection
-              title="Booking Inputs"
-              tooltip="These fields mirror the adapter’s required search and booking parameters."
-            >
+            <FormSection title="Booking Inputs">
               {selectedAdapter.param_fields.map(field => {
                 if (field.key === 'occupants') {
                   const peopleCount = parseInt(String(params.people ?? '0'), 10)
@@ -728,6 +738,8 @@ function JobFormBody({
                 }
 
                 const opts = resolveOptions(field, params)
+                // Hide a *select* (not multiselect) when it has no valid options
+                // (e.g. direction hidden for tracks with no direction).
                 if (
                   field.type === 'select'
                   && field.filter_by
@@ -757,10 +769,7 @@ function JobFormBody({
         </div>
 
         <div className="space-y-4">
-          <FormSection
-            title="Automation"
-            tooltip="Control whether the job books automatically and how aggressively it monitors."
-          >
+          <FormSection title="Automation">
             {selectedAdapter ? (
               <>
                 <SettingRow
@@ -786,15 +795,12 @@ function JobFormBody({
                 </SettingRow>
 
                 <div className="rounded-2xl border border-border/70 bg-background/70 px-4 py-4">
-                  <div className="flex items-center gap-2">
-                    <Label
-                      htmlFor="interval-minutes"
-                      className={enableMonitoring ? '' : 'text-muted-foreground'}
-                    >
-                      Check interval
-                    </Label>
-                    <InfoTooltip content="The backend will clamp invalid values on submit, but keeping a sane interval here keeps scheduled checks predictable." />
-                  </div>
+                  <Label
+                    htmlFor="interval-minutes"
+                    className={enableMonitoring ? '' : 'text-muted-foreground'}
+                  >
+                    Check interval
+                  </Label>
                   <div className="mt-3 flex items-center gap-3">
                     <Input
                       id="interval-minutes"
@@ -823,10 +829,7 @@ function JobFormBody({
             )}
           </FormSection>
 
-          <FormSection
-            title="Submit"
-            tooltip="Review validation errors here before creating or updating the job."
-          >
+          <FormSection title="Submit">
             {error && (
               <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
                 {error}

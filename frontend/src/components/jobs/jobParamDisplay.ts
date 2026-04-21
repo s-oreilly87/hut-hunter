@@ -17,6 +17,8 @@ export type JobHeaderField = {
   href?: string
   /** When true, renders the field in a smaller, muted subtitle typeface. */
   isSubtitle?: boolean
+  /** If set, render the field value as a row of badge tags instead of plain text. */
+  tags?: string[]
 }
 
 export function formatDateLabel(value: unknown): string | null {
@@ -42,15 +44,16 @@ export function formatCountLabel(
   return `${raw} ${raw === 1 ? singular : plural}`
 }
 
-function formatSitesLabel(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const sites = value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-
-  if (!sites.length) return null
-  return sites.join(' / ')
+/** Parse a sites param into an ordered list of site name strings.
+ *  Accepts both the new array format and the legacy comma-separated string. */
+function parseSitesArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((s) => String(s).trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map((s) => s.trim()).filter(Boolean)
+  }
+  return []
 }
 
 // ---------------------------------------------------------------------------
@@ -167,11 +170,13 @@ export function getHeaderFields(params: Record<string, unknown>): JobHeaderField
         icon: ArrowRight,
       }
     : null
-  const sites = formatSitesLabel(params.sites)
+  const sitesArr = parseSitesArray(params.sites)
+  const sites = sitesArr.length
     ? {
         key: 'sites',
-        label: 'Campsites',
-        value: formatSitesLabel(params.sites) as string,
+        label: 'Sites',
+        value: sitesArr.join(' / '),
+        tags: sitesArr,
         icon: MapPinned,
       }
     : null
