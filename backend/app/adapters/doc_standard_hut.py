@@ -29,7 +29,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from playwright.async_api import Locator, Page, TimeoutError as PlaywrightTimeoutError
@@ -37,26 +37,16 @@ from playwright.async_api import Locator, Page, TimeoutError as PlaywrightTimeou
 from app.adapters.base import (
     AvailabilityResult,
     AvailabilityStatus,
-    BaseAdapter,
     BookingResult,
     ParamField,
 )
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal
-from app.models.job import utcnow
+from app.adapters.base_doc import BaseDOCAdapter, MONTHS, PEOPLE_OPTIONS
 
 
 logger = logging.getLogger(__name__)
 
 
-MONTHS = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-]
-
 MONTH_SHORT = {m: m[:3] for m in MONTHS}
-
-PEOPLE_OPTIONS = [str(i) for i in range(1, 26)]  # 1-25
 
 
 # NOTE: an earlier commit tried to bake DOC's listbox options into a
@@ -214,7 +204,7 @@ def _build_booking_bar_regexes(start: _DateParts, end: _DateParts) -> dict:
 # Adapter
 # -------------------------------------------------------------------------- #
 
-class DocStandardHutAdapter(BaseAdapter):
+class DocStandardHutAdapter(BaseDOCAdapter):
     """Availability + hold adapter for the "regular" DOC booking flow.
 
     Facilities are selected from the scraped catalog (doc_standard_huts.json)
@@ -225,9 +215,6 @@ class DocStandardHutAdapter(BaseAdapter):
     adapter_id = "doc_standard_hut"
     name = "DOC Standard Hut"
     base_url = "https://bookings.doc.govt.nz/Web/#!park/{park_id}/{facility_id}"
-
-    booking_timezone = "Pacific/Auckland"
-    booking_cutoff_time = time(20, 0)  # 8 pm NZ time, same as Great Walk
 
     # ---------------------------------------------------------------- #
     # Param schema
@@ -320,12 +307,6 @@ class DocStandardHutAdapter(BaseAdapter):
     # ---------------------------------------------------------------- #
     # Small Playwright helpers
     # ---------------------------------------------------------------- #
-
-    async def _click_with_fallback(self, loc: Locator) -> None:
-        try:
-            await loc.click(timeout=1500)
-        except PlaywrightTimeoutError:
-            await loc.click(timeout=8000, force=True)
 
     async def _first_visible(self, loc: Locator) -> Locator:
         count = await loc.count()
@@ -982,50 +963,7 @@ class DocStandardHutAdapter(BaseAdapter):
         )
 
     # ---------------------------------------------------------------- #
-    # Login modal (shared with Great Walk site; identical layout)
-    # ---------------------------------------------------------------- #
-
-    async def _login_if_prompted(self, page: Page, timeout_ms: int = 10_000) -> bool:
-        try:
-            # DOC's login modal has id="loginPopup"; fall back to any
-            # aria-modal that contains the email input field.
-            modal = page.locator("#loginPopup").first
-            if await modal.count() == 0:
-                modal = page.locator("[aria-modal='true']").filter(
-                    has=page.locator('input[placeholder="Insert Your email"]')
-                ).first
-            await modal.wait_for(state="visible", timeout=timeout_ms)
-        except PlaywrightTimeoutError:
-            return False
-
-        logger.info("DOC login modal detected — filling credentials from env")
-
-        if not settings.doc_email or not settings.doc_password:
-            raise RuntimeError(
-                "DOC login modal appeared but DOC_EMAIL / DOC_PASSWORD are not "
-                "set in env"
-            )
-
-        await page.locator('input[placeholder="Insert Your email"]').fill(
-            settings.doc_email
-        )
-        await page.locator('input[placeholder="Insert Your password"]').fill(
-            settings.doc_password
-        )
-        await page.get_by_role("button", name="Sign In").click()
-
-        try:
-            await modal.wait_for(state="hidden", timeout=15_000)
-            logger.info("DOC login successful")
-        except PlaywrightTimeoutError:
-            await self.snapshot(page, "login_failed")
-            raise RuntimeError(
-                "DOC login modal did not close — check DOC_EMAIL / DOC_PASSWORD"
-            )
-        return True
-
-    # ---------------------------------------------------------------- #
-    # BaseAdapter API
+    # BaseDOCAdapter API
     # ---------------------------------------------------------------- #
 
     async def _target_day_in_visible_table(self, page: Page, target_day: int) -> bool:
@@ -1378,22 +1316,7 @@ class DocStandardHutAdapter(BaseAdapter):
                     message="Neither Reserve Unit page nor Occupant Details modal appeared",
                 )
 
-            for i, occ in enumerate(occupants):
-                await page.locator(f"#FirstName_{i}").fill(occ.get("first_name", ""))
-                await page.locator(f"#LastName_{i}").fill(occ.get("last_name", ""))
-                await page.locator(f"#Age_{i}").fill(str(occ.get("age", "")))
-                for key, btn_id in (
-                    ("category", f"#great-walk-occupant-category_{i}-dropdown-button"),
-                    ("country", f"#great-walk-occupant-country_{i}-dropdown-button"),
-                    ("gender", f"#great-walk-occupant-gender_{i}-dropdown-button"),
-                ):
-                    value = occ.get(key)
-                    if not value:
-                        continue
-                    await page.locator(btn_id).click()
-                    await page.get_by_role("option").filter(has_text=value).first.click()
-                    await page.wait_for_timeout(300)
-                logger.info("Filled occupant %d: %s %s", i, occ.get("first_name"), occ.get("last_name"))
+            await self._fill_occupants(page, occupants)
 
             await page.get_by_role("button", name="Save & Continue").click()
             logger.info("Clicked Save & Continue")
@@ -1458,56 +1381,16 @@ class DocStandardHutAdapter(BaseAdapter):
                 message="Did not reach Shopping Cart page",
             )
 
-        await page.locator("#mainContent_chkAgree").check()
-        logger.info("Checked T&Cs agreement")
-        await page.wait_for_timeout(300)
+        await self._check_terms(page)
 
-        try:
-            checkout_btn = page.locator("#mainContent_bCheckOut")
-            await checkout_btn.wait_for(state="visible", timeout=10_000)
-            await self.snapshot(page, "shopping_cart")
-            await checkout_btn.click()
-            logger.info("Clicked To Checkout")
-        except PlaywrightTimeoutError:
-            await self.snapshot(page, "checkout_timeout")
+        cart_url = await self._proceed_to_checkout(page)
+        if cart_url is None:
             return BookingResult(
-                success=False,
-                held=False,
-                message="To Checkout button not found",
-            )
-
-        try:
-            await page.wait_for_url("**/CreditCardPayment**", timeout=15_000)
-            cart_url = page.url
-            logger.info(f"Reached payment page: {cart_url}")
-        except PlaywrightTimeoutError:
-            await self.snapshot(page, "payment_page_timeout")
-            return BookingResult(
-                success=False,
-                held=False,
+                success=False, held=False,
                 message="Did not reach payment page",
             )
 
-        # --- 7. Persist cart session ------------------------------ #
-        from app.core.crypto import encrypt
-        from app.models.session import CartSession
-        from sqlalchemy import delete
-
-        cookies = await page.context.cookies()
-        cart_session = CartSession(
-            job_id=job_id_for_cart,
-            encrypted_cookies=encrypt(json.dumps(cookies)),
-            cart_url=cart_url,
-            expires_at=utcnow() + timedelta(minutes=24),
-        )
-        async with AsyncSessionLocal() as db_session:
-            await db_session.execute(
-                delete(CartSession).where(CartSession.job_id == job_id_for_cart)
-            )
-            db_session.add(cart_session)
-            await db_session.commit()
-
-        resume_url = f"{settings.app_url}/pay/{job_id_for_cart}"
+        resume_url = await self._persist_cart_session(page, job_id_for_cart, cart_url)
         return BookingResult(
             success=True,
             held=True,

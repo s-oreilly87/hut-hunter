@@ -1,25 +1,17 @@
-import json
-import re
-import logging
 import asyncio
-from datetime import time
-from pathlib import Path
-from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
-from app.adapters.base import (
-    BaseAdapter, ParamField, AvailabilityResult, AvailabilityStatus, BookingResult
-)
+import json
+import logging
+import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal
-from app.models.job import utcnow
+from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
+
+from app.adapters.base import AvailabilityResult, AvailabilityStatus, BookingResult, ParamField
+from app.adapters.base_doc import BaseDOCAdapter, MONTHS, PEOPLE_OPTIONS
 
 logger = logging.getLogger(__name__)
 
-MONTHS = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-]
 
 @dataclass
 class GreatWalkInfo:
@@ -91,7 +83,6 @@ GREAT_WALK_REGISTRY, _SITES_BY_TRACK = _load_registry_from_json()
 GREAT_WALKS = [w.name for w in GREAT_WALK_REGISTRY]
 GREAT_WALK_MAP = {w.name: w for w in GREAT_WALK_REGISTRY}
 
-PEOPLE_OPTIONS = [str(i) for i in range(1, 26)]  # 1-25, always consistent
 
 
 def _parse_sites(params: dict) -> list[str]:
@@ -117,12 +108,10 @@ def parse_month_header(text: str) -> dict:
     return {"month": month, "year": year, "idx": idx}
 
 
-class DocGreatWalkAdapter(BaseAdapter):
+class DocGreatWalkAdapter(BaseDOCAdapter):
     adapter_id = "doc_great_walk"
     name = "DOC Great Walk"
     base_url = "https://bookings.doc.govt.nz/Web/Default.aspx#!greatwalk-result"
-    booking_timezone = "Pacific/Auckland"
-    booking_cutoff_time = time(20, 0)  # 8 pm NZST/NZDT
 
     @classmethod
     def param_fields(cls) -> list[ParamField]:
@@ -185,12 +174,6 @@ class DocGreatWalkAdapter(BaseAdapter):
     # Helpers
     # ------------------------------------------------------------------ #
 
-    async def _click_with_fallback(self, locator) -> None:
-        try:
-            await locator.click(timeout=1500)
-        except PlaywrightTimeoutError:
-            await locator.click(timeout=8000, force=True)
-
     async def _read_dropdown_options(self, page: Page, box_selector: str) -> list[str]:
         """Read currently available options from a dropdown box."""
         items = page.locator(f"{box_selector} li a span")
@@ -201,11 +184,6 @@ class DocGreatWalkAdapter(BaseAdapter):
             if txt:
                 options.append(txt)
         return options
-
-    async def _select_dropdown_option(self, page: Page, btn_selector: str, option_text: str) -> None:
-        await page.locator(btn_selector).click()
-        # Use contains-text with exact=False to be tolerant of leading/trailing whitespace
-        await page.get_by_role("option").filter(has_text=option_text).first.click()
 
     async def _select_dropdown_option_contains(self, page: Page, btn_selector: str, pattern: str) -> None:
         await page.locator(btn_selector).click()
@@ -315,8 +293,8 @@ class DocGreatWalkAdapter(BaseAdapter):
         await page.wait_for_timeout(800)
 
         # Set date
-        dd, mm, yyyy = date_str.split("/")
-        await self._set_start_date(page, MONTHS[int(mm) - 1], int(yyyy), int(dd))
+        dd, mm, yyyy = self._parse_date_string(date_str)
+        await self._set_start_date(page, MONTHS[mm - 1], yyyy, dd)
 
         # Nights — read available options first, only select if dropdown is enabled
         nights_options = await self._read_dropdown_options(page, "#great-walk-night-dropdown-box")
@@ -349,43 +327,6 @@ class DocGreatWalkAdapter(BaseAdapter):
                 page, "#great-walk-direction-dropdown-button", direction
             )
 
-    async def _login_if_prompted(self, page: Page) -> bool:
-        """If the DOC login modal appears (e.g. because the session cookie has
-        expired), fill credentials from env and sign in.
-
-        Returns True if a login was performed, False if no modal was visible.
-        Raises RuntimeError if credentials are missing or the login fails."""
-        try:
-            modal = page.locator("div[role='dialog'], .modal, .login-modal").filter(
-                has_text="Login"
-            ).first
-            await modal.wait_for(state="visible", timeout=5_000)
-        except PlaywrightTimeoutError:
-            return False  # No login modal — session is still valid
-
-        logger.info("DOC login modal detected — filling credentials from env")
-
-        if not settings.doc_email or not settings.doc_password:
-            raise RuntimeError(
-                "DOC login modal appeared but DOC_EMAIL / DOC_PASSWORD are not set in env"
-            )
-
-        await page.locator('input[placeholder="Insert Your email"]').fill(settings.doc_email)
-        await page.locator('input[placeholder="Insert Your password"]').fill(settings.doc_password)
-        await page.get_by_role("button", name="Sign In").click()
-
-        # Wait for modal to disappear — if it stays, credentials are wrong
-        try:
-            await modal.wait_for(state="hidden", timeout=15_000)
-            logger.info("DOC login successful")
-        except PlaywrightTimeoutError:
-            await self.snapshot(page, "login_failed")
-            raise RuntimeError(
-                "DOC login modal did not close — check DOC_EMAIL / DOC_PASSWORD"
-            )
-
-        return True
-
     async def _click_search_and_wait(self, page: Page, params: dict) -> None:
         search_btn = page.get_by_role("button", name="Search")
         for attempt in range(1, 4):
@@ -415,12 +356,7 @@ class DocGreatWalkAdapter(BaseAdapter):
         # a false positive when a later-night hut has no availability on its
         # actual booking date (e.g. night-2 hut available on Apr 23 but not
         # Apr 24, which is the night that would be booked).
-        from datetime import datetime, timedelta
-        start = datetime.strptime(date_str, "%d/%m/%Y")
-        night_dates = [
-            (start + timedelta(days=i)).strftime("%d/%m/%Y")
-            for i in range(nights)
-        ]
+        night_dates = self._generate_night_dates(date_str, nights)
 
         await self._click_search_and_wait(page, params)
 
@@ -523,12 +459,7 @@ class DocGreatWalkAdapter(BaseAdapter):
             )
 
         # Build list of dates for each night DD/MM/YYYY
-        from datetime import datetime, timedelta
-        start = datetime.strptime(date_str, "%d/%m/%Y")
-        night_dates = [
-            (start + timedelta(days=i)).strftime("%d/%m/%Y")
-            for i in range(nights)
-        ]
+        night_dates = self._generate_night_dates(date_str, nights)
         logger.info(f"Attempting hold for {nights} night(s): {night_dates} at sites: {sites}")
 
         # --- 1. Get sites in DOM order (top to bottom as displayed) ---
@@ -633,30 +564,7 @@ class DocGreatWalkAdapter(BaseAdapter):
                 message="Occupant details modal did not appear after Reserve",
             )
 
-        for i, occupant in enumerate(occupants):
-            await page.locator(f"#FirstName_{i}").fill(occupant["first_name"])
-            await page.locator(f"#LastName_{i}").fill(occupant["last_name"])
-            await page.locator(f"#Age_{i}").fill(str(occupant["age"]))
-
-            await self._select_dropdown_option(
-                page,
-                f"#great-walk-occupant-category_{i}-dropdown-button",
-                occupant["category"],
-            )
-            await page.wait_for_timeout(500)
-
-            await self._select_dropdown_option(
-                page,
-                f"#great-walk-occupant-country_{i}-dropdown-button",
-                occupant["country"],
-            )
-
-            await self._select_dropdown_option(
-                page,
-                f"#great-walk-occupant-gender_{i}-dropdown-button",
-                occupant["gender"],
-            )
-            logger.info(f"Filled occupant {i}: {occupant['first_name']} {occupant['last_name']}")
+        await self._fill_occupants(page, occupants)
 
         # --- 5. Save & Continue ---
         await page.get_by_role("button", name="Save & Continue").click()
@@ -730,67 +638,18 @@ class DocGreatWalkAdapter(BaseAdapter):
                 message="Did not reach Shopping Cart page",
             )
 
-        # --- 9. Tick T&Cs checkbox ---
-        await page.locator("#mainContent_chkAgree").check()
-        logger.info("Checked T&Cs agreement")
-        await page.wait_for_timeout(300)
+        # --- 9. T&Cs, checkout, and cart session ---
+        await self._check_terms(page)
 
-        # --- 10. Click To Checkout ---
-        try:
-            checkout_btn = page.locator("#mainContent_bCheckOut")
-            await checkout_btn.wait_for(state="visible", timeout=10_000)
-            await self.snapshot(page, "shopping_cart")
-            await checkout_btn.click()
-            logger.info("Clicked To Checkout")
-        except PlaywrightTimeoutError:
-            await self.snapshot(page, "checkout_timeout")
+        cart_url = await self._proceed_to_checkout(page)
+        if cart_url is None:
             return BookingResult(
-                success=False,
-                held=False,
-                message="To Checkout button not found",
-            )
-
-        # --- 11. Wait for payment page ---
-        try:
-            await page.wait_for_url("**/CreditCardPayment**", timeout=15_000)
-            cart_url = page.url
-            logger.info(f"Reached payment page: {cart_url}")
-        except PlaywrightTimeoutError:
-            await self.snapshot(page, "payment_page_timeout")
-            return BookingResult(
-                success=False,
-                held=False,
+                success=False, held=False,
                 message="Did not reach payment page",
             )
 
-        # --- 9. Store cart session ---
-        from app.core.crypto import encrypt
-        from app.models.session import CartSession
-        from datetime import timedelta
-        from sqlalchemy import delete
-
-        cookies = await page.context.cookies()
-        job_id_for_cart = params.get("_job_id", "unknown")
-        cart_session = CartSession(
-            job_id=job_id_for_cart,
-            encrypted_cookies=encrypt(json.dumps(cookies)),
-            cart_url=cart_url,
-            expires_at=utcnow() + timedelta(minutes=24),
-        )
-        async with AsyncSessionLocal() as db_session:
-            # Remove any prior carts for this job — the new cart supersedes them,
-            # and keeping only one keeps resume_cart's lookup unambiguous.
-            await db_session.execute(
-                delete(CartSession).where(CartSession.job_id == job_id_for_cart)
-            )
-            db_session.add(cart_session)
-            await db_session.commit()
-
-        # Pay page embeds the noVNC iframe so the user can finish checkout in
-        # the headed Chromium we just left open. /api/v1/jobs/{id}/resume is
-        # still mounted for the older "cookie injection on a local browser"
-        # flow, but the notification link goes to /pay now.
-        resume_url = f"{settings.app_url}/pay/{params.get('_job_id')}"
+        job_id = params.get("_job_id", "unknown")
+        resume_url = await self._persist_cart_session(page, job_id, cart_url)
 
         return BookingResult(
             success=True,

@@ -196,7 +196,6 @@ async def _resolve_lazy_expired_hold(session, job: WatchJob) -> None:
 
 @asynccontextmanager
 async def _browser_page(
-    storage_state: dict | None,
     *,
     headless: bool,
     display: str | None = None,
@@ -251,7 +250,6 @@ async def _browser_page(
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/120.0.0.0 Safari/537.36"
             ),
-            storage_state=storage_state,  # type: ignore[arg-type]
         )
         page = await context.new_page()
         yield page, keep_alive
@@ -338,7 +336,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     # --- 2. Detect phase (headless) ---
     try:
         async with _browser_page(
-            None, headless=settings.browser_headless_detect
+            headless=settings.browser_headless_detect
         ) as (page, _keep_alive):
             try:
                 await adapter.fill_form(page, params)
@@ -552,15 +550,12 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             )
             return {"job_id": job_id, "status": f"skipped_{job.status}"}
 
-        storage_state = await adapter.get_storage_state(session)
-
     booking: BookingResult | None = None
     availability_dropped = False
     fully_available: list = []
 
     try:
         async with _browser_page(
-            storage_state,
             headless=False,
             display=settings.browser_display,
         ) as (page, keep_alive):

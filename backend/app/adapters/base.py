@@ -129,21 +129,6 @@ class BaseAdapter(ABC):
         except Exception:
             return False
 
-    async def get_storage_state(self, db_session) -> dict | None:
-        """Load decrypted storageState from DB for this adapter."""
-        from sqlmodel import select
-        from app.models.session import AdapterSession
-        from app.core.crypto import decrypt
-        import json
-
-        result = await db_session.execute(
-            select(AdapterSession).where(AdapterSession.adapter_id == self.adapter_id)
-        )
-        adapter_session = result.scalar_one_or_none()
-        if not adapter_session:
-            return None
-        return json.loads(decrypt(adapter_session.encrypted_state))
-
     async def snapshot(self, page: Page, label: str) -> str:
         """Save screenshot + HTML for debugging."""
         out_dir = "artifacts"

@@ -6,28 +6,6 @@ from app.models.job import utcnow
 import uuid
 
 
-class AdapterSession(SQLModel, table=True):
-    """Stores encrypted Playwright storageState per adapter."""
-    id: str = Field(
-        default_factory=lambda: str(uuid.uuid4()),
-        primary_key=True
-    )
-    adapter_id: str = Field(index=True, unique=True)  # one session per adapter for now
-    encrypted_state: str                               # encrypted storageState JSON
-    created_at: datetime = Field(
-        default_factory=utcnow,
-        sa_column=Column(DateTime(timezone=True), nullable=False)
-    )
-    updated_at: datetime = Field(
-        default_factory=utcnow,
-        sa_column=Column(DateTime(timezone=True), nullable=False)
-    )
-    expires_at: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True), nullable=True)
-    )
-
-
 class CartSession(SQLModel, table=True):
     """Stores encrypted cart cookies for resume flow."""
     id: str = Field(
