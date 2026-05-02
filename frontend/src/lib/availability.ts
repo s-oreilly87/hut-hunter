@@ -17,6 +17,11 @@ export function hasHoldExpired(job: WatchJob): boolean {
   return new Date(job.cart_expires_at).getTime() <= Date.now()
 }
 
+export function jobHasOccupants(job: WatchJob): boolean {
+  const occupants = job.params.occupants
+  return Array.isArray(occupants) && occupants.length > 0
+}
+
 export function getDisplayStatus(
   job: WatchJob,
   pendingBookings: Set<string>,

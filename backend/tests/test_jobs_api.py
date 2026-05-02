@@ -45,6 +45,27 @@ async def test_create_job_without_monitoring_starts_paused(client, fake_redis, m
     assert fake_redis.calls == []
 
 
+async def test_create_job_rejects_auto_book_without_occupants(
+    client,
+    fake_redis,
+    make_job_params,
+    make_job_payload,
+):
+    response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(
+            auto_book=True,
+            params=make_job_params(occupants=[]),
+        ),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Occupants are required before auto-book can be enabled."
+    )
+    assert fake_redis.calls == []
+
+
 async def test_get_job_surfaces_expiry_and_artifact_urls(client, seed_job, seed_cart, make_job_params):
     job = await seed_job(
         params=make_job_params(date="01/01/2000"),
@@ -152,6 +173,41 @@ async def test_update_job_changing_params_clears_stale_results_and_artifacts(
     assert refreshed.last_result is None
     assert refreshed.last_artifact is None
     assert refreshed.artifact_history is None
+
+
+async def test_update_job_removing_occupants_disables_auto_book(
+    client,
+    seed_job,
+    fetch_job,
+    make_job_params,
+):
+    job = await seed_job(
+        auto_book=True,
+        params=make_job_params(
+            occupants=[
+                {
+                    "first_name": "Alex",
+                    "last_name": "Walker",
+                    "category": "NZ Adult (18+)",
+                    "country": "New Zealand",
+                    "age": 32,
+                    "gender": "Male",
+                }
+            ],
+        ),
+    )
+
+    response = await client.patch(
+        f"/api/v1/jobs/{job.id}",
+        json={"params": make_job_params(occupants=[])},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["auto_book"] is False
+
+    refreshed = await fetch_job(job.id)
+    assert refreshed is not None
+    assert refreshed.auto_book is False
 
 
 async def test_delete_job_removes_cart_sessions_and_enqueues_browser_close(
@@ -267,6 +323,22 @@ async def test_book_job_requires_full_recent_availability(client, seed_job):
     assert response.json()["detail"] == (
         "Not every site is fully available. Create a new watch job scoped to the partial "
         "site(s) to book those separately."
+    )
+
+
+async def test_book_job_requires_occupants_on_job(client, seed_job, make_job_params):
+    job = await seed_job(
+        params=make_job_params(occupants=[]),
+        last_result=[
+            {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
+        ],
+    )
+
+    response = await client.post(f"/api/v1/jobs/{job.id}/book")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Occupants are required on this job before booking can start."
     )
 
 
