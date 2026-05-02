@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, Pencil, Trash2, Plus, X } from 'lucide-react'
+import { Pencil, Trash2, Plus, X } from 'lucide-react'
 import { occupantsApi, type Occupant, type OccupantCreate } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -149,16 +149,16 @@ function OccupantRow({
         <p className="text-xs text-muted-foreground">{occupant.category}</p>
       </div>
       <div className="flex gap-1 shrink-0">
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}>
-          <Pencil className="h-3.5 w-3.5" />
+        <Button variant="ghost" size="sm" className="size-7 p-0" onClick={onEdit}>
+          <Pencil className="size-3.5" />
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+          className="size-7 p-0 text-destructive hover:text-destructive"
           onClick={onDelete}
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="size-3.5" />
         </Button>
       </div>
     </div>
@@ -170,8 +170,13 @@ type EditingState =
   | { mode: 'new' }
   | { mode: 'edit'; occupant: Occupant }
 
-export function OccupantsDialog() {
-  const [open, setOpen] = useState(false)
+export function OccupantsDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
   const [editing, setEditing] = useState<EditingState>({ mode: 'none' })
   const [formError, setFormError] = useState<string | null>(null)
   const qc = useQueryClient()
@@ -226,17 +231,7 @@ export function OccupantsDialog() {
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-        className="justify-center sm:min-w-36"
-      >
-        <Users className="h-4 w-4" />
-        <span className="sm:inline">Occupants</span>
-      </Button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[92vh] sm:max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Occupants</DialogTitle>
@@ -269,7 +264,7 @@ export function OccupantsDialog() {
 
               {editing.mode === 'none' && (
                 <Button variant="outline" size="sm" className="w-full" onClick={startNew} autoFocus>
-                  <Plus className="h-4 w-4 mr-1" /> Add Occupant
+                  <Plus className="size-4 mr-1" /> Add Occupant
                 </Button>
               )}
             </div>
@@ -283,7 +278,7 @@ export function OccupantsDialog() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0"
+                        className="size-8 p-0"
                         onClick={cancelForm}
                       >
                         <X className="h-3.5 w-3.5" />
@@ -321,3 +316,4 @@ export function OccupantsDialog() {
     </>
   )
 }
+

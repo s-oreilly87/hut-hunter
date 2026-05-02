@@ -88,3 +88,12 @@ export function matchesJobFilter(
 ): boolean {
   return getJobFilterDefinition(filterKey).matches(job, pendingBookings)
 }
+
+export function matchesJobFilters(
+  job: WatchJob,
+  filterKeys: JobFilterKey[],
+  pendingBookings: Set<string>,
+): boolean {
+  if (!filterKeys.length || filterKeys.includes('all')) return true
+  return filterKeys.some((key) => matchesJobFilter(job, key, pendingBookings))
+}

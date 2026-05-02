@@ -73,7 +73,7 @@ services:
 
   poll_worker:
     <<: *app
-    command: ["python", "run_worker.py"]
+    command: ["python", "workers/run_poll_worker.py"]
     depends_on:
       api:
         condition: service_healthy
@@ -82,7 +82,7 @@ services:
     <<: *app
     # hold-entrypoint.sh starts Xvfb + x11vnc + noVNC, then execs the worker.
     entrypoint: ["/usr/bin/tini", "--", "/usr/local/bin/hold-entrypoint.sh"]
-    command: ["python", "run_hold_worker.py"]
+    command: ["python", "workers/run_hold_worker.py"]
     # Headed Chromium needs the X display the entrypoint sets up.
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD:-huthunter}@postgres:5432/${POSTGRES_DB:-huthunter}

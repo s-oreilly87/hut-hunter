@@ -5,15 +5,12 @@ import { adaptersApi, type WatchJob } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { type DisplayStatus, getDisplayStatus } from '@/lib/availability'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import {
   type JobFilterKey,
-  JOB_FILTERS,
-  getJobFilterDefinition,
-  matchesJobFilter,
+  matchesJobFilters,
 } from '@/components/jobs/jobFilters'
 import {
   formatCountLabel,
@@ -113,17 +110,17 @@ function JobIdentity({
   return (
     <div className="space-y-1">
       {showIndexes && (
-        <span className="inline-flex rounded-full border border-border/80 bg-secondary/55 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <span className="inline-flex rounded-full border border-border/80 bg-secondary/55 px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           {jobIndex.toString().padStart(2, '0')}
         </span>
       )}
-      <p className="font-medium tracking-tight text-foreground">
+      <p className="text-sm font-medium tracking-tight text-foreground">
         {getJobTitle(job)}
       </p>
       <p className="font-mono text-xs tracking-wide text-muted-foreground">
         {getJobSubtitle(job, adapterDateFieldKeyById, adapterTrackFieldKeyById)}
       </p>
-      <p className="text-xs text-muted-foreground/85">
+      <p className="text-xs text-muted-foreground/80">
         {getJobMetaLine(job)}
       </p>
     </div>
@@ -140,7 +137,7 @@ function JobActivityMeta({
   if (displayStatus === 'booking_complete') {
     return (
       <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Stamp className="h-3.5 w-3.5 shrink-0" />
+        <Stamp className="size-3.5 shrink-0" />
         {formatDateTime(job.last_checked_at)}
       </p>
     )
@@ -167,14 +164,12 @@ export function JobList({
   collapseGroupsByDefault = false,
   showIndexes = false,
   onJobSelect,
-  statusFilter = 'all',
-  onStatusFilterChange,
+  statusFilters = [],
 }: {
   collapseGroupsByDefault?: boolean
   showIndexes?: boolean
   onJobSelect?: (jobId: string) => void
-  statusFilter?: JobFilterKey
-  onStatusFilterChange?: (filter: JobFilterKey) => void
+  statusFilters?: JobFilterKey[]
 } = {}) {
   const { selectedJobId, setSelectedJobId, pendingBookings } = useJobsStore()
   const [expandedAdapters, setExpandedAdapters] = useState<Set<string> | null>(null)
@@ -222,18 +217,8 @@ export function JobList({
   )
 
   const filteredJobs = useMemo(
-    () => jobs.filter((job) => matchesJobFilter(job, statusFilter, pendingBookings)),
-    [jobs, pendingBookings, statusFilter],
-  )
-
-  const filterCounts = useMemo(
-    () => new Map(
-      JOB_FILTERS.map((filter) => [
-        filter.key,
-        jobs.filter((job) => filter.matches(job, pendingBookings)).length,
-      ]),
-    ),
-    [jobs, pendingBookings],
+    () => jobs.filter((job) => matchesJobFilters(job, statusFilters, pendingBookings)),
+    [jobs, pendingBookings, statusFilters],
   )
 
   const groupedJobs = useMemo(() => {
@@ -357,13 +342,13 @@ export function JobList({
   if (!jobs.length) {
     return (
       <div className="flex min-h-72 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border/80 bg-muted/25 px-6 py-10 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <Clock3 className="h-5 w-5" />
+        <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Clock3 className="size-5" />
         </div>
-        <h3 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
+        <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
           No watch jobs yet
         </h3>
-        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground text-pretty">
           Create a job to start polling availability, store the result trail, and
           keep the booking path ready when space opens.
         </p>
@@ -372,88 +357,27 @@ export function JobList({
   }
 
   if (!filteredJobs.length) {
-    const filter = getJobFilterDefinition(statusFilter)
+    const isFiltered = statusFilters.length > 0 && !statusFilters.includes('all')
 
     return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {JOB_FILTERS.map((filterOption) => {
-            const isActive = filterOption.key === statusFilter
-            const count = filterCounts.get(filterOption.key) ?? 0
-
-            return (
-              <Button
-                key={filterOption.key}
-                type="button"
-                size="sm"
-                variant={isActive ? 'default' : 'outline'}
-                onClick={() => onStatusFilterChange?.(filterOption.key)}
-              >
-                {filterOption.label}
-                <Badge
-                  variant={isActive ? 'secondary' : 'outline'}
-                  className="ml-1.5"
-                >
-                  {count}
-                </Badge>
-              </Button>
-            )
-          })}
+      <div className="flex min-h-56 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border/80 bg-muted/25 px-6 py-10 text-center">
+        <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Clock3 className="size-5" />
         </div>
-
-        <div className="flex min-h-56 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border/80 bg-muted/25 px-6 py-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <Clock3 className="h-5 w-5" />
-          </div>
-          <h3 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
-            No matching jobs
-          </h3>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            {filter.emptyLabel}
-          </p>
-          {statusFilter !== 'all' && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="mt-4"
-              onClick={() => onStatusFilterChange?.('all')}
-            >
-              Clear Filter
-            </Button>
-          )}
-        </div>
+        <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
+          No matching jobs
+        </h3>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground text-pretty">
+          {isFiltered
+            ? 'No jobs match the selected filters. Try adjusting or clearing the filter.'
+            : 'No jobs available.'}
+        </p>
       </div>
     )
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {JOB_FILTERS.map((filter) => {
-          const isActive = filter.key === statusFilter
-          const count = filterCounts.get(filter.key) ?? 0
-
-          return (
-            <Button
-              key={filter.key}
-              type="button"
-              size="sm"
-              variant={isActive ? 'default' : 'outline'}
-              onClick={() => onStatusFilterChange?.(filter.key)}
-            >
-              {filter.label}
-              <Badge
-                variant={isActive ? 'secondary' : 'outline'}
-                className="ml-1.5"
-              >
-                {count}
-              </Badge>
-            </Button>
-          )
-        })}
-      </div>
-
       {groupsWithIndexes.map((group) => {
         const isExpanded = effectiveExpandedAdapters.has(group.adapterId)
 
@@ -464,22 +388,22 @@ export function JobList({
           >
             <button
               type="button"
-              className="flex w-full items-center justify-between gap-4 bg-secondary/55 px-4 py-4 text-left transition-colors hover:bg-secondary/70 sm:px-5"
+              className="flex w-full items-center justify-between gap-4 bg-secondary/50 px-4 py-3.5 text-left hover:bg-secondary/70 sm:px-5"
               onClick={() => toggleAdapter(group.adapterId)}
             >
               <div className="min-w-0">
-                <p className="truncate text-base font-semibold tracking-tight text-foreground">
+                <p className="truncate text-sm font-semibold tracking-tight text-foreground">
                   {group.adapterName}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {group.jobs.length} job{group.jobs.length === 1 ? '' : 's'}
                 </p>
               </div>
               <ChevronDown
-                className={[
-                  'h-5 w-5 shrink-0 text-muted-foreground transition-transform',
-                  isExpanded ? 'rotate-180' : '',
-                ].join(' ')}
+                className={cn(
+                  'size-4 shrink-0 text-muted-foreground',
+                  isExpanded && 'rotate-180',
+                )}
               />
             </button>
 
@@ -500,7 +424,7 @@ export function JobList({
                         data-job-id={job.id}
                         ref={(node) => setJobRef(job.id, node)}
                         className={cn(
-                          'w-full cursor-pointer rounded-[1.35rem] border px-4 py-4 text-left transition-all',
+                          'w-full cursor-pointer rounded-[1.35rem] border px-4 py-4 text-left',
                           isSelected
                             ? 'border-primary/45 bg-primary/8 ring-2 ring-primary/20 shadow-[0_22px_55px_-34px_rgba(22,53,40,0.7)]'
                             : 'border-border/80 bg-background/75 hover:border-primary/20 hover:bg-background',
@@ -564,14 +488,14 @@ export function JobList({
                             data-job-id={job.id}
                             ref={(node) => setJobRef(job.id, node)}
                             className={cn(
-                              'cursor-pointer border-border/70 bg-background/60 transition-colors',
+                              'cursor-pointer border-border/70 bg-background/60',
                               isSelected && 'bg-primary/10 hover:bg-primary/10',
                             )}
                             onClick={() => selectJob(job.id)}
                           >
                             <TableCell
                               className={cn(
-                                'relative w-[48%] whitespace-normal pl-4 align-top',
+                                'relative w-[48%] whitespace-normal py-3.5 pl-4 align-top',
                                 isSelected
                                   && 'pl-7 before:absolute before:top-3 before:bottom-3 before:left-2 before:w-1 before:rounded-full before:bg-primary',
                               )}
@@ -584,7 +508,7 @@ export function JobList({
                                 adapterTrackFieldKeyById={adapterTrackFieldKeyById}
                               />
                             </TableCell>
-                            <TableCell className="w-[32%]">
+                            <TableCell className="w-[32%] py-3.5">
                               <div className="flex h-full items-center justify-center">
                                 {showStatusBadge && (
                                   <StatusBadge
@@ -596,7 +520,7 @@ export function JobList({
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell className="pr-4 align-middle">
+                            <TableCell className="py-3.5 pr-4 align-middle">
                               <div className="space-y-2">
                                 <JobActivityMeta job={job} displayStatus={displayStatus} />
                               </div>
