@@ -64,7 +64,7 @@ export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props
       variant={isSecondary ? 'secondary' : 'default'}
       className={STATUS_CLASS[status]}
     >
-      {SPINNER_STATUSES.has(status) && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+      {SPINNER_STATUSES.has(status) && <Loader2 className="size-3 animate-spin mr-1" />}
       {label}
     </Badge>
   )

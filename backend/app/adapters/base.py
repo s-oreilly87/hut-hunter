@@ -6,6 +6,9 @@ from playwright.async_api import Page
 
 import os
 from datetime import datetime, time
+from pathlib import Path
+
+from app.core.config import settings
 
 class AvailabilityStatus(str, Enum):
     AVAILABLE = "available"

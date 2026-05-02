@@ -125,39 +125,38 @@ function getAvailabilityCopy(entry: AvailabilityResult): {
   const parsed = parseAvailabilityEvidence(entry.evidence)
   const totalAvailable = entry.total_available ?? parsed.totalAvailable
   const peopleWanted = parsed.peopleWanted
-  const details: string[] = []
 
-  if (totalAvailable != null) {
-    details.push(`${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} found`)
-  }
-  if (peopleWanted != null) {
-    details.push(`Party of ${peopleWanted}`)
-  }
-
+  // Only include spot count when the summary text doesn't already state it
+  // (people count is always in the summary, so never add it as a redundant detail)
   switch (entry.status) {
     case 'available':
       return {
         summary:
           totalAvailable != null && peopleWanted != null
-            ? `${totalAvailable} spots cover the requested party of ${peopleWanted}.`
+            ? `${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} cover the requested party of ${peopleWanted}.`
             : 'Availability is open for this site.',
-        details,
+        // Spot count is already in the summary when both values present; show when only total known
+        details: totalAvailable != null && peopleWanted == null
+          ? [`${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} found`]
+          : [],
       }
     case 'partially_available':
       return {
         summary:
           totalAvailable != null && peopleWanted != null
-            ? `${totalAvailable} spots are available, which is fewer than the requested ${peopleWanted}.`
+            ? `${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} available — fewer than the requested ${peopleWanted}.`
             : 'Some capacity exists, but not enough for the full party.',
-        details,
+        details: totalAvailable != null && peopleWanted == null
+          ? [`${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} found`]
+          : [],
       }
     case 'unavailable':
       return {
         summary:
           peopleWanted != null
-            ? `No spots are available for the requested party of ${peopleWanted}.`
+            ? `Unavailable for a party of ${peopleWanted}.`
             : 'No availability was found for this site.',
-        details,
+        details: [],
       }
     default:
       if (entry.evidence.includes('not found in results table')) {
@@ -209,9 +208,9 @@ function ArtifactLinkButton({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+      className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="size-4" />
       {children}
     </a>
   )
@@ -265,8 +264,8 @@ function GenericResultView({
   return (
     <div className="rounded-[1.25rem] border border-destructive/30 bg-destructive/5 px-4 py-4">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
-          <AlertTriangle className="h-5 w-5" />
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+          <AlertTriangle className="size-5" />
         </div>
         <div className="min-w-0 flex-1 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -274,7 +273,7 @@ function GenericResultView({
               <p className="font-medium tracking-tight text-foreground">
                 Worker Error
               </p>
-              <p className="text-sm leading-6 text-foreground/85">
+              <p className="text-sm leading-5 text-foreground/85">
                 {primaryMessage ?? 'The latest run returned an unstructured error payload.'}
               </p>
             </div>
@@ -344,8 +343,8 @@ function HoldFailedView({
   return (
     <div className="rounded-[1.25rem] border border-rose-500/30 bg-rose-500/5 px-4 py-4">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600">
-          <XCircle className="h-5 w-5" />
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600">
+          <XCircle className="size-5" />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -353,7 +352,7 @@ function HoldFailedView({
               <p className="font-medium tracking-tight text-foreground">
                 Hold Failed
               </p>
-              <p className="text-sm leading-6 text-foreground/85">
+              <p className="text-sm leading-5 text-foreground/85">
                 {errorMsg}
               </p>
             </div>
@@ -397,27 +396,28 @@ function LastResultView({
           return (
             <div
               key={index}
-              className={`relative rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}
+              className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}
             >
-              <Badge
-                variant={entry.status === 'unknown' ? 'outline' : 'default'}
-                className={`absolute right-3 top-3 ${visual.badgeClass}`}
-              >
-                {titleize(entry.status)}
-              </Badge>
-
-              <div className="flex items-start gap-3 pr-20">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
-                  <Icon className="h-5 w-5" />
+              <div className="flex items-start gap-3">
+                <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
+                  <Icon className="size-5" />
                 </div>
                 <div className="min-w-0 flex-1 space-y-3">
-                  <div>
-                    <p className="font-medium tracking-tight text-foreground">
-                      {entry.site}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-foreground/85">
-                      {copy.summary}
-                    </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium tracking-tight text-foreground">
+                        {entry.site}
+                      </p>
+                      <p className="mt-1 text-sm leading-5 text-foreground/85">
+                        {copy.summary}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={entry.status === 'unknown' ? 'outline' : 'default'}
+                      className={`shrink-0 ${visual.badgeClass}`}
+                    >
+                      {titleize(entry.status)}
+                    </Badge>
                   </div>
 
                   {copy.details.length > 0 && (
@@ -512,7 +512,7 @@ function HeaderParamSummary({
 
             return (
               <span key={field.key} className={`inline-flex items-start gap-2 ${textClass}`}>
-                <Icon className={`mt-0.5 shrink-0 ${field.isSubtitle ? 'h-3 w-3 text-foreground/45' : 'h-3.5 w-3.5 text-foreground/65'}`} />
+                <Icon className={`mt-0.5 shrink-0 ${field.isSubtitle ? 'size-3 text-foreground/45' : 'size-3.5 text-foreground/65'}`} />
                 <span className="sr-only">{field.label}: </span>
                 {field.tags ? (
                   <span className="flex flex-wrap gap-1">
@@ -531,7 +531,7 @@ function HeaderParamSummary({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="hover:underline underline-offset-2 decoration-muted-foreground/40 transition-colors hover:text-foreground"
+                    className="hover:underline underline-offset-2 decoration-muted-foreground/40 hover:text-foreground"
                   >
                     {field.value}
                   </a>
@@ -676,8 +676,8 @@ function MonitoringSection({
       <div className="rounded-[1.25rem] border border-border/70 bg-background/80 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <Activity className="size-4 text-primary" />
+            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
               Monitoring
             </h3>
             <Badge variant={job.auto_book ? 'default' : 'outline'}>
@@ -692,8 +692,8 @@ function MonitoringSection({
               onClick={() => mutation.mutate(!isOn)}
             >
               {isOn
-                ? <><Pause className="h-3.5 w-3.5" /> Pause</>
-                : <><Play className="h-3.5 w-3.5" /> Resume</>
+                ? <><Pause className="size-3.5" /> Pause</>
+                : <><Play className="size-3.5" /> Resume</>
               }
             </Button>
           )}
@@ -726,15 +726,15 @@ function MonitoringSection({
               onClick={onTrigger}
             >
               {displayStatus === 'checking' ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…</>
+                <><Loader2 className="size-3.5 animate-spin" /> Checking…</>
               ) : holdPausesMonitoring ? (
-                <><Pause className="h-3.5 w-3.5" /> Check Now</>
+                <><Pause className="size-3.5" /> Check Now</>
               ) : triggerQueued ? (
                 'Queued…'
               ) : countdownSeconds !== null ? (
-                <><Search className="h-3.5 w-3.5" /> Check Now · <span className="tabular-nums">{formatCountdown(countdownSeconds)}</span></>
+                <><Search className="size-3.5" /> Check Now · <span className="tabular-nums">{formatCountdown(countdownSeconds)}</span></>
               ) : (
-                <><Search className="h-3.5 w-3.5" /> Check Now</>
+                <><Search className="size-3.5" /> Check Now</>
               )}
             </Button>
           </div>
@@ -759,7 +759,7 @@ function HoldExpiryCountdown({ cartExpiresAt }: { cartExpiresAt: string | null }
   const countdownSeconds = Math.max(0, (new Date(cartExpiresAt).getTime() - nowMs) / 1000)
 
   return (
-    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+    <p className="mt-2 text-sm leading-5 text-muted-foreground">
       Time remaining to complete payment:{' '}
       <span className="font-medium tabular-nums text-foreground">
         {formatCountdown(countdownSeconds)}
@@ -825,23 +825,22 @@ export function JobCard({
     return (
       <Card className="app-panel border-border/80 bg-card/85">
         <CardHeader className="pb-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <LayoutDashboard className="h-5 w-5" />
+          <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <LayoutDashboard className="size-5" />
           </div>
-          <CardTitle className="mt-4 text-xl tracking-tight">
+          <CardTitle className="mt-4 text-base font-semibold tracking-tight">
             Job details stay here
           </CardTitle>
-          <CardDescription className="max-w-md text-sm leading-6">
-            Pick any watch job to inspect adapter params, the latest availability
-            evidence, and the booking controls tied to that workflow.
+          <CardDescription className="max-w-md text-sm leading-5 text-pretty">
+            Select any watch job to inspect its params, latest availability
+            evidence, and booking controls.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 pb-6">
           <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
             <p className="text-sm font-medium text-foreground">What you get here</p>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              The selected job shows its stored inputs, current state, latest worker
-              result, and artifact links in one place so the list can stay lightweight.
+            <p className="mt-1.5 text-sm leading-5 text-pretty text-muted-foreground">
+              Stored inputs, current state, latest worker result, and artifact links — in one place so the list stays lightweight.
             </p>
           </div>
         </CardContent>
@@ -908,7 +907,7 @@ export function JobCard({
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={handleEdit}>
-                <Settings2 className="h-4 w-4" />
+                <Settings2 className="size-4" />
                 Edit
               </Button>
               <Button
@@ -917,7 +916,7 @@ export function JobCard({
                 disabled={deleting}
                 onClick={() => handleDelete(job.id, job.name)}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="size-4" />
                 {deleting ? 'Deleting...' : 'Delete'}
               </Button>
             </div>
@@ -936,8 +935,8 @@ export function JobCard({
           {job.status === 'booking_complete' && (
             <section className="space-y-3">
               <div className="flex items-center gap-2">
-                <Stamp className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <Stamp className="size-4 text-primary" />
+                <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
                   Booking Complete
                 </h3>
               </div>
@@ -954,8 +953,8 @@ export function JobCard({
             <section className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
-                  <ImageIcon className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <ImageIcon className="size-4 text-primary" />
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
                     Complete Payment
                   </h3>
                 </div>
@@ -965,7 +964,7 @@ export function JobCard({
                 <p className="text-base font-medium tracking-tight text-foreground">
                   The hold is active and waiting for payment.
                 </p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                <p className="mt-2 text-sm leading-5 text-muted-foreground">
                   Review the captured cart stages below if you want to confirm the itinerary before paying.
                 </p>
                 <HoldExpiryCountdown cartExpiresAt={job.cart_expires_at} />
@@ -986,8 +985,8 @@ export function JobCard({
             <section className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <AlertTriangle className="size-4 text-primary" />
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
                     Hold Expired
                   </h3>
                 </div>
@@ -997,7 +996,7 @@ export function JobCard({
                 <p className="text-base font-medium tracking-tight text-foreground">
                   The 25-minute payment window has closed.
                 </p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                <p className="mt-2 text-sm leading-5 text-muted-foreground">
                   You can attempt the hold again from here, or run a fresh check first if you want to reconfirm availability.
                 </p>
               </div>
@@ -1018,19 +1017,19 @@ export function JobCard({
           ) && (
             <section className="space-y-3">
               <div className="flex items-center gap-2">
-                <LayoutDashboard className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <LayoutDashboard className="size-4 text-primary" />
+                <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
                   Last Result
                 </h3>
               </div>
               <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
+                    <Loader2 className="size-5 animate-spin" />
                   </div>
                   <div>
                     <p className="font-medium tracking-tight text-foreground">Booking in progress</p>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    <p className="mt-1 text-sm leading-5 text-muted-foreground">
                       Attempting to secure your hold…
                     </p>
                   </div>
@@ -1063,8 +1062,8 @@ export function JobCard({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-2">
-                    <LayoutDashboard className="h-4 w-4 text-primary" />
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <LayoutDashboard className="size-4 text-primary" />
+                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
                       Latest Result
                     </h3>
                   </div>
@@ -1094,8 +1093,8 @@ export function JobCard({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-2">
-                    <LayoutDashboard className="h-4 w-4 text-primary" />
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <LayoutDashboard className="size-4 text-primary" />
+                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
                       Latest Result
                     </h3>
                   </div>

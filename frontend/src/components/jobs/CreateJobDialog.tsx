@@ -794,7 +794,7 @@ function JobFormBody({
               onClick={handleSubmit}
               disabled={!name || !selectedAdapterId || pending}
             >
-              <Settings2 className="h-4 w-4" />
+              <Settings2 className="size-4" />
               {pending ? submitBusy : submitIdle}
             </Button>
           </FormSection>
@@ -850,7 +850,7 @@ export function CreateJobDialog({
     <>
       {!hideTrigger && (
         <Button onClick={() => handleOpenChange(true)} className="sm:min-w-40">
-          <Plus className="h-4 w-4" />
+          <Plus className="size-4" />
           New Watch Job
         </Button>
       )}

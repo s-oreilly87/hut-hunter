@@ -21,10 +21,10 @@ export function InfoTooltip({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
             aria-label="More information"
           >
-            <CircleHelp className="h-4 w-4" />
+            <CircleHelp className="size-4" />
           </button>
         </TooltipTrigger>
         <TooltipContent align={align} side="bottom">
@@ -51,7 +51,7 @@ export function SectionHeading({
       <h3
         className={
           tone === 'section'
-            ? 'text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground'
+            ? 'text-xs font-semibold tracking-wide text-muted-foreground/70'
             : 'font-medium text-foreground'
         }
       >
