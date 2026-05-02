@@ -47,6 +47,11 @@ def _check_job_arq_id(job_id: str) -> str:
     return f"check_availability:{job_id}"
 
 
+def _params_have_occupants(params: dict) -> bool:
+    occupants = params.get("occupants")
+    return isinstance(occupants, list) and len(occupants) > 0
+
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
@@ -99,6 +104,11 @@ async def create_job(
     interval = _clamp_interval(body.interval_minutes)
     now = utcnow()
     monitoring = body.enable_monitoring
+    if body.auto_book and not _params_have_occupants(body.params):
+        raise HTTPException(
+            status_code=409,
+            detail="Occupants are required before auto-book can be enabled.",
+        )
 
     job = WatchJob(
         name=body.name,
@@ -176,13 +186,21 @@ async def update_job(
 
     # exclude_unset so clients can send just the keys they want to change
     patch = body.model_dump(exclude_unset=True)
+    next_params = patch["params"] if "params" in patch else json.loads(job.params)
 
     if "name" in patch:
         job.name = patch["name"]
     if "auto_book" in patch:
+        if patch["auto_book"] and not _params_have_occupants(next_params):
+            raise HTTPException(
+                status_code=409,
+                detail="Occupants are required before auto-book can be enabled.",
+            )
         job.auto_book = patch["auto_book"]
     if "params" in patch:
         job.params = json.dumps(patch["params"])
+        if not _params_have_occupants(patch["params"]):
+            job.auto_book = False
         # The previous result was against different params — drop it so the UI
         # doesn't show stale availability alongside the new config.
         job.last_result = None
@@ -412,6 +430,13 @@ async def book_job(
         raise HTTPException(
             status_code=409,
             detail="This job is already booked. Nothing to do.",
+        )
+
+    params = json.loads(job.params)
+    if not _params_have_occupants(params):
+        raise HTTPException(
+            status_code=409,
+            detail="Occupants are required on this job before booking can start.",
         )
 
     # Safety gate: require every site in the most recent check to be fully

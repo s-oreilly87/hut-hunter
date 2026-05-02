@@ -44,6 +44,7 @@ import {
   getDisplayStatus,
   hasHoldExpired,
   jobHasPartialAvailability,
+  jobHasOccupants,
 } from '@/lib/availability'
 import {
   formatCountdown,
@@ -173,7 +174,7 @@ function getAvailabilityCopy(entry: AvailabilityResult): {
       }
       return {
         summary: 'Availability could not be classified from the latest check.',
-        details: details.length ? details : ['Check the underlying artifact if you need the raw page state.'],
+        details: ['Check the underlying artifact if you need the raw page state.'],
       }
   }
 }
@@ -876,6 +877,7 @@ export function JobCard({
 
   const displayStatus = getDisplayStatus(job, pendingBookings)
   const holdExpired = hasHoldExpired(job)
+  const missingOccupants = !jobHasOccupants(job)
   const hideTrigger =
     job.status === 'booking_complete'
     || job.status === 'expired'
@@ -1078,6 +1080,13 @@ export function JobCard({
                 artifactPng={job.last_artifact_png}
                 artifactHtml={job.last_artifact_html}
               />
+              {missingOccupants && (
+                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    Occupants are required on this job before booking can start. Add them via Edit to enable auto-book and manual booking.
+                  </p>
+                </div>
+              )}
               {jobHasPartialAvailability(job) && (
                 <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
                   <PartialAvailabilityHelp />
@@ -1109,6 +1118,13 @@ export function JobCard({
                   No worker result has been stored for this job yet.
                 </p>
               </div>
+              {missingOccupants && (
+                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    Occupants are required on this job before booking can start. Add them via Edit to enable auto-book and manual booking.
+                  </p>
+                </div>
+              )}
             </section>
           )}
         </CardContent>

@@ -29,6 +29,11 @@ def _check_job_arq_id(job_id: str) -> str:
     return f"check_availability:{job_id}"
 
 
+def _params_have_occupants(params: dict) -> bool:
+    occupants = params.get("occupants")
+    return isinstance(occupants, list) and len(occupants) > 0
+
+
 # Dedicated arq queue name for hold jobs. Polling and hold work run on
 # separate queues so a hold's ~30–60s headed-browser flow doesn't block
 # availability polls for other jobs.
@@ -515,7 +520,26 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
 
     # --- 3. Enqueue hold task or notify directly ---
     hold_enqueued = False
-    if all_fully_available and auto_book:
+    if all_fully_available and auto_book and not _params_have_occupants(params):
+        logger.warning(
+            "Job %s reached auto-bookable availability without occupants; skipping hold",
+            job_id,
+        )
+        lines = [
+            f"- {r.site}: {r.total_available} spot(s)"
+            for r in fully_available
+        ]
+        await notify_gotify(
+            title="🏕️ Availability Detected!",
+            message=(
+                f"All sites fully available on {params.get('date')} but this job "
+                "has no occupants selected, so booking could not start.\n"
+                + "\n".join(lines)
+                + "\n\nAdd occupants to the job, then book manually."
+            ),
+            priority=8,
+        )
+    elif all_fully_available and auto_book:
         try:
             await ctx["redis"].enqueue_job(
                 "attempt_hold_task",

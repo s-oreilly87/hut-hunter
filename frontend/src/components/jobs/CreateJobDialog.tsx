@@ -1,4 +1,4 @@
-import { createElement, useState, type ReactNode } from 'react'
+import { createElement, useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
@@ -34,11 +34,13 @@ function ParamFieldInput({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   field: ParamField
   value: unknown
   onChange: (val: unknown) => void
   options?: string[] | null
+  disabled?: boolean
 }) {
   const selectOptions = options ?? field.options
 
@@ -97,7 +99,7 @@ function ParamFieldInput({
     const tree = field.options_tree
     const isFacility = field.key === 'facility'
     return (
-      <Select value={String(value ?? '')} onValueChange={onChange}>
+      <Select value={String(value ?? '')} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger>
           <SelectValue placeholder={`Select ${field.label}`} />
         </SelectTrigger>
@@ -130,6 +132,7 @@ function ParamFieldInput({
         type="number"
         value={String(value ?? '')}
         onChange={e => onChange(e.target.value)}
+        disabled={disabled}
       />
     )
   }
@@ -141,6 +144,7 @@ function ParamFieldInput({
         placeholder="DD/MM/YYYY"
         value={String(value ?? '')}
         onChange={e => onChange(e.target.value)}
+        disabled={disabled}
       />
     )
   }
@@ -150,6 +154,7 @@ function ParamFieldInput({
       type="text"
       value={String(value ?? '')}
       onChange={e => onChange(e.target.value)}
+      disabled={disabled}
     />
   )
 }
@@ -157,11 +162,11 @@ function ParamFieldInput({
 function OccupantSelector({
   selectedIds,
   onChange,
-  required,
+  peopleCount,
 }: {
   selectedIds: string[]
   onChange: (ids: string[]) => void
-  required: number  // how many must be selected (= params.people)
+  peopleCount: number
 }) {
   const { data: roster = [], isLoading } = useQuery({
     queryKey: ['occupants'],
@@ -176,10 +181,11 @@ function OccupantSelector({
     )
   }
 
-  const countOk = selectedIds.length === required
-  const countLabel = required > 0
-    ? `${selectedIds.length} / ${required} selected`
-    : `${selectedIds.length} selected`
+  const countLabel = selectedIds.length > 0
+    ? `${selectedIds.length} selected — party size will be inferred from occupants`
+    : peopleCount > 0
+      ? `No occupants selected — optional for availability, required for booking`
+      : 'Select occupants to enable booking'
 
   if (isLoading) return <p className="text-xs text-muted-foreground">Loading occupants…</p>
 
@@ -218,8 +224,8 @@ function OccupantSelector({
           )
         })}
       </div>
-      <p className={`text-xs ${countOk ? 'text-muted-foreground' : 'text-destructive'}`}>
-        {countLabel}{!countOk && required > 0 && ` — must match party size (${required})`}
+      <p className="text-xs text-muted-foreground">
+        {countLabel}
       </p>
     </div>
   )
@@ -416,6 +422,18 @@ function JobFormBody({
   })
 
   const selectedAdapter = adapters.find(a => a.adapter_id === selectedAdapterId)
+  const selectedOccupantCount = selectedOccupantIds.length
+  const selectedOccupantsPresent = selectedOccupantCount > 0
+  const enteredPeopleCount = parseInt(String(params.people ?? '0'), 10)
+  const effectivePeopleCount = selectedOccupantsPresent
+    ? selectedOccupantCount
+    : enteredPeopleCount
+
+  useEffect(() => {
+    if (!selectedOccupantsPresent && autoBook) {
+      setAutoBook(false)
+    }
+  }, [selectedOccupantsPresent, autoBook])
 
   const resolveOptions = (
     field: ParamField,
@@ -535,26 +553,30 @@ function JobFormBody({
       parsedParams[field.key] = params[field.key]
     }
 
-    const peopleCount = parseInt(String(parsedParams.people ?? '0'), 10)
-    if (peopleCount > 0 && selectedOccupantIds.length !== peopleCount) {
-      setError(
-        `Select exactly ${peopleCount} occupant${peopleCount === 1 ? '' : 's'} to match the party size`
-      )
-      return
-    }
-    if (selectedOccupantIds.length === 0) {
-      setError('At least one occupant must be selected')
+    if (!(effectivePeopleCount > 0)) {
+      setError('Enter a party size or select occupants')
       return
     }
 
-    const snapshotOccupants = selectedOccupantIds
-      .map(id => roster.find((o: Occupant) => o.id === id))
-      .filter(Boolean)
-    if (snapshotOccupants.length !== selectedOccupantIds.length) {
-      setError('Some selected occupants could not be found — please re-select')
+    parsedParams.people = String(effectivePeopleCount)
+
+    if (autoBook && !selectedOccupantsPresent) {
+      setError('Select occupants before enabling auto-book')
       return
     }
-    parsedParams.occupants = snapshotOccupants
+
+    if (selectedOccupantsPresent) {
+      const snapshotOccupants = selectedOccupantIds
+        .map(id => roster.find((o: Occupant) => o.id === id))
+        .filter(Boolean)
+      if (snapshotOccupants.length !== selectedOccupantIds.length) {
+        setError('Some selected occupants could not be found — please re-select')
+        return
+      }
+      parsedParams.occupants = snapshotOccupants
+    } else {
+      parsedParams.occupants = []
+    }
 
     for (const field of selectedAdapter.param_fields) {
       if (field.type === 'multiselect') {
@@ -678,16 +700,15 @@ function JobFormBody({
             <FormSection title="Booking Inputs">
               {selectedAdapter.param_fields.map(field => {
                 if (field.key === 'occupants') {
-                  const peopleCount = parseInt(String(params.people ?? '0'), 10)
                   return (
                     <div key={field.key} className="space-y-1.5">
-                      <ParamLabel fieldKey={field.key} required>
+                      <ParamLabel fieldKey={field.key}>
                         Occupants
                       </ParamLabel>
                       <OccupantSelector
                         selectedIds={selectedOccupantIds}
                         onChange={setSelectedOccupantIds}
-                        required={peopleCount}
+                        peopleCount={effectivePeopleCount}
                       />
                     </div>
                   )
@@ -711,10 +732,22 @@ function JobFormBody({
                     </ParamLabel>
                     <ParamFieldInput
                       field={field}
-                      value={params[field.key]}
+                      value={
+                        field.key === 'people' && selectedOccupantsPresent
+                          ? String(selectedOccupantCount)
+                          : params[field.key]
+                      }
                       onChange={val => handleParamChange(field.key, val)}
                       options={opts}
+                      disabled={field.key === 'people' && selectedOccupantsPresent}
                     />
+                    {field.key === 'people' && (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedOccupantsPresent
+                          ? `Party size is being inferred from ${selectedOccupantCount} selected occupant${selectedOccupantCount === 1 ? '' : 's'}.`
+                          : 'Used for availability checks when no occupants are selected.'}
+                      </p>
+                    )}
                   </div>
                 )
               })}
@@ -730,11 +763,19 @@ function JobFormBody({
                   title="Auto-book when available"
                   tooltip="Lets the worker continue directly into the booking flow instead of stopping at manual confirmation."
                 >
-                  <Switch
-                    checked={autoBook}
-                    onCheckedChange={setAutoBook}
-                    id="auto-book"
-                  />
+                  <div className="space-y-2 text-right">
+                    <Switch
+                      checked={autoBook}
+                      onCheckedChange={setAutoBook}
+                      id="auto-book"
+                      disabled={!selectedOccupantsPresent}
+                    />
+                    {!selectedOccupantsPresent && (
+                      <p className="max-w-56 text-xs text-muted-foreground">
+                        Select occupants to enable auto-book.
+                      </p>
+                    )}
+                  </div>
                 </SettingRow>
 
                 <SettingRow
