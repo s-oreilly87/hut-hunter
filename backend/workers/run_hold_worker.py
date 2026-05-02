@@ -2,7 +2,6 @@ import logging
 import sys
 import os
 
-# Make sure app is importable
 sys.path.insert(0, os.path.dirname(__file__))
 
 logging.basicConfig(level=logging.INFO)

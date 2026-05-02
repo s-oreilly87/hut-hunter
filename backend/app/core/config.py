@@ -1,7 +1,16 @@
+from dataclasses import dataclass
 from pathlib import Path
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT_DIR = Path(__file__).parent.parent.parent.parent
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = BACKEND_DIR.parent
+
+
+@dataclass(frozen=True)
+class DocCredentials:
+    email: str
+    password: str
+
 
 class Settings(BaseSettings):
     app_url: str = "http://localhost:8000"
@@ -32,9 +41,19 @@ class Settings(BaseSettings):
     doc_email: str | None = None
     doc_password: str | None = None
 
-    model_config = {
-        "env_file": str(ROOT_DIR / ".env")
-    }
+    model_config = SettingsConfigDict(
+        env_file=str(ROOT_DIR / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
-# Single instance imported everywhere
+    def get_legacy_doc_credentials(self) -> DocCredentials | None:
+        if not self.doc_email or not self.doc_password:
+            return None
+        return DocCredentials(email=self.doc_email, password=self.doc_password)
+
+    @property
+    def artifacts_dir(self) -> Path:
+        return BACKEND_DIR / "artifacts"
+
 settings = Settings()

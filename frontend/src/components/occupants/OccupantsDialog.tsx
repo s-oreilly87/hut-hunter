@@ -12,11 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { InfoTooltip, SectionHeading } from '@/components/ui/section-heading'
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+import { SectionHeading } from '@/components/ui/section-heading'
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say']
 
@@ -26,10 +22,6 @@ const CATEGORY_OPTIONS = [
   'International Adult (18+)',
   'International Child (5-17)',
 ]
-
-// ---------------------------------------------------------------------------
-// OccupantForm — shared create / edit form
-// ---------------------------------------------------------------------------
 
 const EMPTY_FORM: OccupantCreate = {
   first_name: '',
@@ -136,10 +128,6 @@ function OccupantForm({
   )
 }
 
-// ---------------------------------------------------------------------------
-// OccupantRow
-// ---------------------------------------------------------------------------
-
 function OccupantRow({
   occupant,
   onEdit,
@@ -176,10 +164,6 @@ function OccupantRow({
     </div>
   )
 }
-
-// ---------------------------------------------------------------------------
-// OccupantsDialog
-// ---------------------------------------------------------------------------
 
 type EditingState =
   | { mode: 'none' }
@@ -246,7 +230,6 @@ export function OccupantsDialog() {
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        title="Manage saved occupants"
         className="justify-center sm:min-w-36"
       >
         <Users className="h-4 w-4" />
@@ -256,21 +239,12 @@ export function OccupantsDialog() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[92vh] sm:max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <div className="flex items-center gap-2">
-              <DialogTitle>Occupants</DialogTitle>
-              <InfoTooltip
-                content="Maintain the saved traveler roster used to populate watch job bookings."
-                align="start"
-              />
-            </div>
+            <DialogTitle>Occupants</DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.92fr)]">
             <div className="space-y-3 rounded-[1.5rem] border border-border/70 bg-secondary/35 p-4 sm:p-5">
-              <SectionHeading
-                title="Saved Roster"
-                tooltip="Keep traveler details ready so job setup stays fast and consistent."
-              />
+              <SectionHeading title="Saved Roster" />
 
               <div className="space-y-2">
                 {isLoading && (
@@ -304,10 +278,7 @@ export function OccupantsDialog() {
               {editing.mode !== 'none' ? (
                 <>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <SectionHeading
-                      title={editing.mode === 'new' ? 'New Occupant' : 'Edit Occupant'}
-                      tooltip="Save the details exactly as they should be sent to the booking flow."
-                    />
+                    <SectionHeading title={editing.mode === 'new' ? 'New Occupant' : 'Edit Occupant'} />
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"

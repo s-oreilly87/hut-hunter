@@ -13,7 +13,7 @@ x-app: &app
   # Everything else (SECRET_KEY, ENCRYPTION_KEY, GOTIFY_*, APP_URL, VNC_URL)
   # comes from .env.
   environment:
-    DATABASE_URL: postgresql+asyncpg://huthunter:huthunter@postgres:5432/huthunter
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD:-huthunter}@postgres:5432/${POSTGRES_DB:-huthunter}
     REDIS_URL: redis://redis:6379
   # Bind-mount the backend source into /app so code changes don't require
   # an image rebuild. The image still has a COPY of the code baked in, so
@@ -21,22 +21,24 @@ x-app: &app
   # Rebuild only needed when requirements.txt or the Dockerfile changes.
   volumes:
     - ./backend:/app
-  depends_on:
-    - postgres
-    - redis
 
 services:
   postgres:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: huthunter
-      POSTGRES_PASSWORD: huthunter
-      POSTGRES_DB: huthunter
+      POSTGRES_USER: ${POSTGRES_USER:-huthunter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-huthunter}
+      POSTGRES_DB: ${POSTGRES_DB:-huthunter}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-huthunter} -d ${POSTGRES_DB:-huthunter}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7-alpine
@@ -54,13 +56,27 @@ services:
 
   api:
     <<: *app
-    command: ["python", "run.py"]
+    command: ["sh", "-lc", "alembic -c alembic.ini upgrade head && python run.py"]
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   poll_worker:
     <<: *app
     command: ["python", "run_worker.py"]
+    depends_on:
+      api:
+        condition: service_healthy
 
   hold_worker:
     <<: *app
@@ -69,7 +85,7 @@ services:
     command: ["python", "run_hold_worker.py"]
     # Headed Chromium needs the X display the entrypoint sets up.
     environment:
-      DATABASE_URL: postgresql+asyncpg://huthunter:huthunter@postgres:5432/huthunter
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD:-huthunter}@postgres:5432/${POSTGRES_DB:-huthunter}
       REDIS_URL: redis://redis:6379
       BROWSER_DISPLAY: ":99"
       DISPLAY: ":99"
@@ -80,6 +96,9 @@ services:
     # /dev/shm defaults to 64MB in containers, which Chromium will exhaust
     # on any non-trivial page and start crashing with SIGBUS.
     shm_size: "1gb"
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   postgres_data:

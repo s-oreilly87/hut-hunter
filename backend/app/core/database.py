@@ -1,7 +1,7 @@
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlmodel import SQLModel
 from app.core.config import settings
 
 # The engine is the connection pool to Postgres
@@ -18,10 +18,10 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
-async def init_db():
-    """Create all tables on startup."""
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all) # type: ignore[arg-type]
+async def verify_db_connection() -> None:
+    """Verify the database is reachable after migrations have run."""
+    async with engine.connect() as conn:
+        await conn.execute(text("select 1"))
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency — yields a DB session per request."""

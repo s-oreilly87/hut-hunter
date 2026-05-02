@@ -68,7 +68,6 @@ function getJobSubtitle(
 ): string {
   const dateFieldKey = getDateFieldKey(job, adapterDateFieldKeyById)
 
-  // DOC standard hut — derive subtitle from facility + date
   const facilityStr = typeof job.params.facility === 'string' ? job.params.facility.trim() : ''
   if (facilityStr) {
     const parsedFacility = parseFacilityOption(facilityStr)

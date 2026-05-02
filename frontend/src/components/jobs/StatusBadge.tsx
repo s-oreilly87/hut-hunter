@@ -9,13 +9,9 @@ interface Props {
   status: DisplayStatus
   jobId: string
   cartExpiresAt?: string | null
-  // If set and status is `booking_complete`, the badge links to this URL —
-  // typically the receipt snapshot captured when the user hit "Booking
-  // Complete" on the /pay page. Null/undefined renders a plain badge.
   artifactUrl?: string | null
 }
 
-// Label overrides for display-only statuses not in JOB_STATUS_LABEL
 const DISPLAY_LABEL: Record<string, string> = {
   booking:              'Booking…',
   attempting_hold:      'Securing Hold…',
@@ -26,7 +22,6 @@ const DISPLAY_LABEL: Record<string, string> = {
   result_hold_failed:   'Hold Failed',
 }
 
-// Tailwind colour classes per display status. Undefined → secondary variant.
 const STATUS_CLASS: Record<string, string | undefined> = {
   paused:               undefined,
   checking:             'bg-blue-600 hover:bg-blue-600 text-white',
@@ -74,7 +69,6 @@ export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props
     </Badge>
   )
 
-  // Hold Placed links to the pay page so the user can jump straight back.
   if (status === 'hold_placed') {
     return (
       <a
@@ -82,15 +76,12 @@ export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        title="Open payment page"
       >
         {badge}
       </a>
     )
   }
 
-  // Booking Complete links to the receipt snapshot (if captured) so the user
-  // can eyeball the confirmation page without chasing down artifact paths.
   if (status === 'booking_complete' && artifactUrl) {
     return (
       <a
@@ -98,7 +89,6 @@ export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        title="Open booking receipt"
       >
         {badge}
       </a>

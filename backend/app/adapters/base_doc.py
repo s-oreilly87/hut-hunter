@@ -102,16 +102,17 @@ class BaseDOCAdapter(BaseAdapter):
 
         logger.info("DOC login modal detected — filling credentials from env")
 
-        if not settings.doc_email or not settings.doc_password:
+        credentials = settings.get_legacy_doc_credentials()
+        if credentials is None:
             raise RuntimeError(
                 "DOC login modal appeared but DOC_EMAIL / DOC_PASSWORD are not set in env"
             )
 
         await page.locator('input[placeholder="Insert Your email"]').fill(
-            settings.doc_email
+            credentials.email
         )
         await page.locator('input[placeholder="Insert Your password"]').fill(
-            settings.doc_password
+            credentials.password
         )
         await page.get_by_role("button", name="Sign In").click()
 
