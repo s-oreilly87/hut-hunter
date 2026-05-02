@@ -22,15 +22,6 @@ import {
 import { InfoTooltip, SectionHeading } from '@/components/ui/section-heading'
 import { getJobParamIcon } from '@/components/jobs/jobParamDisplay'
 
-// ---------------------------------------------------------------------------
-// Field rendering
-// ---------------------------------------------------------------------------
-
-// For the DOC standard hut "facility" select, each option value encodes:
-//   "Mueller Hut (747/2487) — Aoraki/Mount Cook National Park"
-// We strip the IDs and park suffix so the select shows only the facility name.
-// Items are already grouped by park via SelectGroup, so the park is visible
-// as the group header label.
 const FACILITY_OPTION_DISPLAY_RE = /^(.+?)\s*\(\d+\/\d+\)(?:\s*—\s*.+)?$/
 
 function facilityDisplayName(opt: string): string {
@@ -163,10 +154,6 @@ function ParamFieldInput({
   )
 }
 
-// ---------------------------------------------------------------------------
-// OccupantSelector — multiselect from saved roster
-// ---------------------------------------------------------------------------
-
 function OccupantSelector({
   selectedIds,
   onChange,
@@ -238,19 +225,12 @@ function OccupantSelector({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Date validation (adapter-timezone-aware)
-// ---------------------------------------------------------------------------
-
-/** Return true if the DD/MM/YYYY date string is today or in the future
- *  when interpreted in the given IANA timezone. */
 function isDateValidInTz(dateStr: string, timezone: string): boolean {
   const parts = dateStr.split('/')
   if (parts.length !== 3) return false
   const [dd, mm, yyyy] = parts
   if (!dd || !mm || !yyyy || yyyy.length !== 4) return false
 
-  // Resolve "today" in the adapter's timezone via Intl
   const tzParts = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -262,7 +242,6 @@ function isDateValidInTz(dateStr: string, timezone: string): boolean {
   const jobY = Number(yyyy), jobM = Number(mm), jobD = Number(dd)
   if ([jobY, jobM, jobD, tzY, tzM, tzD].some(isNaN)) return false
 
-  // Compare as YYYYMMDD integers — timezone-safe, no UTC conversion needed
   const tzInt = tzY * 10000 + tzM * 100 + tzD
   const jobInt = jobY * 10000 + jobM * 100 + jobD
   return jobInt >= tzInt
@@ -274,16 +253,12 @@ function buildDefaultParams(fields: ParamField[]): Record<string, unknown> {
   )
 }
 
-// In the DB, occupants is a parsed array; in the form, it's a JSON string in a
-// textarea. Round-trip it back when loading a job for edit. We operate purely
-// on job.params (no adapter fields needed) so this can run before the adapter
-// definition has loaded.
 function buildParamsFromJob(job: WatchJob): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(job.params)) {
-    if (k === 'occupants') continue  // handled by OccupantSelector, not params state
+    if (k === 'occupants') continue
     if (k === 'sites' && typeof v === 'string') {
-      // Backward compat: convert legacy comma-separated string to array for multiselect
+      // Keep legacy string payloads editable after the multiselect migration.
       out[k] = v.split(',').map(s => s.trim()).filter(Boolean)
     } else {
       out[k] = v ?? ''
@@ -352,10 +327,6 @@ function ParamLabel({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Shared controlled dialog
-// ---------------------------------------------------------------------------
-
 type Mode = 'create' | 'edit'
 
 function JobFormDialog({
@@ -371,14 +342,11 @@ function JobFormDialog({
   initialJob?: WatchJob
   onDone?: (job: WatchJob) => void
 }) {
-  // Radix Dialog unmounts children when closed, but we also key the body on
-  // mode + job id so that opening the same dialog for a different job reliably
-  // remounts the form and re-runs its useState initializers. This is how we
-  // get "fresh state per open" without a prop-sync effect.
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] sm:max-w-3xl overflow-y-auto">
         <JobFormBody
+          // Force a remount so each open gets fresh local form state.
           key={`${mode}:${initialJob?.id ?? 'new'}`}
           mode={mode}
           initialJob={initialJob}
@@ -417,9 +385,6 @@ function JobFormBody({
   const [autoBook, setAutoBook] = useState(
     mode === 'edit' && initialJob ? initialJob.auto_book : false,
   )
-  // Monitoring — default on for new jobs so the user opts *out* rather than
-  // discovering the toggle buried in the dialog. For existing jobs we echo
-  // whatever's persisted.
   const [enableMonitoring, setEnableMonitoring] = useState(
     mode === 'edit' && initialJob ? initialJob.enable_monitoring : true,
   )
@@ -430,8 +395,6 @@ function JobFormBody({
   )
   const [error, setError] = useState<string | null>(null)
 
-  // Occupant IDs selected from the roster. Initialise from the job's existing
-  // occupant snapshots (match by id if present, otherwise leave empty).
   const [selectedOccupantIds, setSelectedOccupantIds] = useState<string[]>(() => {
     if (mode === 'edit' && initialJob) {
       const snapped = initialJob.params.occupants
@@ -454,7 +417,6 @@ function JobFormBody({
 
   const selectedAdapter = adapters.find(a => a.adapter_id === selectedAdapterId)
 
-  // Resolve the effective options for a field, accounting for filter_by.
   const resolveOptions = (
     field: ParamField,
     currentParams: Record<string, unknown>,
@@ -463,9 +425,7 @@ function JobFormBody({
       const key = String(currentParams[field.filter_by] ?? '')
       let opts: string[] = field.options_by[key] ?? []
 
-      // Sites are always scraped in first-direction order. When the user has
-      // selected the second (or later) direction for the current track, reverse
-      // the list so huts/camps appear top-to-bottom matching that direction.
+      // DOC returns site order for the outbound direction; reverse it for return trips.
       if (field.key === 'sites' && field.filter_by === 'track' && opts.length > 0) {
         const direction = String(currentParams['direction'] ?? '')
         if (direction) {
@@ -494,11 +454,9 @@ function JobFormBody({
     setParams(prev => {
       const next: Record<string, unknown> = { ...prev, [key]: value }
       if (selectedAdapter) {
-        // Reset fields that depend on this one via filter_by.
         for (const f of selectedAdapter.param_fields) {
           if (f.filter_by !== key || !f.options_by) continue
           if (f.type === 'multiselect') {
-            // Always reset multiselect when the filter key changes
             next[f.key] = []
           } else {
             const valid = f.options_by[String(value ?? '')] ?? []
@@ -509,8 +467,6 @@ function JobFormBody({
           }
         }
 
-        // When track changes, auto-select the first available direction
-        // (and reset sites, which is already handled by the filter_by loop above).
         if (key === 'track') {
           const dirField = selectedAdapter.param_fields.find(f => f.key === 'direction')
           if (dirField?.options_by) {
@@ -519,8 +475,6 @@ function JobFormBody({
           }
         }
 
-        // When direction changes, reset sites too — the site ordering flips
-        // for the second direction and any prior selection is stale.
         if (key === 'direction') {
           const sitesField = selectedAdapter.param_fields.find(f => f.key === 'sites')
           if (sitesField?.type === 'multiselect') {
@@ -575,14 +529,12 @@ function JobFormBody({
       return
     }
 
-    // Build parsedParams — occupants come from the roster selector, not raw JSON
     const parsedParams: Record<string, unknown> = {}
     for (const field of selectedAdapter.param_fields) {
-      if (field.key === 'occupants') continue  // handled separately below
+      if (field.key === 'occupants') continue
       parsedParams[field.key] = params[field.key]
     }
 
-    // Validate occupant count matches party size
     const peopleCount = parseInt(String(parsedParams.people ?? '0'), 10)
     if (peopleCount > 0 && selectedOccupantIds.length !== peopleCount) {
       setError(
@@ -595,7 +547,6 @@ function JobFormBody({
       return
     }
 
-    // Snapshot the selected occupants' current data into the job params
     const snapshotOccupants = selectedOccupantIds
       .map(id => roster.find((o: Occupant) => o.id === id))
       .filter(Boolean)
@@ -605,11 +556,9 @@ function JobFormBody({
     }
     parsedParams.occupants = snapshotOccupants
 
-    // Validate multiselect fields have at least one option selected
     for (const field of selectedAdapter.param_fields) {
       if (field.type === 'multiselect') {
         const val = parsedParams[field.key]
-        // Only validate if options exist for the current track (i.e. JSON was scraped)
         const opts = field.options_by
           ? field.options_by[String(parsedParams[field.filter_by ?? ''] ?? '')] ?? []
           : field.options ?? []
@@ -620,9 +569,6 @@ function JobFormBody({
       }
     }
 
-    // Validate any date field is today-or-future in the adapter's timezone.
-    // Falls back to the browser's local timezone when the adapter doesn't
-    // specify one (matches the server-side default of local server time).
     const dateField = selectedAdapter.param_fields.find(f => f.type === 'date')
     if (dateField) {
       const tz = selectedAdapter.booking_timezone
@@ -639,8 +585,6 @@ function JobFormBody({
       }
     }
 
-    // Validate interval (only matters when monitoring is on, but we still
-    // want a sane value so toggling monitoring back on later works)
     const intervalNum = parseInt(intervalMinutes, 10)
     if (
       enableMonitoring
@@ -649,9 +593,6 @@ function JobFormBody({
       setError('Interval must be between 1 and 120 minutes')
       return
     }
-    // If monitoring is off, a bad interval in the disabled input is fine —
-    // clamp to a sensible default on submit so the backend still gets a
-    // valid int.
     const safeInterval = (!isNaN(intervalNum) && intervalNum >= 1 && intervalNum <= 120)
       ? intervalNum
       : 15
@@ -753,8 +694,6 @@ function JobFormBody({
                 }
 
                 const opts = resolveOptions(field, params)
-                // Hide a *select* (not multiselect) when it has no valid options
-                // (e.g. direction hidden for tracks with no direction).
                 if (
                   field.type === 'select'
                   && field.filter_by
@@ -800,7 +739,6 @@ function JobFormBody({
 
                 <SettingRow
                   title="Enable monitoring"
-                  tooltip="Keep polling this job on a schedule instead of only checking when you trigger it manually."
                 >
                   <Switch
                     checked={enableMonitoring}
@@ -887,10 +825,6 @@ function JobFormPage({
     </section>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Public wrappers
-// ---------------------------------------------------------------------------
 
 export function CreateJobDialog({
   open: controlledOpen,

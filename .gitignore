@@ -1,7 +1,14 @@
 .env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 .venv/
+backend/.venv/
 node_modules/
 .idea/
+.pytest_cache/
+.DS_Store
+frontend/dist/
+/artifacts/
 /backend/artifacts/

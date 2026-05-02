@@ -137,13 +137,16 @@ class BaseAdapter(ABC):
 
     async def snapshot(self, page: Page, label: str) -> str:
         """Save screenshot + HTML for debugging."""
-        out_dir = "artifacts"
-        os.makedirs(out_dir, exist_ok=True)
+        out_dir = settings.artifacts_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base = f"{out_dir}/{ts}_{self.adapter_id}_{label}"
-        await page.screenshot(path=f"{base}.png", full_page=True)
-        with open(f"{base}.html", "w") as f:
+        filename = f"{ts}_{self.adapter_id}_{label}"
+        absolute_base = out_dir / filename
+        relative_base = Path("artifacts") / filename
+        await page.screenshot(path=str(absolute_base.with_suffix(".png")), full_page=True)
+        with open(absolute_base.with_suffix(".html"), "w") as f:
             f.write(await page.content())
+        base = str(relative_base)
         self._artifact_log.append(ArtifactSnapshot(label=label, base=base))
         return base
 

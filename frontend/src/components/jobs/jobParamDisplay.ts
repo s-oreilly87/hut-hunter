@@ -13,11 +13,8 @@ export type JobHeaderField = {
   label: string
   value: string
   icon: LucideIcon
-  /** If set, the value renders as an external link pointing to this URL. */
   href?: string
-  /** When true, renders the field in a smaller, muted subtitle typeface. */
   isSubtitle?: boolean
-  /** If set, render the field value as a row of badge tags instead of plain text. */
   tags?: string[]
 }
 
@@ -44,8 +41,6 @@ export function formatCountLabel(
   return `${raw} ${raw === 1 ? singular : plural}`
 }
 
-/** Parse a sites param into an ordered list of site name strings.
- *  Accepts both the new array format and the legacy comma-separated string. */
 function parseSitesArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((s) => String(s).trim()).filter(Boolean)
@@ -55,12 +50,6 @@ function parseSitesArray(value: unknown): string[] {
   }
   return []
 }
-
-// ---------------------------------------------------------------------------
-// DOC standard hut facility option parsing.
-// Option strings are encoded as:
-//   "Mueller Hut (747/2487) — Aoraki/Mount Cook National Park"
-// ---------------------------------------------------------------------------
 
 const FACILITY_OPTION_RE = /^(.+?)\s*\((\d+)\/(\d+)\)(?:\s*—\s*(.+))?$/
 
@@ -108,7 +97,6 @@ export function getJobParamIcon(key: string): LucideIcon | null {
 }
 
 export function getHeaderFields(params: Record<string, unknown>): JobHeaderField[] {
-  // DOC standard hut — facility encodes name + IDs + park name in one string.
   const facilityParsed = parseFacilityOption(params.facility)
   const facility: JobHeaderField | null = facilityParsed
     ? {
@@ -138,27 +126,30 @@ export function getHeaderFields(params: Record<string, unknown>): JobHeaderField
         icon: Map,
       }
     : null
-  const date = formatDateLabel(params.date)
+  const dateLabel = formatDateLabel(params.date)
+  const nightsLabel = formatCountLabel(params.nights, 'Night', 'Nights')
+  const peopleLabel = formatCountLabel(params.people, 'Person', 'People')
+  const date = dateLabel
     ? {
         key: 'date',
         label: 'Start Date',
-        value: formatDateLabel(params.date) as string,
+        value: dateLabel,
         icon: CalendarDays,
       }
     : null
-  const nights = formatCountLabel(params.nights, 'Night', 'Nights')
+  const nights = nightsLabel
     ? {
         key: 'nights',
         label: 'Stay Length',
-        value: formatCountLabel(params.nights, 'Night', 'Nights') as string,
+        value: nightsLabel,
         icon: MoonStar,
       }
     : null
-  const people = formatCountLabel(params.people, 'Person', 'People')
+  const people = peopleLabel
     ? {
         key: 'people',
         label: 'Party Size',
-        value: formatCountLabel(params.people, 'Person', 'People') as string,
+        value: peopleLabel,
         icon: Users,
       }
     : null

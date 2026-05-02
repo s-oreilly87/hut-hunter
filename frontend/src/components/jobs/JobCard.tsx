@@ -622,11 +622,6 @@ function ArtifactGallery({
   )
 }
 
-// ---------------------------------------------------------------------------
-// MonitoringSection — always rendered at the top of the JobCard body.
-// Shows last-checked time, auto-book state, monitoring toggle, interval, live
-// countdown, and the Check Now trigger button.
-// ---------------------------------------------------------------------------
 function MonitoringSection({
   job,
   displayStatus,
@@ -655,7 +650,6 @@ function MonitoringSection({
 
   if (displayStatus === 'booking_complete') return null
 
-  // Terminal and transient states — toggle is not user-actionable.
   const isTerminal = (
     displayStatus === 'cancelled'
     || displayStatus === 'expired'

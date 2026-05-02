@@ -6,19 +6,6 @@ import { getDisplayStatus, hasHoldExpired, jobAllFullyAvailable } from '@/lib/av
 import { useJobsStore } from '@/store/jobs'
 import { Button } from '@/components/ui/button'
 
-// ---------------------------------------------------------------------------
-// BookButton
-// ---------------------------------------------------------------------------
-// Renders one of three states based on the current job:
-//   - idle:    "Attempt Booking" (green) — all sites fully available, ready to hold
-//   - stale:   "Attempt Booking" (disabled) — last check is >30 min old
-//   - booking: "Booking…" with spinner, disabled — hold worker running
-//   - held:    "Open Payment" link to /pay/{id} — hold in place, user pays
-//
-// The booking spinner stays up while the Zustand pendingBookings flag is set;
-// the flag is cleared when the job flips to HOLD_PLACED (success) or away
-// from CHECKING without flipping to HOLD_PLACED (failure / recheck missed).
-
 const STALE_MS = 30 * 60 * 1000 // 30 minutes
 
 function isCheckStale(lastCheckedAt: string | null): boolean {
@@ -44,9 +31,6 @@ export function BookButton({
     onMutate: (id: string) => markBooking(id),
     onError: (_e, id) => clearBooking(id),
     onSuccess: () => {
-      // Keep pending flag set — it flips off when the job transitions out
-      // of CHECKING (success → HOLD_PLACED, failure → PAUSED). Just make
-      // sure our cached view gets refreshed.
       qc.invalidateQueries({ queryKey: ['jobs'] })
       qc.invalidateQueries({ queryKey: ['jobs', job.id] })
     },
@@ -54,11 +38,7 @@ export function BookButton({
 
   const displayStatus = getDisplayStatus(job, pendingBookings)
 
-  // Clear the pending flag once the server-side status resolves. Both
-  // 'checking' and 'attempting_hold' mean the backend is still mid-flight,
-  // so we leave the flag set for both. Anything else means the worker
-  // finished — either HOLD_PLACED (success) or back to PAUSED/WAITING
-  // (failure).
+  // Keep the optimistic spinner alive until the backend leaves its in-flight states.
   useEffect(() => {
     if (!isPendingLocal) return
     if (displayStatus !== 'checking' && displayStatus !== 'attempting_hold') {
@@ -69,11 +49,6 @@ export function BookButton({
   const showBooking = isPendingLocal || mutation.isPending
   const stale = isCheckStale(job.last_checked_at)
 
-  // Self-gate visibility so callers don't have to reproduce the logic.
-  // Render when: (a) we think a book would succeed right now, (b) we're in
-  // the middle of booking, or (c) a hold has landed and we want to be the
-  // pay entry point. Never render for terminal states (completed, adapter-
-  // expired), or when the hold worker is already running (attempting_hold).
   const isTerminal = job.status === 'booking_complete' || job.status === 'expired'
   const holdExpired = hasHoldExpired(job)
   const visible =
@@ -87,9 +62,6 @@ export function BookButton({
     )
   if (!visible) return null
 
-  // Hold landed — show a link to the pay page. StatusBadge already does this
-  // but the Book button is what the user just clicked, so it's natural for
-  // *it* to become the entry point.
   if (job.status === 'hold_placed' && !holdExpired) {
     return (
       <Button
@@ -102,7 +74,6 @@ export function BookButton({
           target="_blank"
           rel="noopener noreferrer"
           onClick={e => e.stopPropagation()}
-          title="Hold placed — open the payment page"
         >
           Open Payment
         </a>
@@ -123,10 +94,7 @@ export function BookButton({
     )
   }
 
-  // Idle — availability check was recent enough (≤30 min) to trust.
-  // Stale checks are shown as disabled with an explanatory tooltip.
-  // Disabled buttons don't fire mouse events, so we wrap in a span to
-  // keep the title tooltip reachable.
+  // Disabled buttons do not expose hover state, so the stale explanation lives on the wrapper.
   const staleTooltip =
     'Last check was more than 30 minutes ago — trigger a new check before attempting to book'
 
@@ -139,11 +107,6 @@ export function BookButton({
         e.stopPropagation()
         mutation.mutate(job.id)
       }}
-      title={stale ? undefined : (
-        'Dispatch the hold worker now. Opens a headed browser to grab a '
-        + '25-minute hold on every site in this job. You\'ll then complete '
-        + 'payment in the /pay page.'
-      )}
     >
       {holdExpired ? 'Attempt Hold Again' : 'Attempt Booking'}
     </Button>
@@ -156,14 +119,6 @@ export function BookButton({
   ) : bookBtn
 }
 
-// ---------------------------------------------------------------------------
-// PartialAvailabilityHelp
-// ---------------------------------------------------------------------------
-// Rendered next to the result list when a check found partial or mixed
-// availability. Tells the user the "book partial" workflow: create a new
-// watch job scoped down to the partial site(s) / smaller party, then Book
-// that. The DOC cart can't mix party sizes across nights, so this is the
-// only reliable way to land a partial booking.
 export function PartialAvailabilityHelp() {
   return (
     <p className="text-xs text-muted-foreground leading-relaxed">
