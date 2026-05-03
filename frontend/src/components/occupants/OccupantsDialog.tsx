@@ -121,7 +121,7 @@ function OccupantForm({
           Cancel
         </Button>
         <Button size="sm" onClick={handleSubmit} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Occupant'}
+          {saving ? 'Saving…' : 'Save Camper'}
         </Button>
       </div>
     </div>
@@ -234,7 +234,7 @@ export function OccupantsDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[92vh] sm:max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Occupants</DialogTitle>
+            <DialogTitle>Campers</DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.92fr)]">
@@ -248,7 +248,7 @@ export function OccupantsDialog({
                 {!isLoading && occupants.length === 0 && editing.mode === 'none' && (
                   <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 px-4 py-4">
                     <p className="text-sm text-muted-foreground">
-                      No occupants saved yet. Add one to use in watch jobs.
+                      No campers saved yet. Add one to use in hunts.
                     </p>
                   </div>
                 )}
@@ -264,7 +264,7 @@ export function OccupantsDialog({
 
               {editing.mode === 'none' && (
                 <Button variant="outline" size="sm" className="w-full" onClick={startNew} autoFocus>
-                  <Plus className="size-4 mr-1" /> Add Occupant
+                  <Plus className="size-4 mr-1" /> Add Camper
                 </Button>
               )}
             </div>
@@ -273,7 +273,7 @@ export function OccupantsDialog({
               {editing.mode !== 'none' ? (
                 <>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <SectionHeading title={editing.mode === 'new' ? 'New Occupant' : 'Edit Occupant'} />
+                    <SectionHeading title={editing.mode === 'new' ? 'New Camper' : 'Edit Camper'} />
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
@@ -302,7 +302,7 @@ export function OccupantsDialog({
               ) : (
                 <div className="flex h-full min-h-56 flex-col justify-center rounded-2xl border border-dashed border-border/80 bg-secondary/35 px-4 py-5 text-center">
                   <p className="text-base font-medium text-foreground">
-                    Select a roster entry to edit it
+                    Select a camper to edit it
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     Keeping the form pinned here avoids the roster list jumping around on smaller screens.
@@ -316,4 +316,3 @@ export function OccupantsDialog({
     </>
   )
 }
-

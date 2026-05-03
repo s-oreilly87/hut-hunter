@@ -103,11 +103,11 @@ export function BookButton({
 
   // Disabled buttons do not expose hover state, so the stale explanation lives on the wrapper.
   const disabledReason = missingOccupants
-    ? 'Occupants are required on this job before booking can start'
+    ? 'Campers are required on this hunt before booking can start'
     : missingCredentials
-      ? 'Stored booking credentials are required on this job before booking can start'
+      ? 'A saved sign-in is required on this hunt before booking can start'
     : stale
-      ? 'Last check was more than 30 minutes ago — trigger a new check before attempting to book'
+      ? 'Last check was more than 30 minutes ago. Run a fresh check before booking.'
       : null
 
   const bookBtn = (
@@ -136,11 +136,11 @@ export function PartialAvailabilityHelp() {
     <p className="text-xs text-muted-foreground leading-relaxed">
       Want to book what IS available?{' '}
       <span className="text-foreground">
-        Create a new watch job scoped to just that site,
+        Create a new hunt scoped to just that site,
       </span>
       {' '}then hit <span className="font-medium">Book Now</span>{' '}
-      on the new job. Note: The DOC cart can't mix party sizes across nights, so
-      those watch jobs will have to be set separately too.
+      on that hunt. Note: the DOC cart can't mix party sizes across nights, so
+      those hunts need to be split separately too.
     </p>
   )
 }

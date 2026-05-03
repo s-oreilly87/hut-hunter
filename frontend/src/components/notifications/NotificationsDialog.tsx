@@ -70,7 +70,7 @@ function EmailSettingsCard({
               Email Notifications
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Send booking and availability updates to a single email address for this account.
+              Send availability and booking updates to one email address.
             </p>
           </div>
         </div>
@@ -97,8 +97,8 @@ function EmailSettingsCard({
           />
           <p className="text-xs text-muted-foreground">
             {settings.email_configured
-              ? 'Saved. Update the address here, then save again if it changed.'
-              : 'Default is none. Save an address first, then you can enable this channel.'}
+              ? 'Saved. Update it here if needed.'
+              : 'Save an address to enable email alerts.'}
           </p>
         </div>
 
@@ -107,8 +107,8 @@ function EmailSettingsCard({
             <p className="text-sm font-medium text-foreground">Enable channel</p>
             <p className="text-xs text-muted-foreground">
               {settings.email_configured
-                ? 'Toggle on when you want workers to deliver email notifications.'
-                : 'Save an address to unlock the toggle.'}
+                ? 'Turn on email delivery for this account.'
+                : 'Save an address to unlock this toggle.'}
             </p>
           </div>
           <Switch
@@ -129,7 +129,7 @@ function EmailSettingsCard({
       <div className="mt-4">
         <Button onClick={() => save.mutate()} disabled={!canSave || save.isPending}>
           {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
-          Save Email Settings
+          Save Email
         </Button>
       </div>
     </section>
@@ -193,7 +193,7 @@ function GotifySettingsCard({
               Gotify Notifications
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Deliver push alerts to your own Gotify server with a per-user URL and token.
+              Send push alerts through your Gotify server.
             </p>
           </div>
         </div>
@@ -228,12 +228,12 @@ function GotifySettingsCard({
             type="password"
             value={gotifyToken}
             onChange={(event) => setGotifyToken(event.target.value)}
-            placeholder={settings.gotify_has_token ? 'Enter a new token only if it changed' : 'Gotify application token'}
+            placeholder={settings.gotify_has_token ? 'Leave blank to keep current token' : 'Gotify application token'}
           />
           <p className="text-xs text-muted-foreground">
             {settings.gotify_configured
-              ? 'Saved. Update the URL or rotate the token here when needed.'
-              : 'Default is none. Save the URL and token first, then you can enable this channel.'}
+              ? 'Saved. Update the URL or rotate the token here.'
+              : 'Save the URL and token to enable Gotify alerts.'}
           </p>
         </div>
 
@@ -242,8 +242,8 @@ function GotifySettingsCard({
             <p className="text-sm font-medium text-foreground">Enable channel</p>
             <p className="text-xs text-muted-foreground">
               {settings.gotify_configured
-                ? 'Toggle on when you want workers to deliver Gotify notifications.'
-                : 'Save the URL and token to unlock the toggle.'}
+                ? 'Turn on Gotify delivery for this account.'
+                : 'Save the URL and token to unlock this toggle.'}
             </p>
           </div>
           <Switch
@@ -264,7 +264,7 @@ function GotifySettingsCard({
       <div className="mt-4">
         <Button onClick={() => save.mutate()} disabled={!canSave || save.isPending}>
           {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Smartphone className="size-4" />}
-          Save Gotify Settings
+          Save Gotify
         </Button>
       </div>
     </section>
@@ -293,9 +293,9 @@ export function NotificationsDialog({
               <BellRing className="size-5" />
             </div>
             <div>
-              <DialogTitle>Notification Options</DialogTitle>
+              <DialogTitle>Notifications</DialogTitle>
               <DialogDescription className="mt-1">
-                Notifications are opt-in per account. By default, Hut Hunter sends none. Save a delivery target first, then enable the channels you want workers to use.
+                Notifications are opt-in. Save a delivery target, then enable the channels you want to use.
               </DialogDescription>
             </div>
           </div>
@@ -303,7 +303,7 @@ export function NotificationsDialog({
 
         <div className="space-y-4 py-2">
           <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-4 text-sm text-muted-foreground">
-            Email addresses, Gotify URLs, and Gotify tokens are encrypted at rest. Workers only decrypt them when a job needs to send a notification.
+            Delivery targets are encrypted at rest and only decrypted when a hunt sends an alert.
           </div>
 
           {isLoading || !settings ? (
