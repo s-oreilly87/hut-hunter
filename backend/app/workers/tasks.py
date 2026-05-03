@@ -15,7 +15,8 @@ from app.adapters import adapter_requires_credentials, get_adapter
 from app.core.adapter_credentials import get_user_adapter_credentials
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.core.notify import notify_gotify
+from app.core.notification_settings import get_user_notification_settings_secret
+from app.core.notify import dispatch_notification_targets
 import app.models  # noqa: F401 - registers SQLModel metadata
 from app.models.job import JobStatus, WatchJob, is_job_expired, utcnow
 from app.models.session import CartSession
@@ -469,6 +470,10 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             if not _job_needs_credentials(job.adapter_id)
             else user_credentials is not None
         )
+        notification_settings = await get_user_notification_settings_secret(
+            session,
+            job.user_id or "",
+        )
         # Snapshot the previous result now so we can suppress repeat partial
         # notifications later (we only alert when the status *changes* to
         # partial — not on every check while it stays partial).
@@ -545,7 +550,8 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             f"- {r.site}: {r.total_available} spot(s)"
             for r in fully_available
         ]
-        await notify_gotify(
+        await dispatch_notification_targets(
+            notification_settings,
             title="🏕️ Availability Detected!",
             message=(
                 f"All sites fully available on {params.get('date')} but this job "
@@ -564,7 +570,8 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             f"- {r.site}: {r.total_available} spot(s)"
             for r in fully_available
         ]
-        await notify_gotify(
+        await dispatch_notification_targets(
+            notification_settings,
             title="🏕️ Availability Detected!",
             message=(
                 f"All sites fully available on {params.get('date')} but this job "
@@ -591,7 +598,8 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                 f"- {r.site}: {r.total_available} spot(s)"
                 for r in fully_available
             ]
-            await notify_gotify(
+            await dispatch_notification_targets(
+                notification_settings,
                 title="🏕️ Availability (hold queue unreachable)",
                 message=(
                     f"All sites fully available on {params.get('date')} but the "
@@ -607,7 +615,8 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             f"- {r.site}: {r.total_available} spot(s)"
             for r in fully_available
         ]
-        await notify_gotify(
+        await dispatch_notification_targets(
+            notification_settings,
             title="🏕️ Availability Detected!",
             message=(
                 f"All sites fully available on {params.get('date')}. Book now!\n"
@@ -635,7 +644,8 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             if unavailable:
                 lines.append("Unavailable:")
                 lines.extend(f"  - {_fmt(r)}" for r in unavailable)
-            await notify_gotify(
+            await dispatch_notification_targets(
+                notification_settings,
                 title="⚠️ Partial Availability",
                 message=(
                     f"Some sites have spots on {params.get('date')} but not every "
@@ -701,7 +711,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     """Hold task. Launches a headed browser, re-verifies availability, and
     attempts to drive the full hold flow through to the payment page. On
     success the browser is kept alive (user completes payment via VNC). All
-    hold-related Gotify notifications originate here."""
+    hold-related user notifications originate here."""
     logger.info(f"Attempting hold for job {job_id}")
 
     # --- 1. Fetch job + status guard + storage state ---
@@ -721,6 +731,10 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             session,
             job.user_id or "",
             job.adapter_id,
+        )
+        notification_settings = await get_user_notification_settings_secret(
+            session,
+            job.user_id or "",
         )
         adapter.set_login_credentials(credentials)
 
@@ -832,7 +846,8 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             f"  • {r.site} — {r.total_available} spot(s)"
             for r in fully_available
         ]
-        await notify_gotify(
+        await dispatch_notification_targets(
+            notification_settings,
             title="🏕️ Hold Secured!",
             message=(
                 f"Hold placed for {params.get('date')}:\n"
@@ -844,7 +859,8 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     elif availability_dropped:
         # fully_available is empty here, but we still know something was
         # available at poll time — surface the miss in a terse notification.
-        await notify_gotify(
+        await dispatch_notification_targets(
+            notification_settings,
             title="🏕️ Just missed it",
             message=(
                 f"Availability dropped before the hold could be placed for "
@@ -857,7 +873,8 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
         # be held (covers both single-site and multi-night multi-site cases).
         msg = booking.message if booking else "Hold not attempted"
         if booking and "Stored booking credentials are missing" in msg:
-            await notify_gotify(
+            await dispatch_notification_targets(
+                notification_settings,
                 title="🏕️ Booking blocked",
                 message=(
                     f"Availability was ready to book on {params.get('date')}, "
@@ -870,7 +887,8 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 f"  • {r.site} — {r.total_available} spot(s)"
                 for r in fully_available
             ]
-            await notify_gotify(
+            await dispatch_notification_targets(
+                notification_settings,
                 title="🏕️ Available but hold failed",
                 message=(
                     f"Sites available on {params.get('date')} but hold failed: {msg}\n"

@@ -10,9 +10,15 @@ class Settings(BaseSettings):
     redis_url: str
     secret_key: str
     environment: str = "development"
-    gotify_url: str | None = None
-    gotify_token: str | None = None
     encryption_key: str
+    smtp_host: str | None = None
+    smtp_port: int = 1025
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str = "noreply@hut-hunter.local"
+    smtp_from_name: str = "Hut Hunter"
+    smtp_use_ssl: bool = False
+    smtp_use_starttls: bool = False
 
     # Browser control
     # Phase 1 (availability detection) is always headless when this is True.

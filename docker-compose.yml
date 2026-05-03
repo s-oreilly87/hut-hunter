@@ -10,11 +10,13 @@ x-app: &app
   env_file:
     - .env
   # Override the DB / Redis hosts to resolve inside the compose network.
-  # Everything else (SECRET_KEY, ENCRYPTION_KEY, GOTIFY_*, APP_URL, VNC_URL)
+  # Everything else (SECRET_KEY, ENCRYPTION_KEY, APP_URL, VNC_URL, SMTP_*)
   # comes from .env.
   environment:
     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD:-huthunter}@postgres:5432/${POSTGRES_DB:-huthunter}
     REDIS_URL: redis://redis:6379
+    SMTP_HOST: mailpit
+    SMTP_PORT: 1025
   # Bind-mount the backend source into /app so code changes don't require
   # an image rebuild. The image still has a COPY of the code baked in, so
   # removing this mount (e.g. in prod) still gives a self-contained image.
@@ -47,6 +49,13 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+
+  mailpit:
+    image: axllent/mailpit:v1.26
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
 
   # ---------------------------------------------------------------------------
   # Hut Hunter application services. All three use the same image; the only
@@ -87,6 +96,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD:-huthunter}@postgres:5432/${POSTGRES_DB:-huthunter}
       REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
       BROWSER_DISPLAY: ":99"
       DISPLAY: ":99"
     ports:
