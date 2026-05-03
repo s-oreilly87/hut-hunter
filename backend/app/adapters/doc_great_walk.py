@@ -7,7 +7,13 @@ from pathlib import Path
 
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
-from app.adapters.base import AvailabilityResult, AvailabilityStatus, BookingResult, ParamField
+from app.adapters.base import (
+    AvailabilityResult,
+    AvailabilityStatus,
+    BookingResult,
+    OccupantField,
+    ParamField,
+)
 from app.adapters.base_doc import BaseDOCAdapter, MONTHS, PEOPLE_OPTIONS
 
 logger = logging.getLogger(__name__)
@@ -168,6 +174,24 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 filter_by="track",
                 options_by=_SITES_BY_TRACK,
             ),
+        ]
+
+    @classmethod
+    def occupant_fields(cls) -> list[OccupantField]:
+        return [
+            OccupantField(
+                key="category",
+                label="Category",
+                type="select",
+                options=[
+                    "NZ Adult (18+)",
+                    "NZ Child (5-17)",
+                    "International Adult (18+)",
+                    "International Child (5-17)",
+                ],
+                default="",
+                required=True,
+            )
         ]
 
     # ------------------------------------------------------------------ #

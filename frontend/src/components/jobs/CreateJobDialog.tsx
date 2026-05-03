@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import {
   jobsApi, adaptersApi, credentialsApi, occupantsApi,
-  type ParamField, type WatchJob, type Occupant,
+  type AdapterInfo, type ParamField, type WatchJob, type Occupant,
 } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -351,20 +351,78 @@ function ParamFieldInput({
   )
 }
 
+function isBlankValue(value: unknown): boolean {
+  if (value == null) return true
+  if (typeof value === 'string') return value.trim().length === 0
+  if (Array.isArray(value)) return value.length === 0
+  return false
+}
+
+function getMissingOccupantFields(
+  occupant: Occupant,
+  adapter: AdapterInfo | undefined,
+): string[] {
+  if (!adapter) return []
+  const adapterValues = occupant.adapter_values[adapter.adapter_id] ?? {}
+  return adapter.occupant_fields
+    .filter(field => field.required && isBlankValue(adapterValues[field.key]))
+    .map(field => field.label)
+}
+
+function formatOccupantAdapterSummary(
+  occupant: Occupant,
+  adapter: AdapterInfo | undefined,
+): string | null {
+  if (!adapter) return null
+  const adapterValues = occupant.adapter_values[adapter.adapter_id] ?? {}
+  const parts = adapter.occupant_fields
+    .map(field => {
+      const value = adapterValues[field.key]
+      return isBlankValue(value) ? null : `${field.label}: ${String(value)}`
+    })
+    .filter((value): value is string => Boolean(value))
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
+function buildOccupantSnapshot(
+  occupant: Occupant,
+  adapter: AdapterInfo | undefined,
+): Record<string, unknown> {
+  const snapshot: Record<string, unknown> = {
+    id: occupant.id,
+    first_name: occupant.first_name,
+    last_name: occupant.last_name,
+    age: occupant.age,
+    gender: occupant.gender,
+    country: occupant.country,
+  }
+  if (!adapter) return snapshot
+
+  const adapterValues = occupant.adapter_values[adapter.adapter_id] ?? {}
+  for (const field of adapter.occupant_fields) {
+    const value = adapterValues[field.key]
+    if (!isBlankValue(value)) {
+      snapshot[field.key] = value
+    }
+  }
+  return snapshot
+}
+
 function OccupantSelector({
+  roster,
+  adapter,
   selectedIds,
   onChange,
   peopleCount,
+  loading = false,
 }: {
+  roster: Occupant[]
+  adapter?: AdapterInfo
   selectedIds: string[]
   onChange: (ids: string[]) => void
   peopleCount: number
+  loading?: boolean
 }) {
-  const { data: roster = [], isLoading } = useQuery({
-    queryKey: ['occupants'],
-    queryFn: occupantsApi.list,
-  })
-
   const toggle = (id: string) => {
     onChange(
       selectedIds.includes(id)
@@ -379,7 +437,7 @@ function OccupantSelector({
       ? `No campers selected — optional for checks, required for booking`
       : 'Select campers to enable booking'
 
-  if (isLoading) return <p className="text-xs text-muted-foreground">Loading campers…</p>
+  if (loading) return <p className="text-xs text-muted-foreground">Loading campers...</p>
 
   if (roster.length === 0) {
     return (
@@ -396,21 +454,35 @@ function OccupantSelector({
       <div className="space-y-1 max-h-48 overflow-y-auto rounded-md border p-1">
         {roster.map((o: Occupant) => {
           const checked = selectedIds.includes(o.id)
+          const missing = getMissingOccupantFields(o, adapter)
+          const adapterSummary = formatOccupantAdapterSummary(o, adapter)
           return (
             <label
               key={o.id}
-              className={`flex items-center gap-2.5 rounded px-2 py-1.5 cursor-pointer text-sm
+              className={`flex items-start gap-2.5 rounded px-2 py-1.5 cursor-pointer text-sm
                 ${checked ? 'bg-primary/10' : 'hover:bg-muted'}`}
             >
               <input
                 type="checkbox"
                 checked={checked}
                 onChange={() => toggle(o.id)}
-                className="accent-primary"
+                className="mt-0.5 accent-primary"
               />
-              <span className="font-medium">{o.first_name} {o.last_name}</span>
-              <span className="text-muted-foreground text-xs">
-                {o.age}y · {o.category}
+              <span className="min-w-0">
+                <span className="font-medium">{o.first_name} {o.last_name}</span>
+                <span className="block text-muted-foreground text-xs">
+                  {o.age}y · {o.gender} · {o.country}
+                </span>
+                {adapterSummary && (
+                  <span className="block text-muted-foreground text-xs">
+                    {adapterSummary}
+                  </span>
+                )}
+                {missing.length > 0 && (
+                  <span className="block text-[11px] text-amber-700">
+                    Missing {adapter?.name}: {missing.join(', ')}
+                  </span>
+                )}
               </span>
             </label>
           )
@@ -419,6 +491,11 @@ function OccupantSelector({
       <p className="text-xs text-muted-foreground">
         {countLabel}
       </p>
+      {adapter && adapter.occupant_fields.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {adapter.name} also needs camper details: {adapter.occupant_fields.map(field => field.label).join(', ')}.
+        </p>
+      )}
     </div>
   )
 }
@@ -616,7 +693,7 @@ function JobFormBody({
     queryFn: adaptersApi.list,
   })
 
-  const { data: roster = [] } = useQuery({
+  const { data: roster = [], isLoading: occupantsLoading } = useQuery({
     queryKey: ['occupants'],
     queryFn: occupantsApi.list,
   })
@@ -628,6 +705,24 @@ function JobFormBody({
   const selectedAdapter = adapters.find(a => a.adapter_id === selectedAdapterId)
   const hasCredentialsForSelectedAdapter = !selectedAdapter?.requires_credentials
     || credentials.some((credential) => credential.adapter_id === selectedAdapterId)
+  const selectedRosterOccupants = selectedOccupantIds
+    .map(id => roster.find((occupant: Occupant) => occupant.id === id))
+    .filter((occupant): occupant is Occupant => Boolean(occupant))
+  const selectedOccupantsMissingFromRoster = (
+    selectedRosterOccupants.length !== selectedOccupantIds.length
+  )
+  const selectedOccupantFieldIssues = selectedAdapter
+    ? selectedRosterOccupants
+      .map((occupant) => ({
+        occupant,
+        missing: getMissingOccupantFields(occupant, selectedAdapter),
+      }))
+      .filter((issue) => issue.missing.length > 0)
+    : []
+  const selectedOccupantDetailsComplete = (
+    !selectedOccupantsMissingFromRoster
+    && selectedOccupantFieldIssues.length === 0
+  )
   const selectedOccupantCount = selectedOccupantIds.length
   const selectedOccupantsPresent = selectedOccupantCount > 0
   const enteredPeopleCount = parseInt(String(params.people ?? '0'), 10)
@@ -648,10 +743,20 @@ function JobFormBody({
   }, [initialJob, mode, params, selectedAdapter])
 
   useEffect(() => {
-    if ((!selectedOccupantsPresent || !hasCredentialsForSelectedAdapter) && autoBook) {
+    if (
+      (!selectedOccupantsPresent
+        || !hasCredentialsForSelectedAdapter
+        || !selectedOccupantDetailsComplete)
+      && autoBook
+    ) {
       setAutoBook(false)
     }
-  }, [selectedOccupantsPresent, hasCredentialsForSelectedAdapter, autoBook])
+  }, [
+    selectedOccupantsPresent,
+    hasCredentialsForSelectedAdapter,
+    selectedOccupantDetailsComplete,
+    autoBook,
+  ])
 
   const resolveOptions = (
     field: ParamField,
@@ -791,16 +896,22 @@ function JobFormBody({
       setError('Save a sign-in for this booking site before enabling auto-book')
       return
     }
+    if (selectedOccupantsPresent && selectedOccupantsMissingFromRoster) {
+      setError('Some selected campers could not be found — please re-select')
+      return
+    }
+    if (selectedOccupantsPresent && !selectedOccupantDetailsComplete) {
+      const issue = selectedOccupantFieldIssues[0]
+      setError(
+        `${issue.occupant.first_name} ${issue.occupant.last_name} is missing ${selectedAdapter.name} details: ${issue.missing.join(', ')}`
+      )
+      return
+    }
 
     if (selectedOccupantsPresent) {
-      const snapshotOccupants = selectedOccupantIds
-        .map(id => roster.find((o: Occupant) => o.id === id))
-        .filter(Boolean)
-      if (snapshotOccupants.length !== selectedOccupantIds.length) {
-        setError('Some selected campers could not be found — please re-select')
-        return
-      }
-      parsedParams.occupants = snapshotOccupants
+      parsedParams.occupants = selectedRosterOccupants.map((occupant) => (
+        buildOccupantSnapshot(occupant, selectedAdapter)
+      ))
     } else {
       parsedParams.occupants = []
     }
@@ -938,9 +1049,12 @@ function JobFormBody({
                         Campers
                       </ParamLabel>
                       <OccupantSelector
+                        roster={roster}
+                        adapter={selectedAdapter}
                         selectedIds={selectedOccupantIds}
                         onChange={setSelectedOccupantIds}
                         peopleCount={effectivePeopleCount}
+                        loading={occupantsLoading}
                       />
                     </div>
                   )
@@ -1000,11 +1114,20 @@ function JobFormBody({
                       checked={autoBook}
                       onCheckedChange={setAutoBook}
                       id="auto-book"
-                      disabled={!selectedOccupantsPresent || !hasCredentialsForSelectedAdapter}
+                      disabled={
+                        !selectedOccupantsPresent
+                        || !hasCredentialsForSelectedAdapter
+                        || !selectedOccupantDetailsComplete
+                      }
                     />
                     {!selectedOccupantsPresent && (
                       <p className="max-w-56 text-xs text-muted-foreground">
                         Select campers to enable auto-book.
+                      </p>
+                    )}
+                    {selectedOccupantsPresent && !selectedOccupantDetailsComplete && (
+                      <p className="max-w-56 text-xs text-muted-foreground">
+                        Fill the required camper details for {selectedAdapter.name} before enabling auto-book.
                       </p>
                     )}
                     {selectedOccupantsPresent && !hasCredentialsForSelectedAdapter && (

@@ -61,6 +61,16 @@ class ParamField:
     options_tree: list[dict] | None = None
 
 
+@dataclass
+class OccupantField:
+    key: str
+    label: str
+    type: str
+    options: list[str] | None = None
+    default: Any = None
+    required: bool = True
+
+
 class BaseAdapter(ABC):
     adapter_id: str
     name: str
@@ -93,6 +103,11 @@ class BaseAdapter(ABC):
     def param_fields(cls) -> list[ParamField]:
         """Define the params schema — used by the frontend to render the config form."""
         ...
+
+    @classmethod
+    def occupant_fields(cls) -> list[OccupantField]:
+        """Define any adapter-specific occupant fields used during booking."""
+        return []
 
     @abstractmethod
     async def fill_form(self, page: Page, params: dict) -> None:

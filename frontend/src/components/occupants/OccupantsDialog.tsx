@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Trash2, Plus, X } from 'lucide-react'
-import { occupantsApi, type Occupant, type OccupantCreate } from '@/lib/api'
+import {
+  adaptersApi,
+  occupantsApi,
+  type AdapterInfo,
+  type Occupant,
+  type OccupantCreate,
+  type ParamField,
+} from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,47 +23,147 @@ import { SectionHeading } from '@/components/ui/section-heading'
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say']
 
-const CATEGORY_OPTIONS = [
-  'NZ Adult (18+)',
-  'NZ Child (5-17)',
-  'International Adult (18+)',
-  'International Child (5-17)',
-]
-
 const EMPTY_FORM: OccupantCreate = {
   first_name: '',
   last_name: '',
   age: 0,
   gender: '',
   country: '',
-  category: '',
+  adapter_values: {},
+}
+
+function isBlankValue(value: unknown): boolean {
+  if (value == null) return true
+  if (typeof value === 'string') return value.trim().length === 0
+  if (Array.isArray(value)) return value.length === 0
+  return false
+}
+
+function summarizeAdapterValues(
+  occupant: Occupant,
+  adaptersById: Map<string, AdapterInfo>,
+): string[] {
+  return Object.entries(occupant.adapter_values)
+    .map(([adapterId, values]) => {
+      const adapter = adaptersById.get(adapterId)
+      if (!adapter) return null
+      const parts = adapter.occupant_fields
+        .map((field) => {
+          const value = values[field.key]
+          return isBlankValue(value) ? null : `${field.label}: ${String(value)}`
+        })
+        .filter((value): value is string => Boolean(value))
+      if (parts.length === 0) return null
+      return `${adapter.name} - ${parts.join(' · ')}`
+    })
+    .filter((value): value is string => Boolean(value))
+}
+
+function OccupantExtraFieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: ParamField
+  value: unknown
+  onChange: (value: string | number) => void
+}) {
+  if (field.type === 'select') {
+    return (
+      <Select value={String(value ?? '')} onValueChange={onChange}>
+        <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+        <SelectContent>
+          {(field.options ?? []).map(option => (
+            <SelectItem key={option} value={option}>{option}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+
+  if (field.type === 'number') {
+    return (
+      <Input
+        type="number"
+        value={String(value ?? '')}
+        onChange={event => onChange(parseInt(event.target.value, 10) || 0)}
+      />
+    )
+  }
+
+  return (
+    <Input
+      value={String(value ?? '')}
+      onChange={event => onChange(event.target.value)}
+    />
+  )
 }
 
 function OccupantForm({
   initial,
+  adapters,
   onSave,
   onCancel,
   saving,
   error,
 }: {
   initial?: Partial<OccupantCreate>
+  adapters: AdapterInfo[]
   onSave: (data: OccupantCreate) => void
   onCancel: () => void
   saving: boolean
   error: string | null
 }) {
   const [form, setForm] = useState<OccupantCreate>({ ...EMPTY_FORM, ...initial })
+  const [localError, setLocalError] = useState<string | null>(null)
+  const adaptersWithOccupantFields = adapters.filter(adapter => adapter.occupant_fields.length > 0)
 
-  const set = (k: keyof OccupantCreate, v: string | number) =>
+  const set = (k: 'first_name' | 'last_name' | 'age' | 'gender' | 'country', v: string | number) =>
     setForm(prev => ({ ...prev, [k]: v }))
 
+  const setAdapterField = (adapterId: string, key: string, value: string | number) =>
+    setForm(prev => ({
+      ...prev,
+      adapter_values: {
+        ...prev.adapter_values,
+        [adapterId]: {
+          ...(prev.adapter_values[adapterId] ?? {}),
+          [key]: value,
+        },
+      },
+    }))
+
+  const clearAdapterValues = (adapterId: string) =>
+    setForm(prev => ({
+      ...prev,
+      adapter_values: {
+        ...prev.adapter_values,
+        [adapterId]: {},
+      },
+    }))
+
   const handleSubmit = () => {
+    setLocalError(null)
     if (!form.first_name.trim()) return
     if (!form.last_name.trim()) return
     if (!form.age || form.age < 1) return
     if (!form.gender) return
     if (!form.country.trim()) return
-    if (!form.category.trim()) return
+
+    for (const adapter of adaptersWithOccupantFields) {
+      const values = form.adapter_values[adapter.adapter_id] ?? {}
+      const hasAnyValue = Object.values(values).some(value => !isBlankValue(value))
+      if (!hasAnyValue) continue
+
+      const missing = adapter.occupant_fields
+        .filter(field => field.required && isBlankValue(values[field.key]))
+        .map(field => field.label)
+      if (missing.length > 0) {
+        setLocalError(`${adapter.name} is incomplete: ${missing.join(', ')}`)
+        return
+      }
+    }
+
     onSave(form)
   }
 
@@ -104,17 +211,46 @@ function OccupantForm({
         />
       </div>
 
-      <div className="space-y-1">
-        <Label>Category <span className="text-destructive">*</span></Label>
-        <Select value={form.category} onValueChange={v => set('category', v)}>
-          <SelectTrigger><SelectValue placeholder="Select visitor type…" /></SelectTrigger>
-          <SelectContent>
-            {CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      {adaptersWithOccupantFields.map(adapter => (
+        <div
+          key={adapter.adapter_id}
+          className="space-y-3 rounded-2xl border border-border/70 bg-secondary/35 p-4"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <SectionHeading title={adapter.name} tone="body" />
+              <p className="text-xs text-muted-foreground">
+                Fill this section only if this camper will be used with {adapter.name}.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => clearAdapterValues(adapter.adapter_id)}
+            >
+              Clear
+            </Button>
+          </div>
 
-      {error && <p className="text-destructive text-xs">{error}</p>}
+          {adapter.occupant_fields.map(field => (
+            <div key={`${adapter.adapter_id}:${field.key}`} className="space-y-1">
+              <Label>
+                {field.label}
+                {field.required && <span className="text-destructive"> *</span>}
+              </Label>
+              <OccupantExtraFieldInput
+                field={field}
+                value={form.adapter_values[adapter.adapter_id]?.[field.key] ?? field.default ?? ''}
+                onChange={value => setAdapterField(adapter.adapter_id, field.key, value)}
+              />
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {(localError || error) && <p className="text-destructive text-xs">{localError || error}</p>}
 
       <div className="flex gap-2 justify-end pt-1">
         <Button variant="outline" size="sm" onClick={onCancel} disabled={saving}>
@@ -130,13 +266,17 @@ function OccupantForm({
 
 function OccupantRow({
   occupant,
+  adaptersById,
   onEdit,
   onDelete,
 }: {
   occupant: Occupant
+  adaptersById: Map<string, AdapterInfo>
   onEdit: () => void
   onDelete: () => void
 }) {
+  const adapterSummaries = summarizeAdapterValues(occupant, adaptersById)
+
   return (
     <div className="flex items-start justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm">
       <div className="min-w-0 space-y-1">
@@ -146,7 +286,9 @@ function OccupantRow({
         <p className="text-xs text-muted-foreground">
           {occupant.age}y · {occupant.gender} · {occupant.country}
         </p>
-        <p className="text-xs text-muted-foreground">{occupant.category}</p>
+        {adapterSummaries.map(summary => (
+          <p key={summary} className="text-xs text-muted-foreground">{summary}</p>
+        ))}
       </div>
       <div className="flex gap-1 shrink-0">
         <Button variant="ghost" size="sm" className="size-7 p-0" onClick={onEdit}>
@@ -186,6 +328,12 @@ export function OccupantsDialog({
     queryFn: occupantsApi.list,
     enabled: open,
   })
+  const { data: adapters = [] } = useQuery({
+    queryKey: ['adapters'],
+    queryFn: adaptersApi.list,
+    enabled: open,
+  })
+  const adaptersById = new Map(adapters.map(adapter => [adapter.adapter_id, adapter]))
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['occupants'] })
 
@@ -256,6 +404,7 @@ export function OccupantsDialog({
                   <OccupantRow
                     key={o.id}
                     occupant={o}
+                    adaptersById={adaptersById}
                     onEdit={() => startEdit(o)}
                     onDelete={() => handleDelete(o)}
                   />
@@ -286,7 +435,9 @@ export function OccupantsDialog({
                     </div>
                   </div>
                   <OccupantForm
+                    key={editing.mode === 'edit' ? editing.occupant.id : 'new'}
                     initial={editing.mode === 'edit' ? editing.occupant : undefined}
+                    adapters={adapters}
                     saving={saving}
                     error={formError}
                     onCancel={cancelForm}

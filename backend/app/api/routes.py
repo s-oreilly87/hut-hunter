@@ -1,9 +1,10 @@
 import json
 import logging
 from datetime import timedelta
-from typing import List
+from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from arq.connections import RedisSettings, create_pool
@@ -38,13 +39,19 @@ from app.models.job import (
     utcnow,
 )
 from app.models.session import CartSession
-from app.models.occupant import Occupant, OccupantCreate, OccupantRead, OccupantUpdate
+from app.models.occupant import (
+    AdapterOccupant,
+    Occupant,
+    OccupantCreate,
+    OccupantRead,
+    OccupantUpdate,
+)
 from app.models.notification import (
     UserNotificationSettingsRead,
     UserNotificationSettingsUpdate,
 )
 from app.models.user import AppUser
-from app.adapters import adapter_requires_credentials, list_adapters
+from app.adapters import adapter_requires_credentials, get_adapter, list_adapters
 
 # Minimum interval the UI should permit (matches the form's min=1). Enforced
 # at the API layer as well so programmatic callers can't set e.g. 0 and cause
@@ -70,6 +77,221 @@ def _check_job_arq_id(job_id: str) -> str:
 def _params_have_occupants(params: dict) -> bool:
     occupants = params.get("occupants")
     return isinstance(occupants, list) and len(occupants) > 0
+
+
+def _value_present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return len(value) > 0
+    if isinstance(value, dict):
+        return len(value) > 0
+    return True
+
+
+def _occupant_display_name(occupant: dict[str, Any], index: int) -> str:
+    first = str(occupant.get("first_name", "")).strip()
+    last = str(occupant.get("last_name", "")).strip()
+    full = f"{first} {last}".strip()
+    return full or f"Occupant {index + 1}"
+
+
+def _validate_adapter_values_payload(
+    adapter_values: dict[str, dict[str, Any]] | None,
+) -> dict[str, dict[str, Any]]:
+    if adapter_values is None:
+        return {}
+    if not isinstance(adapter_values, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="adapter_values must be an object keyed by adapter ID.",
+        )
+
+    normalized: dict[str, dict[str, Any]] = {}
+    for adapter_id, raw_values in adapter_values.items():
+        if not isinstance(adapter_id, str) or not adapter_id.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="adapter_values keys must be non-empty adapter IDs.",
+            )
+        if not isinstance(raw_values, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"adapter_values.{adapter_id} must be an object.",
+            )
+
+        try:
+            adapter = get_adapter(adapter_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        fields = adapter.__class__.occupant_fields()
+        fields_by_key = {field.key: field for field in fields}
+        cleaned: dict[str, Any] = {}
+
+        for field_key, value in raw_values.items():
+            field = fields_by_key.get(field_key)
+            if field is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"{adapter.name} does not define an occupant field "
+                        f"named '{field_key}'."
+                    ),
+                )
+            if not _value_present(value):
+                continue
+            if field.options and str(value) not in field.options:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"{adapter.name} occupant field '{field.label}' must be "
+                        "one of the configured options."
+                    ),
+                )
+            cleaned[field_key] = value
+
+        if not cleaned:
+            continue
+
+        missing = [
+            field.label
+            for field in fields
+            if field.required and not _value_present(cleaned.get(field.key))
+        ]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{adapter.name} occupant details are incomplete: "
+                    f"{', '.join(missing)}."
+                ),
+            )
+
+        normalized[adapter_id] = cleaned
+
+    return normalized
+
+
+def _validate_job_occupants_for_adapter(adapter_id: str, params: dict) -> None:
+    occupants = params.get("occupants")
+    if not isinstance(occupants, list) or not occupants:
+        return
+
+    try:
+        adapter = get_adapter(adapter_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    fields = adapter.__class__.occupant_fields()
+    if not fields:
+        return
+
+    problems: list[str] = []
+    for index, occupant in enumerate(occupants):
+        if not isinstance(occupant, dict):
+            problems.append(f"Occupant {index + 1} (invalid payload)")
+            continue
+
+        missing = [
+            field.label
+            for field in fields
+            if field.required and not _value_present(occupant.get(field.key))
+        ]
+        invalid = [
+            field.label
+            for field in fields
+            if _value_present(occupant.get(field.key))
+            and field.options
+            and str(occupant.get(field.key)) not in field.options
+        ]
+        if missing or invalid:
+            reasons: list[str] = []
+            if missing:
+                reasons.append(f"missing {', '.join(missing)}")
+            if invalid:
+                reasons.append(f"invalid {', '.join(invalid)}")
+            problems.append(
+                f"{_occupant_display_name(occupant, index)} ({'; '.join(reasons)})"
+            )
+
+    if problems:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Selected occupants are missing required {adapter.name} details: "
+                + "; ".join(problems)
+                + "."
+            ),
+        )
+
+
+async def _load_adapter_values_by_occupant_id(
+    session: AsyncSession,
+    occupant_ids: list[str],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    if not occupant_ids:
+        return {}
+
+    result = await session.execute(
+        select(AdapterOccupant)
+        .where(AdapterOccupant.occupant_id.in_(occupant_ids))
+        .order_by(AdapterOccupant.adapter_id)
+    )
+    by_occupant_id: dict[str, dict[str, dict[str, Any]]] = {}
+    for record in result.scalars().all():
+        extra_fields = (
+            record.extra_fields if isinstance(record.extra_fields, dict) else {}
+        )
+        by_occupant_id.setdefault(record.occupant_id, {})[record.adapter_id] = extra_fields
+    return by_occupant_id
+
+
+def _serialize_occupant_from_values(
+    occupant: Occupant,
+    adapter_values: dict[str, dict[str, Any]] | None = None,
+) -> OccupantRead:
+    return OccupantRead(
+        id=occupant.id,
+        first_name=occupant.first_name,
+        last_name=occupant.last_name,
+        age=occupant.age,
+        gender=occupant.gender,
+        country=occupant.country,
+        adapter_values=adapter_values or {},
+        created_at=as_utc(occupant.created_at),
+    )
+
+
+async def _serialize_occupant(
+    session: AsyncSession,
+    occupant: Occupant,
+) -> OccupantRead:
+    adapter_values = await _load_adapter_values_by_occupant_id(session, [occupant.id])
+    return _serialize_occupant_from_values(
+        occupant,
+        adapter_values.get(occupant.id, {}),
+    )
+
+
+async def _replace_adapter_values_for_occupant(
+    session: AsyncSession,
+    occupant_id: str,
+    adapter_values: dict[str, dict[str, Any]],
+) -> None:
+    await session.execute(
+        delete(AdapterOccupant).where(AdapterOccupant.occupant_id == occupant_id)
+    )
+    for adapter_id, extra_fields in adapter_values.items():
+        session.add(
+            AdapterOccupant(
+                occupant_id=occupant_id,
+                adapter_id=adapter_id,
+                extra_fields=extra_fields,
+            )
+        )
 
 
 
@@ -229,6 +451,8 @@ async def create_job(
             status_code=409,
             detail="Stored booking credentials are required before auto-book can be enabled.",
         )
+    if _params_have_occupants(body.params):
+        _validate_job_occupants_for_adapter(body.adapter_id, body.params)
 
     job = WatchJob(
         user_id=current_user.id,
@@ -320,6 +544,9 @@ async def update_job(
     next_params = patch["params"] if "params" in patch else json.loads(job.params)
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
 
+    if "params" in patch and _params_have_occupants(next_params):
+        _validate_job_occupants_for_adapter(job.adapter_id, next_params)
+
     if "name" in patch:
         job.name = patch["name"]
     if "auto_book" in patch:
@@ -336,6 +563,8 @@ async def update_job(
                 status_code=409,
                 detail="Stored booking credentials are required before auto-book can be enabled.",
             )
+        if patch["auto_book"]:
+            _validate_job_occupants_for_adapter(job.adapter_id, next_params)
         job.auto_book = patch["auto_book"]
     if "params" in patch:
         job.params = json.dumps(patch["params"])
@@ -579,6 +808,7 @@ async def book_job(
             status_code=409,
             detail="Occupants are required on this job before booking can start.",
         )
+    _validate_job_occupants_for_adapter(job.adapter_id, params)
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
     if not _job_has_required_credentials(job.adapter_id, configured_adapter_ids):
         raise HTTPException(
@@ -840,7 +1070,18 @@ async def list_occupants(
         .where(Occupant.user_id == current_user.id)
         .order_by(Occupant.created_at)
     )
-    return result.scalars().all()
+    occupants = result.scalars().all()
+    adapter_values = await _load_adapter_values_by_occupant_id(
+        session,
+        [occupant.id for occupant in occupants],
+    )
+    return [
+        _serialize_occupant_from_values(
+            occupant,
+            adapter_values.get(occupant.id, {}),
+        )
+        for occupant in occupants
+    ]
 
 
 @router.post("/occupants", response_model=OccupantRead, status_code=201)
@@ -849,11 +1090,15 @@ async def create_occupant(
     session: AsyncSession = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
 ):
-    occupant = Occupant(user_id=current_user.id, **body.model_dump())
+    payload = body.model_dump()
+    adapter_values = _validate_adapter_values_payload(payload.pop("adapter_values", {}))
+    occupant = Occupant(user_id=current_user.id, **payload)
     session.add(occupant)
+    await session.flush()
+    await _replace_adapter_values_for_occupant(session, occupant.id, adapter_values)
     await session.commit()
     await session.refresh(occupant)
-    return occupant
+    return await _serialize_occupant(session, occupant)
 
 
 @router.patch("/occupants/{occupant_id}", response_model=OccupantRead)
@@ -864,12 +1109,18 @@ async def update_occupant(
     current_user: AppUser = Depends(get_current_user),
 ):
     occupant = await _get_owned_occupant(session, current_user.id, occupant_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
+    patch = body.model_dump(exclude_unset=True)
+    adapter_values = None
+    if "adapter_values" in patch:
+        adapter_values = _validate_adapter_values_payload(patch.pop("adapter_values"))
+    for field, value in patch.items():
         setattr(occupant, field, value)
     session.add(occupant)
+    if adapter_values is not None:
+        await _replace_adapter_values_for_occupant(session, occupant.id, adapter_values)
     await session.commit()
     await session.refresh(occupant)
-    return occupant
+    return await _serialize_occupant(session, occupant)
 
 
 @router.delete("/occupants/{occupant_id}", status_code=204)
@@ -879,6 +1130,9 @@ async def delete_occupant(
     current_user: AppUser = Depends(get_current_user),
 ):
     occupant = await _get_owned_occupant(session, current_user.id, occupant_id)
+    await session.execute(
+        delete(AdapterOccupant).where(AdapterOccupant.occupant_id == occupant.id)
+    )
     await session.delete(occupant)
     await session.commit()
     return None

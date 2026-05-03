@@ -37,6 +37,7 @@ def list_adapters() -> list[dict]:
             "adapter_id": cls.adapter_id,
             "name": cls.name,
             "param_fields": [f.__dict__ for f in cls.param_fields()],
+            "occupant_fields": [f.__dict__ for f in cls.occupant_fields()],
             "requires_credentials": cls.requires_credentials,
             # Expiry metadata — None means the adapter has no booking cutoff.
             # Consumed by the frontend for date validation and by the worker
