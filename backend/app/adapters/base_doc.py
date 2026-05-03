@@ -17,6 +17,7 @@ from datetime import datetime, time, timedelta
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from app.adapters.base import BaseAdapter, BookingResult
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.job import utcnow
 

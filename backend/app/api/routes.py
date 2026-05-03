@@ -17,6 +17,10 @@ from app.core.adapter_credentials import (
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.crypto import decrypt
+from app.core.notification_settings import (
+    get_user_notification_settings_read,
+    upsert_user_notification_settings,
+)
 from app.models.credential import (
     AdapterCredential,
     AdapterCredentialRead,
@@ -35,6 +39,10 @@ from app.models.job import (
 )
 from app.models.session import CartSession
 from app.models.occupant import Occupant, OccupantCreate, OccupantRead, OccupantUpdate
+from app.models.notification import (
+    UserNotificationSettingsRead,
+    UserNotificationSettingsUpdate,
+)
 from app.models.user import AppUser
 from app.adapters import adapter_requires_credentials, list_adapters
 
@@ -67,8 +75,8 @@ def _params_have_occupants(params: dict) -> bool:
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
-# Top-level (non-prefixed) routes. /pay/{job_id} is linked from Gotify push
-# notifications, so it lives outside /api/v1 to keep the URL short and stable.
+# Top-level (non-prefixed) routes. /pay/{job_id} is linked from notification
+# payloads, so it lives outside /api/v1 to keep the URL short and stable.
 public_router = APIRouter(tags=["public"])
 
 @router.get("/adapters")
@@ -670,6 +678,40 @@ async def delete_credential(
     await session.delete(credential)
     await session.commit()
     return None
+
+
+# ---------------------------------------------------------------------------
+# Notification settings — encrypted per-user email/Gotify delivery targets
+# ---------------------------------------------------------------------------
+
+@router.get("/notifications", response_model=UserNotificationSettingsRead)
+async def get_notification_settings(
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+):
+    return await get_user_notification_settings_read(session, current_user.id)
+
+
+@router.put("/notifications", response_model=UserNotificationSettingsRead)
+async def update_notification_settings(
+    body: UserNotificationSettingsUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+):
+    try:
+        await upsert_user_notification_settings(
+            session,
+            user_id=current_user.id,
+            email_enabled=body.email_enabled,
+            email_address=body.email_address,
+            gotify_enabled=body.gotify_enabled,
+            gotify_url=body.gotify_url,
+            gotify_token=body.gotify_token,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return await get_user_notification_settings_read(session, current_user.id)
 
 
 # ---------------------------------------------------------------------------

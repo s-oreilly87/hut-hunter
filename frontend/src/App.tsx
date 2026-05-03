@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   ArrowLeft,
+  BellRing,
   Check,
   ChevronDown,
   Clock3,
@@ -22,6 +23,7 @@ import { JobList } from '@/components/jobs/JobList'
 import { JobCard } from '@/components/jobs/JobCard'
 import { AuthScreen } from '@/components/auth/AuthScreen'
 import { CredentialsDialog } from '@/components/credentials/CredentialsDialog'
+import { NotificationsDialog } from '@/components/notifications/NotificationsDialog'
 import {
   type JobFilterKey,
   JOB_FILTERS,
@@ -100,6 +102,7 @@ function AppHeader({
   logoutPending,
   onOpenOccupants,
   onOpenCredentials,
+  onOpenNotifications,
   onCreateJob,
 }: {
   userEmail: string
@@ -107,6 +110,7 @@ function AppHeader({
   logoutPending: boolean
   onOpenOccupants: () => void
   onOpenCredentials: () => void
+  onOpenNotifications: () => void
   onCreateJob: () => void
 }) {
   return (
@@ -119,6 +123,7 @@ function AppHeader({
             logoutPending={logoutPending}
             onOpenOccupants={onOpenOccupants}
             onOpenCredentials={onOpenCredentials}
+            onOpenNotifications={onOpenNotifications}
             onCreateJob={onCreateJob}
             onLogout={onLogout}
           />
@@ -144,6 +149,7 @@ function AccountMenu({
   logoutPending,
   onOpenOccupants,
   onOpenCredentials,
+  onOpenNotifications,
   onCreateJob,
   onLogout,
 }: {
@@ -151,6 +157,7 @@ function AccountMenu({
   logoutPending: boolean
   onOpenOccupants: () => void
   onOpenCredentials: () => void
+  onOpenNotifications: () => void
   onCreateJob: () => void
   onLogout: () => void
 }) {
@@ -201,6 +208,14 @@ function AccountMenu({
             </p>
           </div>
           <div className="p-1.5">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary/70"
+              onClick={() => runAction(onOpenNotifications)}
+            >
+              <BellRing className="size-4 text-muted-foreground" />
+              Notification Options
+            </button>
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary/70"
@@ -669,6 +684,8 @@ type AppViewProps = {
   setOccupantsOpen: (open: boolean) => void
   credentialsOpen: boolean
   setCredentialsOpen: (open: boolean) => void
+  notificationsOpen: boolean
+  setNotificationsOpen: (open: boolean) => void
   hasOccupants: boolean
   missingCredentialCount: number
 }
@@ -693,6 +710,8 @@ function DesktopApp({
   setOccupantsOpen,
   credentialsOpen,
   setCredentialsOpen,
+  notificationsOpen,
+  setNotificationsOpen,
   hasOccupants,
   missingCredentialCount,
 }: AppViewProps) {
@@ -704,6 +723,7 @@ function DesktopApp({
         logoutPending={logoutPending}
         onOpenOccupants={() => setOccupantsOpen(true)}
         onOpenCredentials={() => setCredentialsOpen(true)}
+        onOpenNotifications={() => setNotificationsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
 
@@ -752,6 +772,7 @@ function DesktopApp({
       </div>
 
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
+      <NotificationsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} />
       <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} />
 
       <CreateJobDialog
@@ -798,6 +819,8 @@ function MobileApp({
   setOccupantsOpen,
   credentialsOpen,
   setCredentialsOpen,
+  notificationsOpen,
+  setNotificationsOpen,
   hasOccupants,
   missingCredentialCount,
 }: AppViewProps) {
@@ -809,6 +832,7 @@ function MobileApp({
         logoutPending={logoutPending}
         onOpenOccupants={() => setOccupantsOpen(true)}
         onOpenCredentials={() => setCredentialsOpen(true)}
+        onOpenNotifications={() => setNotificationsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
 
@@ -897,6 +921,7 @@ function MobileApp({
       </div>
 
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
+      <NotificationsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} />
       <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} />
       <MobilePrimaryNav route={route} navigate={navigate} />
     </div>
@@ -945,6 +970,7 @@ function AuthenticatedApp({
   const [statusFilters, setStatusFilters] = useState<JobFilterKey[]>([])
   const [occupantsOpen, setOccupantsOpen] = useState(false)
   const [credentialsOpen, setCredentialsOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
 
   const { data: occupants = [] } = useQuery({
     queryKey: ['occupants'],
@@ -1147,6 +1173,8 @@ function AuthenticatedApp({
     setOccupantsOpen,
     credentialsOpen,
     setCredentialsOpen,
+    notificationsOpen,
+    setNotificationsOpen,
     hasOccupants,
     missingCredentialCount,
   }

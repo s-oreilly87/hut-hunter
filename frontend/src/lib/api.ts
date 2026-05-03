@@ -169,6 +169,24 @@ export interface AdapterCredentialUpsert {
   password?: string | null
 }
 
+export interface NotificationSettings {
+  email_enabled: boolean
+  email_configured: boolean
+  email_address: string | null
+  gotify_enabled: boolean
+  gotify_configured: boolean
+  gotify_url: string | null
+  gotify_has_token: boolean
+}
+
+export interface UpdateNotificationSettingsDto {
+  email_enabled?: boolean
+  email_address?: string | null
+  gotify_enabled?: boolean
+  gotify_url?: string | null
+  gotify_token?: string | null
+}
+
 export const adaptersApi = {
   list: () => api.get<AdapterInfo[]>('/adapters').then(r => r.data),
 }
@@ -204,6 +222,12 @@ export const credentialsApi = {
   upsert: (adapterId: string, data: AdapterCredentialUpsert) =>
     api.put<AdapterCredential>(`/credentials/${adapterId}`, data).then(r => r.data),
   remove: (adapterId: string) => api.delete(`/credentials/${adapterId}`),
+}
+
+export const notificationsApi = {
+  get: () => api.get<NotificationSettings>('/notifications').then(r => r.data),
+  update: (data: UpdateNotificationSettingsDto) =>
+    api.put<NotificationSettings>('/notifications', data).then(r => r.data),
 }
 
 export const jobsApi = {
