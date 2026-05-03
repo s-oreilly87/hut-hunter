@@ -155,6 +155,7 @@ class WatchJobRead(SQLModel):
     params: dict                       # deserialize back to dict for response
     status: str                        # JobStatus enum value (see above)
     auto_book: bool
+    credentials_configured: bool
     enable_monitoring: bool
     interval_minutes: int
     next_check_at: Optional[datetime]
@@ -175,6 +176,7 @@ class WatchJobRead(SQLModel):
         job: WatchJob,
         *,
         cart_expires_at: Optional[datetime] = None,
+        credentials_configured: bool = True,
     ) -> "WatchJobRead":
         raw = json.loads(job.last_result) if job.last_result else None
         if isinstance(raw, list):
@@ -241,6 +243,7 @@ class WatchJobRead(SQLModel):
             params=parsed_params,
             status=effective_status,
             auto_book=job.auto_book,
+            credentials_configured=credentials_configured,
             enable_monitoring=job.enable_monitoring,
             interval_minutes=job.interval_minutes,
             next_check_at=as_optional_utc(job.next_check_at),

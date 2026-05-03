@@ -18,13 +18,28 @@ export type JobHeaderField = {
   tags?: string[]
 }
 
+function parseDateParts(value: string): { day: number; month: number; year: number } | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [year, month, day] = trimmed.split('-').map(Number)
+    if ([day, month, year].some(Number.isNaN)) return null
+    return { day, month, year }
+  }
+
+  const parts = trimmed.split('/')
+  if (parts.length !== 3) return null
+  const [day, month, year] = parts.map(Number)
+  if ([day, month, year].some(Number.isNaN)) return null
+  return { day, month, year }
+}
+
 export function formatDateLabel(value: unknown): string | null {
   if (typeof value !== 'string' || !value.trim()) return null
-  const parts = value.split('/')
-  if (parts.length !== 3) return value
-  const [dd, mm, yyyy] = parts.map(Number)
-  if ([dd, mm, yyyy].some(Number.isNaN)) return value
-  return new Date(yyyy, mm - 1, dd).toLocaleDateString(undefined, {
+  const parsed = parseDateParts(value)
+  if (!parsed) return value
+  return new Date(parsed.year, parsed.month - 1, parsed.day).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',

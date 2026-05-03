@@ -54,6 +54,7 @@ export function BookButton({
   const showBooking = isPendingLocal || mutation.isPending
   const stale = isCheckStale(job.last_checked_at)
   const missingOccupants = !jobHasOccupants(job)
+  const missingCredentials = !job.credentials_configured
 
   const isTerminal = job.status === 'booking_complete' || job.status === 'expired'
   const holdExpired = hasHoldExpired(job)
@@ -103,6 +104,8 @@ export function BookButton({
   // Disabled buttons do not expose hover state, so the stale explanation lives on the wrapper.
   const disabledReason = missingOccupants
     ? 'Occupants are required on this job before booking can start'
+    : missingCredentials
+      ? 'Stored booking credentials are required on this job before booking can start'
     : stale
       ? 'Last check was more than 30 minutes ago — trigger a new check before attempting to book'
       : null

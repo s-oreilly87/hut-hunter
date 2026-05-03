@@ -17,7 +17,6 @@ from datetime import datetime, time, timedelta
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from app.adapters.base import BaseAdapter, BookingResult
-from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.job import utcnow
 
@@ -56,6 +55,7 @@ class BaseDOCAdapter(BaseAdapter):
     cart_hold_minutes: int = 25
     cart_inactive_after_minutes: int = 15
     cart_keepalive_interval_minutes: int = 5
+    requires_credentials: bool = True
 
     # ------------------------------------------------------------------
     # Low-level Playwright helpers
@@ -82,7 +82,7 @@ class BaseDOCAdapter(BaseAdapter):
     async def _login_if_prompted(
         self, page: Page, timeout_ms: int = 10_000
     ) -> bool:
-        """If the DOC login modal appears, fill credentials from env and sign in.
+        """If the DOC login modal appears, fill bound credentials and sign in.
 
         Returns ``True`` if a login was performed, ``False`` if no modal was
         visible.  Raises ``RuntimeError`` if credentials are missing or login
@@ -100,16 +100,16 @@ class BaseDOCAdapter(BaseAdapter):
         except PlaywrightTimeoutError:
             return False
 
-        logger.info("DOC login modal detected — filling credentials from env")
+        logger.info("DOC login modal detected — filling stored user credentials")
 
-        credentials = settings.get_legacy_doc_credentials()
+        credentials = self._login_credentials
         if credentials is None:
             raise RuntimeError(
-                "DOC login modal appeared but DOC_EMAIL / DOC_PASSWORD are not set in env"
+                "DOC login modal appeared but no stored credentials are configured for this adapter"
             )
 
         await page.locator('input[placeholder="Insert Your email"]').fill(
-            credentials.email
+            credentials.username
         )
         await page.locator('input[placeholder="Insert Your password"]').fill(
             credentials.password
@@ -122,7 +122,7 @@ class BaseDOCAdapter(BaseAdapter):
         except PlaywrightTimeoutError:
             await self.snapshot(page, "login_failed")
             raise RuntimeError(
-                "DOC login modal did not close — check DOC_EMAIL / DOC_PASSWORD"
+                "DOC login modal did not close — check the stored username/password"
             )
 
         return True

@@ -689,9 +689,15 @@ function MonitoringSection({
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
               Monitoring
             </h3>
-            <Badge variant={job.auto_book ? 'default' : 'outline'}>
-              {job.auto_book ? 'Auto-book' : 'Check only'}
-            </Badge>
+            {!job.credentials_configured ? (
+              <Badge className="bg-amber-500 text-white hover:bg-amber-500">
+                No credentials
+              </Badge>
+            ) : (
+              <Badge variant={job.auto_book ? 'default' : 'outline'}>
+                {job.auto_book ? 'Auto-book' : 'Check only'}
+              </Badge>
+            )}
           </div>
           {showToggle && (
             <Button
@@ -886,6 +892,7 @@ export function JobCard({
   const displayStatus = getDisplayStatus(job, pendingBookings)
   const holdExpired = hasHoldExpired(job)
   const missingOccupants = !jobHasOccupants(job)
+  const missingCredentials = !job.credentials_configured
   const hideTrigger =
     job.status === 'booking_complete'
     || job.status === 'expired'
@@ -1096,6 +1103,13 @@ export function JobCard({
                   </p>
                 </div>
               )}
+              {missingCredentials && (
+                <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    Stored booking credentials are required on this job before booking can start. Add them from the Booking Credentials menu in the header.
+                  </p>
+                </div>
+              )}
               {jobHasPartialAvailability(job) && (
                 <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
                   <PartialAvailabilityHelp />
@@ -1131,6 +1145,13 @@ export function JobCard({
                 <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
                   <p className="text-sm text-muted-foreground">
                     Occupants are required on this job before booking can start. Add them via Edit to enable auto-book and manual booking.
+                  </p>
+                </div>
+              )}
+              {missingCredentials && (
+                <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    Stored booking credentials are required on this job before booking can start. Add them from the Booking Credentials menu in the header.
                   </p>
                 </div>
               )}

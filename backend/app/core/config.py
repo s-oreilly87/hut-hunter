@@ -1,16 +1,8 @@
-from dataclasses import dataclass
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 ROOT_DIR = BACKEND_DIR.parent
-
-
-@dataclass(frozen=True)
-class DocCredentials:
-    email: str
-    password: str
-
 
 class Settings(BaseSettings):
     app_url: str = "http://localhost:8000"
@@ -35,22 +27,11 @@ class Settings(BaseSettings):
     # assume localhost for dev; set to the Cloudflare-tunneled domain in prod.
     vnc_url: str = "http://localhost:6080"
 
-    # DOC bookings credentials — used to dismiss the login modal that appears
-    # when clicking Reserve without a valid session cookie. If unset, the hold
-    # worker will fail when the modal appears.
-    doc_email: str | None = None
-    doc_password: str | None = None
-
     model_config = SettingsConfigDict(
         env_file=str(ROOT_DIR / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
-
-    def get_legacy_doc_credentials(self) -> DocCredentials | None:
-        if not self.doc_email or not self.doc_password:
-            return None
-        return DocCredentials(email=self.doc_email, password=self.doc_password)
 
     @property
     def artifacts_dir(self) -> Path:

@@ -66,6 +66,23 @@ async def test_create_job_rejects_auto_book_without_occupants(
     assert fake_redis.calls == []
 
 
+async def test_create_job_rejects_auto_book_without_credentials(
+    client,
+    fake_redis,
+    make_job_payload,
+):
+    response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(auto_book=True),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Stored booking credentials are required before auto-book can be enabled."
+    )
+    assert fake_redis.calls == []
+
+
 async def test_jobs_are_scoped_per_user(client, make_job_payload):
     create_response = await client.post(
         "/api/v1/jobs",
@@ -112,6 +129,7 @@ async def test_get_job_surfaces_expiry_and_artifact_urls(client, seed_job, seed_
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == JobStatus.EXPIRED.value
+    assert payload["credentials_configured"] is False
     assert payload["cart_expires_at"] is not None
     assert payload["params"]["date"] == "01/01/2000"
     assert payload["last_result"] == [
@@ -238,6 +256,23 @@ async def test_update_job_removing_occupants_disables_auto_book(
     assert refreshed.auto_book is False
 
 
+async def test_update_job_rejects_auto_book_without_credentials(
+    client,
+    seed_job,
+):
+    job = await seed_job(auto_book=False)
+
+    response = await client.patch(
+        f"/api/v1/jobs/{job.id}",
+        json={"auto_book": True},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Stored booking credentials are required before auto-book can be enabled."
+    )
+
+
 async def test_delete_job_removes_cart_sessions_and_enqueues_browser_close(
     client,
     fake_redis,
@@ -334,7 +369,8 @@ async def test_trigger_job_allows_retry_after_hold_expired(
     ]
 
 
-async def test_book_job_requires_full_recent_availability(client, seed_job):
+async def test_book_job_requires_full_recent_availability(client, seed_job, seed_credential):
+    await seed_credential(adapter_id="doc_great_walk")
     job = await seed_job(
         last_result=[
             {
@@ -370,12 +406,29 @@ async def test_book_job_requires_occupants_on_job(client, seed_job, make_job_par
     )
 
 
+async def test_book_job_requires_credentials_on_job(client, seed_job):
+    job = await seed_job(
+        last_result=[
+            {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
+        ],
+    )
+
+    response = await client.post(f"/api/v1/jobs/{job.id}/book")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Stored booking credentials are required on this job before booking can start."
+    )
+
+
 async def test_book_job_enqueues_hold_worker_when_all_sites_available(
     client,
     fake_redis,
     seed_job,
+    seed_credential,
     fetch_job,
 ):
+    await seed_credential(adapter_id="doc_great_walk")
     job = await seed_job(
         last_result=[
             {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
@@ -403,9 +456,11 @@ async def test_book_job_allows_retry_after_hold_expired(
     client,
     fake_redis,
     seed_job,
+    seed_credential,
     seed_cart,
     fetch_job,
 ):
+    await seed_credential(adapter_id="doc_great_walk")
     job = await seed_job(
         status=JobStatus.HOLD_PLACED.value,
         last_result=[

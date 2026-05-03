@@ -8,6 +8,7 @@ import {
   Filter,
   Hand,
   LayoutDashboard,
+  LockKeyhole,
   LogOut,
   Plus,
   Search,
@@ -20,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { JobList } from '@/components/jobs/JobList'
 import { JobCard } from '@/components/jobs/JobCard'
 import { AuthScreen } from '@/components/auth/AuthScreen'
+import { CredentialsDialog } from '@/components/credentials/CredentialsDialog'
 import {
   type JobFilterKey,
   JOB_FILTERS,
@@ -36,7 +38,7 @@ import {
 import { OccupantsDialog } from '@/components/occupants/OccupantsDialog'
 import { Button } from '@/components/ui/button'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
-import { occupantsApi, type WatchJob } from '@/lib/api'
+import { adaptersApi, credentialsApi, occupantsApi, type WatchJob } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { type AppRoute, useAppRoute, useIsMobile } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
@@ -97,12 +99,14 @@ function AppHeader({
   onLogout,
   logoutPending,
   onOpenOccupants,
+  onOpenCredentials,
   onCreateJob,
 }: {
   userEmail: string
   onLogout: () => void
   logoutPending: boolean
   onOpenOccupants: () => void
+  onOpenCredentials: () => void
   onCreateJob: () => void
 }) {
   return (
@@ -114,6 +118,7 @@ function AppHeader({
             userEmail={userEmail}
             logoutPending={logoutPending}
             onOpenOccupants={onOpenOccupants}
+            onOpenCredentials={onOpenCredentials}
             onCreateJob={onCreateJob}
             onLogout={onLogout}
           />
@@ -138,12 +143,14 @@ function AccountMenu({
   userEmail,
   logoutPending,
   onOpenOccupants,
+  onOpenCredentials,
   onCreateJob,
   onLogout,
 }: {
   userEmail: string
   logoutPending: boolean
   onOpenOccupants: () => void
+  onOpenCredentials: () => void
   onCreateJob: () => void
   onLogout: () => void
 }) {
@@ -194,6 +201,14 @@ function AccountMenu({
             </p>
           </div>
           <div className="p-1.5">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary/70"
+              onClick={() => runAction(onOpenCredentials)}
+            >
+              <LockKeyhole className="size-4 text-muted-foreground" />
+              Booking Credentials
+            </button>
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary/70"
@@ -381,6 +396,39 @@ function OccupantsTile({ onOpen }: { onOpen: () => void }) {
   )
 }
 
+function CredentialsTile({
+  onOpen,
+  missingCount,
+}: {
+  onOpen: () => void
+  missingCount: number
+}) {
+  return (
+    <article className="app-panel flex min-h-52 flex-col px-5 py-5">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-700">
+        <LockKeyhole className="size-5" />
+      </div>
+      <div className="mt-4 flex-1">
+        <p className="text-sm font-semibold tracking-tight text-foreground">
+          Booking Credentials Missing
+        </p>
+        <p className="mt-2 text-sm leading-5 text-pretty text-muted-foreground">
+          Save your DOC login per adapter so the worker can continue from availability into the booking flow.
+          {missingCount > 1 ? ` ${missingCount} adapters still need credentials.` : ''}
+        </p>
+      </div>
+      <button
+        type="button"
+        className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-sm font-medium text-sky-800 ring-1 ring-sky-500/10 hover:bg-sky-500/14 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+        onClick={onOpen}
+      >
+        <LockKeyhole className="size-3.5" />
+        Add Credentials
+      </button>
+    </article>
+  )
+}
+
 function NoJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
   return (
     <article className="flex min-h-52 flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-8 text-center">
@@ -434,22 +482,27 @@ function StatsGrid({
   totalJobs,
   activeFilters,
   hasOccupants,
+  missingCredentialCount,
   onFilterSelect,
   onJobSelect,
   onCreateJob,
   onOpenOccupants,
+  onOpenCredentials,
 }: {
   stats: DashboardStat[]
   totalJobs: number
   activeFilters: JobFilterKey[]
   hasOccupants: boolean
+  missingCredentialCount: number
   onFilterSelect: (filterKey: JobFilterKey) => void
   onJobSelect: (filterKey: JobFilterKey, jobId: string) => void
   onCreateJob: () => void
   onOpenOccupants: () => void
+  onOpenCredentials: () => void
 }) {
   const visibleStats = stats.filter((s) => s.value > 0)
   const showOccupantsTile = !hasOccupants
+  const showCredentialsTile = missingCredentialCount > 0
   const showNoJobsTile = totalJobs === 0
 
   return (
@@ -536,6 +589,12 @@ function StatsGrid({
           <OccupantsTile onOpen={onOpenOccupants} />
         </div>
       )}
+
+      {showCredentialsTile && (
+        <div className="min-w-[220px] flex-1">
+          <CredentialsTile onOpen={onOpenCredentials} missingCount={missingCredentialCount} />
+        </div>
+      )}
     </section>
   )
 }
@@ -608,7 +667,10 @@ type AppViewProps = {
   onDashboardJobSelect: (filterKey: JobFilterKey, jobId: string) => void
   occupantsOpen: boolean
   setOccupantsOpen: (open: boolean) => void
+  credentialsOpen: boolean
+  setCredentialsOpen: (open: boolean) => void
   hasOccupants: boolean
+  missingCredentialCount: number
 }
 
 // ─── Desktop App ──────────────────────────────────────────────────────────────
@@ -629,7 +691,10 @@ function DesktopApp({
   onDashboardJobSelect,
   occupantsOpen,
   setOccupantsOpen,
+  credentialsOpen,
+  setCredentialsOpen,
   hasOccupants,
+  missingCredentialCount,
 }: AppViewProps) {
   return (
     <div className="app-shell min-h-dvh">
@@ -638,6 +703,7 @@ function DesktopApp({
         onLogout={onLogout}
         logoutPending={logoutPending}
         onOpenOccupants={() => setOccupantsOpen(true)}
+        onOpenCredentials={() => setCredentialsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
 
@@ -648,10 +714,12 @@ function DesktopApp({
             totalJobs={totalJobs}
             activeFilters={statusFilters}
             hasOccupants={hasOccupants}
+            missingCredentialCount={missingCredentialCount}
             onFilterSelect={(key) => onStatusFiltersChange([key])}
             onJobSelect={onDashboardJobSelect}
             onCreateJob={() => navigate({ name: 'create-job' })}
             onOpenOccupants={() => setOccupantsOpen(true)}
+            onOpenCredentials={() => setCredentialsOpen(true)}
           />
         </div>
 
@@ -684,6 +752,7 @@ function DesktopApp({
       </div>
 
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
+      <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} />
 
       <CreateJobDialog
         open={route.name === 'create-job'}
@@ -727,7 +796,10 @@ function MobileApp({
   onDashboardJobSelect,
   occupantsOpen,
   setOccupantsOpen,
+  credentialsOpen,
+  setCredentialsOpen,
   hasOccupants,
+  missingCredentialCount,
 }: AppViewProps) {
   return (
     <div className="app-shell min-h-dvh pb-24">
@@ -736,6 +808,7 @@ function MobileApp({
         onLogout={onLogout}
         logoutPending={logoutPending}
         onOpenOccupants={() => setOccupantsOpen(true)}
+        onOpenCredentials={() => setCredentialsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
 
@@ -746,6 +819,7 @@ function MobileApp({
             totalJobs={totalJobs}
             activeFilters={statusFilters}
             hasOccupants={hasOccupants}
+            missingCredentialCount={missingCredentialCount}
             onFilterSelect={(key) => {
               onStatusFiltersChange([key])
               navigate({ name: 'jobs' })
@@ -753,6 +827,7 @@ function MobileApp({
             onJobSelect={onDashboardJobSelect}
             onCreateJob={() => navigate({ name: 'create-job' })}
             onOpenOccupants={() => setOccupantsOpen(true)}
+            onOpenCredentials={() => setCredentialsOpen(true)}
           />
         )}
 
@@ -822,6 +897,7 @@ function MobileApp({
       </div>
 
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
+      <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} />
       <MobilePrimaryNav route={route} navigate={navigate} />
     </div>
   )
@@ -868,12 +944,27 @@ function AuthenticatedApp({
   const { data: jobs = [], isFetched } = useJobsQuery()
   const [statusFilters, setStatusFilters] = useState<JobFilterKey[]>([])
   const [occupantsOpen, setOccupantsOpen] = useState(false)
+  const [credentialsOpen, setCredentialsOpen] = useState(false)
 
   const { data: occupants = [] } = useQuery({
     queryKey: ['occupants'],
     queryFn: occupantsApi.list,
   })
+  const { data: adapters = [] } = useQuery({
+    queryKey: ['adapters'],
+    queryFn: adaptersApi.list,
+  })
+  const { data: credentials = [] } = useQuery({
+    queryKey: ['credentials'],
+    queryFn: credentialsApi.list,
+  })
   const hasOccupants = occupants.length > 0
+  const missingCredentialCount = useMemo(() => {
+    const configuredAdapterIds = new Set(credentials.map((credential) => credential.adapter_id))
+    return adapters.filter(
+      (adapter) => adapter.requires_credentials && !configuredAdapterIds.has(adapter.adapter_id),
+    ).length
+  }, [adapters, credentials])
 
   const sortedJobs = useMemo(
     () => [...jobs].sort(
@@ -1054,7 +1145,10 @@ function AuthenticatedApp({
     onDashboardJobSelect: handleDashboardJobSelect,
     occupantsOpen,
     setOccupantsOpen,
+    credentialsOpen,
+    setCredentialsOpen,
     hasOccupants,
+    missingCredentialCount,
   }
 
   if (isMobile) {

@@ -9,9 +9,19 @@ from sqlmodel import select
 from arq.connections import RedisSettings, create_pool
 
 from app.api.auth import get_current_user
+from app.core.adapter_credentials import (
+    get_adapter_credential_record,
+    get_user_configured_adapter_ids,
+    upsert_user_adapter_credentials,
+)
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.crypto import decrypt
+from app.models.credential import (
+    AdapterCredential,
+    AdapterCredentialRead,
+    AdapterCredentialUpsert,
+)
 from app.models.job import (
     JobStatus,
     WatchJob,
@@ -26,7 +36,7 @@ from app.models.job import (
 from app.models.session import CartSession
 from app.models.occupant import Occupant, OccupantCreate, OccupantRead, OccupantUpdate
 from app.models.user import AppUser
-from app.adapters import list_adapters
+from app.adapters import adapter_requires_credentials, list_adapters
 
 # Minimum interval the UI should permit (matches the form's min=1). Enforced
 # at the API layer as well so programmatic callers can't set e.g. 0 and cause
@@ -78,10 +88,51 @@ async def get_redis():
 async def _serialize_job(
     session: AsyncSession,
     job: WatchJob,
+    *,
+    configured_adapter_ids: set[str] | None = None,
 ) -> WatchJobRead:
     cart = await _latest_cart(session, job.id)
     cart_expires_at = cart.expires_at if cart is not None else None
-    return WatchJobRead.from_db(job, cart_expires_at=cart_expires_at)
+    if configured_adapter_ids is None:
+        configured_adapter_ids = await get_user_configured_adapter_ids(session, job.user_id or "")
+    try:
+        needs_credentials = adapter_requires_credentials(job.adapter_id)
+    except ValueError:
+        needs_credentials = False
+    credentials_configured = (
+        True if not needs_credentials else job.adapter_id in configured_adapter_ids
+    )
+    return WatchJobRead.from_db(
+        job,
+        cart_expires_at=cart_expires_at,
+        credentials_configured=credentials_configured,
+    )
+
+
+def _credential_record_to_read(
+    credential: AdapterCredential,
+) -> AdapterCredentialRead:
+    return AdapterCredentialRead(
+        id=credential.id,
+        adapter_id=credential.adapter_id,
+        username=decrypt(credential.encrypted_username),
+        has_password=True,
+        created_at=credential.created_at,
+        updated_at=credential.updated_at,
+    )
+
+
+def _job_has_required_credentials(
+    adapter_id: str,
+    configured_adapter_ids: set[str],
+) -> bool:
+    try:
+        return (
+            not adapter_requires_credentials(adapter_id)
+            or adapter_id in configured_adapter_ids
+        )
+    except ValueError:
+        return True
 
 
 async def _get_owned_job(
@@ -125,11 +176,19 @@ async def list_jobs(
     session: AsyncSession = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
 ):
+    configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
     result = await session.execute(
         select(WatchJob).where(WatchJob.user_id == current_user.id)
     )
     jobs = result.scalars().all()
-    return [await _serialize_job(session, job) for job in jobs]
+    return [
+        await _serialize_job(
+            session,
+            job,
+            configured_adapter_ids=configured_adapter_ids,
+        )
+        for job in jobs
+    ]
 
 
 @router.post("/jobs", response_model=WatchJobRead, status_code=201)
@@ -148,10 +207,19 @@ async def create_job(
     interval = _clamp_interval(body.interval_minutes)
     now = utcnow()
     monitoring = body.enable_monitoring
+    configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
     if body.auto_book and not _params_have_occupants(body.params):
         raise HTTPException(
             status_code=409,
             detail="Occupants are required before auto-book can be enabled.",
+        )
+    if body.auto_book and not _job_has_required_credentials(
+        body.adapter_id,
+        configured_adapter_ids,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Stored booking credentials are required before auto-book can be enabled.",
         )
 
     job = WatchJob(
@@ -193,7 +261,11 @@ async def create_job(
                 f"Failed to enqueue first check for new job {job.id}"
             )
 
-    return await _serialize_job(session, job)
+    return await _serialize_job(
+        session,
+        job,
+        configured_adapter_ids=configured_adapter_ids,
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=WatchJobRead)
@@ -203,7 +275,12 @@ async def get_job(
     current_user: AppUser = Depends(get_current_user),
 ):
     job = await _get_owned_job(session, current_user.id, job_id)
-    return await _serialize_job(session, job)
+    configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
+    return await _serialize_job(
+        session,
+        job,
+        configured_adapter_ids=configured_adapter_ids,
+    )
 
 
 @router.patch("/jobs/{job_id}", response_model=WatchJobRead)
@@ -233,6 +310,7 @@ async def update_job(
     # exclude_unset so clients can send just the keys they want to change
     patch = body.model_dump(exclude_unset=True)
     next_params = patch["params"] if "params" in patch else json.loads(job.params)
+    configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
 
     if "name" in patch:
         job.name = patch["name"]
@@ -241,6 +319,14 @@ async def update_job(
             raise HTTPException(
                 status_code=409,
                 detail="Occupants are required before auto-book can be enabled.",
+            )
+        if patch["auto_book"] and not _job_has_required_credentials(
+            job.adapter_id,
+            configured_adapter_ids,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Stored booking credentials are required before auto-book can be enabled.",
             )
         job.auto_book = patch["auto_book"]
     if "params" in patch:
@@ -314,7 +400,11 @@ async def update_job(
                 f"Failed to enqueue immediate check on monitoring-enable for {job.id}"
             )
 
-    return await _serialize_job(session, job)
+    return await _serialize_job(
+        session,
+        job,
+        configured_adapter_ids=configured_adapter_ids,
+    )
 
 
 @router.delete("/jobs/{job_id}", status_code=204)
@@ -481,6 +571,12 @@ async def book_job(
             status_code=409,
             detail="Occupants are required on this job before booking can start.",
         )
+    configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
+    if not _job_has_required_credentials(job.adapter_id, configured_adapter_ids):
+        raise HTTPException(
+            status_code=409,
+            detail="Stored booking credentials are required on this job before booking can start.",
+        )
 
     # Safety gate: require every site in the most recent check to be fully
     # available. Anything else (partial / unavailable / never checked)
@@ -513,6 +609,67 @@ async def book_job(
         _queue_name=HOLD_QUEUE_NAME,
     )
     return {"status": "enqueued", "job_id": job_id}
+
+
+# ---------------------------------------------------------------------------
+# Booking credentials — encrypted per-user adapter logins
+# ---------------------------------------------------------------------------
+
+@router.get("/credentials", response_model=list[AdapterCredentialRead])
+async def list_credentials(
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+):
+    result = await session.execute(
+        select(AdapterCredential)
+        .where(AdapterCredential.user_id == current_user.id)
+        .order_by(AdapterCredential.adapter_id)
+    )
+    return [_credential_record_to_read(credential) for credential in result.scalars().all()]
+
+
+@router.put("/credentials/{adapter_id}", response_model=AdapterCredentialRead)
+async def upsert_credential(
+    adapter_id: str,
+    body: AdapterCredentialUpsert,
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+):
+    try:
+        if not adapter_requires_credentials(adapter_id):
+            raise HTTPException(
+                status_code=400,
+                detail="This adapter does not use stored booking credentials.",
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    try:
+        credential = await upsert_user_adapter_credentials(
+            session,
+            user_id=current_user.id,
+            adapter_id=adapter_id,
+            username=body.username,
+            password=body.password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return _credential_record_to_read(credential)
+
+
+@router.delete("/credentials/{adapter_id}", status_code=204)
+async def delete_credential(
+    adapter_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+):
+    credential = await get_adapter_credential_record(session, current_user.id, adapter_id)
+    if credential is None:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    await session.delete(credential)
+    await session.commit()
+    return None
 
 
 # ---------------------------------------------------------------------------
