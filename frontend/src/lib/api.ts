@@ -127,6 +127,7 @@ export interface AdapterInfo {
   adapter_id: string
   name: string
   param_fields: ParamField[]
+  occupant_fields: ParamField[]
   requires_credentials: boolean
   // Set when the adapter has a time-bounded booking window. Used by the
   // frontend for date validation and stale-job display.
@@ -142,7 +143,7 @@ export interface Occupant {
   age: number
   gender: string
   country: string
-  category: string
+  adapter_values: Record<string, Record<string, unknown>>
   created_at: string
 }
 
@@ -152,7 +153,7 @@ export interface OccupantCreate {
   age: number
   gender: string
   country: string
-  category: string
+  adapter_values: Record<string, Record<string, unknown>>
 }
 
 export interface AdapterCredential {

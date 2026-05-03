@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from sqlmodel import Field, SQLModel
-from sqlalchemy import Column, DateTime
+from sqlalchemy import JSON, Column, DateTime, UniqueConstraint
 import uuid
 
 from app.models.job import utcnow
@@ -20,9 +20,36 @@ class Occupant(SQLModel, table=True):
     age: int
     gender: str      # "Male" | "Female" | "Non-binary" | "Prefer not to say"
     country: str     # e.g. "New Zealand"
-    category: str    # Visitor type string — adapter-specific values,
-                     # e.g. DOC: "NZ Adult (18+)", "International Child (5-17)"
     created_at: datetime = Field(
+        default_factory=utcnow,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class AdapterOccupant(SQLModel, table=True):
+    """Adapter-specific occupant values stored separately from the global roster."""
+
+    __tablename__ = "adapter_occupant"
+    __table_args__ = (
+        UniqueConstraint(
+            "occupant_id",
+            "adapter_id",
+            name="uq_adapter_occupant_occupant_id_adapter_id",
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    occupant_id: str = Field(foreign_key="occupant.id", index=True)
+    adapter_id: str = Field(index=True)
+    extra_fields: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )
+    created_at: datetime = Field(
+        default_factory=utcnow,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
         default_factory=utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
@@ -34,7 +61,7 @@ class OccupantCreate(SQLModel):
     age: int
     gender: str
     country: str
-    category: str
+    adapter_values: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 class OccupantUpdate(SQLModel):
@@ -43,7 +70,12 @@ class OccupantUpdate(SQLModel):
     age: Optional[int] = None
     gender: Optional[str] = None
     country: Optional[str] = None
-    category: Optional[str] = None
+    adapter_values: Optional[dict[str, dict[str, Any]]] = None
+
+
+class OccupantAdapterValueRead(SQLModel):
+    adapter_id: str
+    extra_fields: dict[str, Any] = Field(default_factory=dict)
 
 
 class OccupantRead(SQLModel):
@@ -53,5 +85,5 @@ class OccupantRead(SQLModel):
     age: int
     gender: str
     country: str
-    category: str
+    adapter_values: dict[str, dict[str, Any]] = Field(default_factory=dict)
     created_at: datetime

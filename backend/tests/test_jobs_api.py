@@ -83,6 +83,37 @@ async def test_create_job_rejects_auto_book_without_credentials(
     assert fake_redis.calls == []
 
 
+async def test_create_job_rejects_missing_adapter_specific_occupant_details(
+    client,
+    fake_redis,
+    make_job_params,
+    make_job_payload,
+):
+    response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(
+            params=make_job_params(
+                occupants=[
+                    {
+                        "first_name": "Alex",
+                        "last_name": "Walker",
+                        "country": "New Zealand",
+                        "age": 32,
+                        "gender": "Male",
+                    }
+                ],
+            ),
+        ),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Selected occupants are missing required DOC Great Walk details: "
+        "Alex Walker (missing Category)."
+    )
+    assert fake_redis.calls == []
+
+
 async def test_jobs_are_scoped_per_user(client, make_job_payload):
     create_response = await client.post(
         "/api/v1/jobs",
@@ -418,6 +449,39 @@ async def test_book_job_requires_credentials_on_job(client, seed_job):
     assert response.status_code == 409
     assert response.json()["detail"] == (
         "Stored booking credentials are required on this job before booking can start."
+    )
+
+
+async def test_book_job_requires_adapter_specific_occupant_details(
+    client,
+    seed_job,
+    seed_credential,
+    make_job_params,
+):
+    await seed_credential(adapter_id="doc_great_walk")
+    job = await seed_job(
+        params=make_job_params(
+            occupants=[
+                {
+                    "first_name": "Alex",
+                    "last_name": "Walker",
+                    "country": "New Zealand",
+                    "age": 32,
+                    "gender": "Male",
+                }
+            ],
+        ),
+        last_result=[
+            {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
+        ],
+    )
+
+    response = await client.post(f"/api/v1/jobs/{job.id}/book")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Selected occupants are missing required DOC Great Walk details: "
+        "Alex Walker (missing Category)."
     )
 
 
