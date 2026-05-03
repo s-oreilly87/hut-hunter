@@ -2,8 +2,20 @@ import axios from 'axios'
 
 export const api = axios.create({
   baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
+
+export interface AuthUser {
+  id: string
+  email: string
+  created_at: string
+}
+
+export interface AuthCredentials {
+  email: string
+  password: string
+}
 
 // Types matching our FastAPI schemas
 export type JobStatus =
@@ -143,6 +155,24 @@ export interface OccupantCreate {
 
 export const adaptersApi = {
   list: () => api.get<AdapterInfo[]>('/adapters').then(r => r.data),
+}
+
+export const authApi = {
+  me: async () => {
+    try {
+      return (await api.get<AuthUser>('/auth/me')).data
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        return null
+      }
+      throw error
+    }
+  },
+  register: (data: AuthCredentials) =>
+    api.post<AuthUser>('/auth/register', data).then(r => r.data),
+  login: (data: AuthCredentials) =>
+    api.post<AuthUser>('/auth/login', data).then(r => r.data),
+  logout: () => api.post('/auth/logout').then(r => r.data),
 }
 
 export const occupantsApi = {

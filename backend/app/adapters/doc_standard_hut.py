@@ -236,7 +236,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
     """
 
     adapter_id = "doc_standard_hut"
-    name = "DOC Standard Hut"
+    name = "DOC Standard Hut/Campsite"
     base_url = "https://bookings.doc.govt.nz/Web/#!park/{park_id}/{facility_id}"
 
     # ---------------------------------------------------------------- #

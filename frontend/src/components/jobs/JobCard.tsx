@@ -569,6 +569,14 @@ function getHoldFlowArtifacts(artifacts: ArtifactRecord[] | null | undefined): A
   )
 }
 
+function getCompletedBookingArtifacts(
+  holdArtifacts: ArtifactRecord[],
+  receiptArtifact: ArtifactRecord | null,
+): ArtifactRecord[] {
+  if (!receiptArtifact) return holdArtifacts
+  return [...holdArtifacts, receiptArtifact]
+}
+
 function ArtifactGallery({
   artifacts,
 }: {
@@ -895,6 +903,7 @@ export function JobCard({
       : null
   )
   const holdArtifacts = getHoldFlowArtifacts(job.artifact_history)
+  const completedArtifacts = getCompletedBookingArtifacts(holdArtifacts, receiptArtifact)
 
   return (
     <>
@@ -947,7 +956,7 @@ export function JobCard({
                   Booking flow completed at {formatDateTime(job.last_checked_at)}
                 </p>
               </div>
-              {receiptArtifact && <ArtifactGallery artifacts={[receiptArtifact]} />}
+              {completedArtifacts.length > 0 && <ArtifactGallery artifacts={completedArtifacts} />}
             </section>
           )}
 

@@ -14,6 +14,7 @@ from app.adapters.base import AvailabilityStatus, BookingResult
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notify import notify_gotify
+import app.models  # noqa: F401 - registers SQLModel metadata
 from app.models.job import JobStatus, WatchJob, is_job_expired, utcnow
 from app.models.session import CartSession
 from app.adapters import get_adapter

@@ -8,6 +8,7 @@ import {
   Filter,
   Hand,
   LayoutDashboard,
+  LogOut,
   Plus,
   Search,
   TentTree,
@@ -18,6 +19,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { JobList } from '@/components/jobs/JobList'
 import { JobCard } from '@/components/jobs/JobCard'
+import { AuthScreen } from '@/components/auth/AuthScreen'
 import {
   type JobFilterKey,
   JOB_FILTERS,
@@ -35,6 +37,7 @@ import { OccupantsDialog } from '@/components/occupants/OccupantsDialog'
 import { Button } from '@/components/ui/button'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import { occupantsApi, type WatchJob } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
 import { type AppRoute, useAppRoute, useIsMobile } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
 import { useJobsStore } from '@/store/jobs'
@@ -90,36 +93,30 @@ function NavBrand() {
 }
 
 function AppHeader({
+  userEmail,
+  onLogout,
+  logoutPending,
   onOpenOccupants,
   onCreateJob,
 }: {
+  userEmail: string
+  onLogout: () => void
+  logoutPending: boolean
   onOpenOccupants: () => void
   onCreateJob: () => void
 }) {
   return (
     <div data-sticky-header="true" className="sticky top-0 z-50 isolate">
       <div className="border-b border-border/30 bg-background/94 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <NavBrand />
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onOpenOccupants}
-              className="gap-1.5 sm:min-w-36"
-            >
-              <Users className="size-4" />
-              <span>Occupants</span>
-            </Button>
-            <Button
-              onClick={onCreateJob}
-              size="sm"
-              className="gap-1.5 sm:min-w-40"
-            >
-              <Plus className="size-4" />
-              New Watch Job
-            </Button>
-          </div>
+          <AccountMenu
+            userEmail={userEmail}
+            logoutPending={logoutPending}
+            onOpenOccupants={onOpenOccupants}
+            onCreateJob={onCreateJob}
+            onLogout={onLogout}
+          />
         </div>
       </div>
       {/* Gradient + side-vignette extending below — fades content scrolling under the header */}
@@ -133,6 +130,98 @@ function AppHeader({
           opacity: 0.88,
         }}
       />
+    </div>
+  )
+}
+
+function AccountMenu({
+  userEmail,
+  logoutPending,
+  onOpenOccupants,
+  onCreateJob,
+  onLogout,
+}: {
+  userEmail: string
+  logoutPending: boolean
+  onOpenOccupants: () => void
+  onCreateJob: () => void
+  onLogout: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [open])
+
+  const runAction = (action: () => void) => {
+    setOpen(false)
+    action()
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        className="flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-2 text-left ring-1 ring-black/5 transition hover:bg-secondary/60"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <div className="min-w-0">
+          <p className="max-w-[11rem] truncate text-sm font-medium text-foreground">
+            {userEmail}
+          </p>
+        </div>
+        <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg ring-1 ring-black/5">
+          <div className="border-b border-border/70 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+              Account
+            </p>
+            <p className="mt-1 truncate text-sm font-medium text-foreground">
+              {userEmail}
+            </p>
+          </div>
+          <div className="p-1.5">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary/70"
+              onClick={() => runAction(onOpenOccupants)}
+            >
+              <Users className="size-4 text-muted-foreground" />
+              Occupants
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary/70"
+              onClick={() => runAction(onCreateJob)}
+            >
+              <Plus className="size-4 text-muted-foreground" />
+              New Watch Job
+            </button>
+            <button
+              type="button"
+              disabled={logoutPending}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary/70 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => runAction(onLogout)}
+            >
+              <LogOut className="size-4 text-muted-foreground" />
+              {logoutPending ? 'Signing Out…' : 'Sign Out'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -316,8 +405,33 @@ function NoJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
   )
 }
 
+function CreateMoreJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
+  return (
+    <article className="flex min-h-52 flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-8 text-center">
+      <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <Plus className="size-5" />
+      </div>
+      <p className="mt-3 text-sm font-semibold tracking-tight text-foreground">
+        Create More Jobs
+      </p>
+      <p className="mt-1.5 max-w-[24ch] text-sm leading-5 text-pretty text-muted-foreground">
+        Add another watch job for a new route, date range, or accommodation type.
+      </p>
+      <button
+        type="button"
+        className="mt-4 flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/8 px-3 py-2 text-sm font-medium text-primary ring-1 ring-primary/10 hover:bg-primary/12 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        onClick={onCreateJob}
+      >
+        <Plus className="size-3.5" />
+        New Watch Job
+      </button>
+    </article>
+  )
+}
+
 function StatsGrid({
   stats,
+  totalJobs,
   activeFilters,
   hasOccupants,
   onFilterSelect,
@@ -326,6 +440,7 @@ function StatsGrid({
   onOpenOccupants,
 }: {
   stats: DashboardStat[]
+  totalJobs: number
   activeFilters: JobFilterKey[]
   hasOccupants: boolean
   onFilterSelect: (filterKey: JobFilterKey) => void
@@ -333,81 +448,87 @@ function StatsGrid({
   onCreateJob: () => void
   onOpenOccupants: () => void
 }) {
-  const visibleStats = stats.filter((s) => s.value > 1)
+  const visibleStats = stats.filter((s) => s.value > 0)
   const showOccupantsTile = !hasOccupants
-  const noJobTiles = visibleStats.length === 0
+  const showNoJobsTile = totalJobs === 0
 
   return (
     <section className="flex flex-wrap gap-3">
-      {noJobTiles ? (
+      {showNoJobsTile ? (
         <div className={cn('min-w-[220px] flex-1', !showOccupantsTile && 'basis-full')}>
           <NoJobsTile onCreateJob={onCreateJob} />
         </div>
       ) : (
-        visibleStats.map((stat) => {
-          const isActive = activeFilters.includes(stat.filterKey)
-          return (
-            <article
-              key={stat.filterKey}
-              className={cn(
-                'app-panel min-w-[180px] flex-1 px-5 py-5',
-                isActive && 'ring-2 ring-primary/25',
-              )}
-            >
-              <button
-                type="button"
-                className="flex w-full items-start justify-between gap-3 text-left"
-                onClick={() => onFilterSelect(stat.filterKey)}
+        <>
+          {visibleStats.map((stat) => {
+            const isActive = activeFilters.includes(stat.filterKey)
+            return (
+              <article
+                key={stat.filterKey}
+                className={cn(
+                  'app-panel min-w-[180px] flex-1 px-5 py-5',
+                  isActive && 'ring-2 ring-primary/25',
+                )}
               >
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {stat.label}
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-                    {stat.value}
-                  </p>
-                </div>
-                <div className={cn(
-                  'flex size-10 shrink-0 items-center justify-center rounded-2xl',
-                  isActive ? 'bg-primary/15 text-primary' : 'bg-primary/10 text-primary',
-                )}>
-                  <stat.icon className="size-5" />
-                </div>
-              </button>
-
-              <p className="mt-3 text-sm leading-5 text-pretty text-muted-foreground">
-                {stat.description}
-              </p>
-
-              <div className="mt-4 min-h-0 flex-1">
-                {stat.jobs.length > 0 ? (
-                  <div className="max-h-40 space-y-0.5 overflow-y-auto pr-0.5">
-                    {stat.jobs.map((job) => (
-                      <button
-                        key={job.id}
-                        type="button"
-                        className="block w-full truncate rounded-xl px-2 py-1.5 text-left text-sm font-medium text-foreground hover:bg-secondary/70 hover:text-primary"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onJobSelect(stat.filterKey, job.id)
-                        }}
-                        title={getJobTitle(job)}
-                      >
-                        {getJobTitle(job)}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center">
-                    <p className="text-sm text-muted-foreground">
-                      {getJobFilterDefinition(stat.filterKey).emptyLabel}
+                <button
+                  type="button"
+                  className="flex w-full items-start justify-between gap-3 text-left"
+                  onClick={() => onFilterSelect(stat.filterKey)}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {stat.label}
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-foreground">
+                      {stat.value}
                     </p>
                   </div>
-                )}
-              </div>
-            </article>
-          )
-        })
+                  <div className={cn(
+                    'flex size-10 shrink-0 items-center justify-center rounded-2xl',
+                    isActive ? 'bg-primary/15 text-primary' : 'bg-primary/10 text-primary',
+                  )}>
+                    <stat.icon className="size-5" />
+                  </div>
+                </button>
+
+                <p className="mt-3 text-sm leading-5 text-pretty text-muted-foreground">
+                  {stat.description}
+                </p>
+
+                <div className="mt-4 min-h-0 flex-1">
+                  {stat.jobs.length > 0 ? (
+                    <div className="max-h-40 space-y-0.5 overflow-y-auto pr-0.5">
+                      {stat.jobs.map((job) => (
+                        <button
+                          key={job.id}
+                          type="button"
+                          className="block w-full truncate rounded-xl px-2 py-1.5 text-left text-sm font-medium text-foreground hover:bg-secondary/70 hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onJobSelect(stat.filterKey, job.id)
+                          }}
+                          title={getJobTitle(job)}
+                        >
+                          {getJobTitle(job)}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center">
+                      <p className="text-sm text-muted-foreground">
+                        {getJobFilterDefinition(stat.filterKey).emptyLabel}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </article>
+            )
+          })}
+
+          <div className="min-w-[220px] flex-1">
+            <CreateMoreJobsTile onCreateJob={onCreateJob} />
+          </div>
+        </>
       )}
 
       {showOccupantsTile && (
@@ -472,7 +593,11 @@ function MobilePrimaryNav({
 // ─── Shared prop type ─────────────────────────────────────────────────────────
 
 type AppViewProps = {
+  userEmail: string
+  onLogout: () => void
+  logoutPending: boolean
   stats: DashboardStat[]
+  totalJobs: number
   route: AppRoute
   navigate: (route: AppRoute, options?: { replace?: boolean }) => void
   selectedJob: WatchJob | null
@@ -489,7 +614,11 @@ type AppViewProps = {
 // ─── Desktop App ──────────────────────────────────────────────────────────────
 
 function DesktopApp({
+  userEmail,
+  onLogout,
+  logoutPending,
   stats,
+  totalJobs,
   route,
   navigate,
   selectedJob,
@@ -505,6 +634,9 @@ function DesktopApp({
   return (
     <div className="app-shell min-h-dvh">
       <AppHeader
+        userEmail={userEmail}
+        onLogout={onLogout}
+        logoutPending={logoutPending}
         onOpenOccupants={() => setOccupantsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
@@ -513,6 +645,7 @@ function DesktopApp({
         <div className="dashboard-enter">
           <StatsGrid
             stats={stats}
+            totalJobs={totalJobs}
             activeFilters={statusFilters}
             hasOccupants={hasOccupants}
             onFilterSelect={(key) => onStatusFiltersChange([key])}
@@ -579,7 +712,11 @@ function DesktopApp({
 // ─── Mobile App ───────────────────────────────────────────────────────────────
 
 function MobileApp({
+  userEmail,
+  onLogout,
+  logoutPending,
   stats,
+  totalJobs,
   route,
   navigate,
   selectedJob,
@@ -595,6 +732,9 @@ function MobileApp({
   return (
     <div className="app-shell min-h-dvh pb-24">
       <AppHeader
+        userEmail={userEmail}
+        onLogout={onLogout}
+        logoutPending={logoutPending}
         onOpenOccupants={() => setOccupantsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
@@ -603,6 +743,7 @@ function MobileApp({
         {route.name === 'dashboard' && (
           <StatsGrid
             stats={stats}
+            totalJobs={totalJobs}
             activeFilters={statusFilters}
             hasOccupants={hasOccupants}
             onFilterSelect={(key) => {
@@ -686,9 +827,37 @@ function MobileApp({
   )
 }
 
+function LoadingScreen() {
+  return (
+    <div className="app-shell min-h-dvh">
+      <div className="mx-auto flex min-h-dvh max-w-3xl items-center justify-center px-4 py-6">
+        <div className="app-panel w-full max-w-md px-6 py-10 text-center sm:px-8">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <TentTree className="size-6" />
+          </div>
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
+            Loading your workspace
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Checking your session and restoring your jobs.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-export default function App() {
+function AuthenticatedApp({
+  userEmail,
+  onLogout,
+  logoutPending,
+}: {
+  userEmail: string
+  onLogout: () => void
+  logoutPending: boolean
+}) {
   const isMobile = useIsMobile()
   const { route, navigate } = useAppRoute()
   const {
@@ -781,6 +950,14 @@ export default function App() {
       jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'holds', pendingBookings)),
     },
     {
+      filterKey: 'booking_complete',
+      label: 'Completed',
+      value: sortedJobs.filter((job) => matchesJobFilter(job, 'booking_complete', pendingBookings)).length,
+      description: 'Bookings that reached a confirmed receipt state.',
+      icon: Check,
+      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'booking_complete', pendingBookings)),
+    },
+    {
       filterKey: 'cancelled',
       label: 'Cancelled',
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'cancelled', pendingBookings)).length,
@@ -862,7 +1039,11 @@ export default function App() {
   }, [isMobile, route, selectedJobId])
 
   const sharedProps: AppViewProps = {
+    userEmail,
+    onLogout,
+    logoutPending,
     stats,
+    totalJobs: sortedJobs.length,
     route,
     navigate,
     selectedJob,
@@ -881,4 +1062,26 @@ export default function App() {
   }
 
   return <DesktopApp {...sharedProps} />
+}
+
+export default function App() {
+  const { user, status, logout, logoutPending } = useAuth()
+
+  if (status === 'loading') {
+    return <LoadingScreen />
+  }
+
+  if (!user) {
+    return <AuthScreen />
+  }
+
+  return (
+    <AuthenticatedApp
+      userEmail={user.email}
+      onLogout={() => {
+        void logout()
+      }}
+      logoutPending={logoutPending}
+    />
+  )
 }
