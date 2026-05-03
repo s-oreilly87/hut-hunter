@@ -374,19 +374,19 @@ function OccupantSelector({
   }
 
   const countLabel = selectedIds.length > 0
-    ? `${selectedIds.length} selected — party size will be inferred from occupants`
+    ? `${selectedIds.length} selected — party size will be inferred from campers`
     : peopleCount > 0
-      ? `No occupants selected — optional for availability, required for booking`
-      : 'Select occupants to enable booking'
+      ? `No campers selected — optional for checks, required for booking`
+      : 'Select campers to enable booking'
 
-  if (isLoading) return <p className="text-xs text-muted-foreground">Loading occupants…</p>
+  if (isLoading) return <p className="text-xs text-muted-foreground">Loading campers…</p>
 
   if (roster.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        No saved occupants. Add some via the{' '}
-        <span className="font-medium">Occupants</span>{' '}
-        button in the header first.
+        No saved campers. Add some via the{' '}
+        <span className="font-medium">Campers</span>{' '}
+        menu in the header first.
       </p>
     )
   }
@@ -761,7 +761,7 @@ function JobFormBody({
   const handleSubmit = () => {
     setError(null)
     if (!selectedAdapter) {
-      setError('Please select an adapter')
+      setError('Please select a booking site')
       return
     }
 
@@ -777,18 +777,18 @@ function JobFormBody({
     }
 
     if (!(effectivePeopleCount > 0)) {
-      setError('Enter a party size or select occupants')
+      setError('Enter a party size or select campers')
       return
     }
 
     parsedParams.people = String(effectivePeopleCount)
 
     if (autoBook && !selectedOccupantsPresent) {
-      setError('Select occupants before enabling auto-book')
+      setError('Select campers before enabling auto-book')
       return
     }
     if (autoBook && !hasCredentialsForSelectedAdapter) {
-      setError('Save booking credentials for this adapter before enabling auto-book')
+      setError('Save a sign-in for this booking site before enabling auto-book')
       return
     }
 
@@ -797,7 +797,7 @@ function JobFormBody({
         .map(id => roster.find((o: Occupant) => o.id === id))
         .filter(Boolean)
       if (snapshotOccupants.length !== selectedOccupantIds.length) {
-        setError('Some selected occupants could not be found — please re-select')
+        setError('Some selected campers could not be found — please re-select')
         return
       }
       parsedParams.occupants = snapshotOccupants
@@ -869,8 +869,8 @@ function JobFormBody({
     }
   }
 
-  const title = mode === 'create' ? 'Create Watch Job' : 'Edit Watch Job'
-  const submitIdle = mode === 'create' ? 'Create Job' : 'Save Changes'
+  const title = mode === 'create' ? 'Create Hunt' : 'Edit Hunt'
+  const submitIdle = mode === 'create' ? 'Create Hunt' : 'Save Changes'
   const submitBusy = mode === 'create' ? 'Creating...' : 'Saving...'
 
   return (
@@ -886,9 +886,9 @@ function JobFormBody({
       )}
       <div className="grid gap-4 py-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
         <div className="space-y-4">
-          <FormSection title="Job Setup">
+          <FormSection title="Hunt Setup">
             <div className="space-y-1.5">
-              <Label>Job Name</Label>
+              <Label>Hunt Name</Label>
               <Input
                 autoFocus
                 placeholder="e.g. Routeburn Falls Hut – Apr 2026"
@@ -899,9 +899,9 @@ function JobFormBody({
 
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <Label>Adapter</Label>
+                <Label>Booking Site</Label>
                 {mode === 'edit' && (
-                  <InfoTooltip content="Adapter choice is locked for existing jobs because the param schema is adapter-specific." />
+                  <InfoTooltip content="Booking site is locked on existing hunts because each site has its own input schema." />
                 )}
               </div>
               <Select
@@ -922,7 +922,7 @@ function JobFormBody({
               </Select>
               {selectedAdapter?.requires_credentials && !hasCredentialsForSelectedAdapter && (
                 <p className="text-xs text-amber-700">
-                  No credentials saved for this adapter - booking actions will not be available.
+                  No sign-in saved for this booking site. Booking actions will stay disabled.
                 </p>
               )}
             </div>
@@ -935,7 +935,7 @@ function JobFormBody({
                   return (
                     <div key={field.key} className="space-y-1.5">
                       <ParamLabel fieldKey={field.key}>
-                        Occupants
+                        Campers
                       </ParamLabel>
                       <OccupantSelector
                         selectedIds={selectedOccupantIds}
@@ -976,8 +976,8 @@ function JobFormBody({
                     {field.key === 'people' && (
                       <p className="text-xs text-muted-foreground">
                         {selectedOccupantsPresent
-                          ? `Party size is being inferred from ${selectedOccupantCount} selected occupant${selectedOccupantCount === 1 ? '' : 's'}.`
-                          : 'Used for availability checks when no occupants are selected.'}
+                          ? `Party size is being inferred from ${selectedOccupantCount} selected camper${selectedOccupantCount === 1 ? '' : 's'}.`
+                          : 'Used for availability checks when no campers are selected.'}
                       </p>
                     )}
                   </div>
@@ -993,7 +993,7 @@ function JobFormBody({
               <>
                 <SettingRow
                   title="Auto-book when available"
-                  tooltip="Lets the worker continue directly into the booking flow instead of stopping at manual confirmation."
+                  tooltip="Lets Hut Hunter continue directly into the booking flow instead of stopping after availability is found."
                 >
                   <div className="space-y-2 text-right">
                     <Switch
@@ -1004,12 +1004,12 @@ function JobFormBody({
                     />
                     {!selectedOccupantsPresent && (
                       <p className="max-w-56 text-xs text-muted-foreground">
-                        Select occupants to enable auto-book.
+                        Select campers to enable auto-book.
                       </p>
                     )}
                     {selectedOccupantsPresent && !hasCredentialsForSelectedAdapter && (
                       <p className="max-w-56 text-xs text-muted-foreground">
-                        Save booking credentials for this adapter in the header before enabling auto-book.
+                        Save a sign-in for this booking site in the header before enabling auto-book.
                       </p>
                     )}
                   </div>
@@ -1054,7 +1054,7 @@ function JobFormBody({
             ) : (
               <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 px-4 py-4">
                 <p className="text-sm text-muted-foreground">
-                  Select an adapter first to reveal its booking fields and automation settings.
+                  Select a booking site first to reveal its inputs and automation settings.
                 </p>
               </div>
             )}
@@ -1129,7 +1129,7 @@ export function CreateJobDialog({
       {!hideTrigger && (
         <Button onClick={() => handleOpenChange(true)} className="sm:min-w-40">
           <Plus className="size-4" />
-          New Watch Job
+          New Hunt
         </Button>
       )}
       <JobFormDialog open={open} onOpenChange={handleOpenChange} mode="create" onDone={onDone} />

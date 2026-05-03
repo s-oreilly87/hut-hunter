@@ -78,7 +78,7 @@ function CredentialCard({
           <p className="mt-1 text-xs text-muted-foreground">
             {configured
               ? 'Configured. Save again to rotate the password or update the username.'
-              : 'No stored credential yet.'}
+              : 'No saved sign-in yet.'}
           </p>
         </div>
         <span
@@ -129,7 +129,7 @@ function CredentialCard({
           disabled={!canSave || save.isPending || remove.isPending}
         >
           {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <LockKeyhole className="size-4" />}
-          {configured ? 'Update Credential' : 'Save Credential'}
+          {configured ? 'Update Sign-In' : 'Save Sign-In'}
         </Button>
         {configured && (
           <Button
@@ -182,12 +182,12 @@ export function CredentialsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Booking Credentials</DialogTitle>
+          <DialogTitle>Booking Site Sign-Ins</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-4 text-sm text-muted-foreground">
-            Credentials are encrypted at rest and only decrypted when the API returns your own record or a worker needs to sign in for your booking run.
+            Sign-ins are encrypted at rest and only decrypted when Hut Hunter needs them for your account.
           </div>
 
           {isLoading ? (
@@ -196,7 +196,7 @@ export function CredentialsDialog({
             </div>
           ) : credentialAdapters.length === 0 ? (
             <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-8 text-sm text-muted-foreground">
-              No adapters in this build require stored booking credentials.
+              No booking sites in this build require a saved sign-in.
             </div>
           ) : (
             credentialAdapters.map((adapter) => (

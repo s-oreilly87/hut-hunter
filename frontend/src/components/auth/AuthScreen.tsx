@@ -54,30 +54,30 @@ export function AuthScreen() {
               Availability Tracking
             </p>
             <h1 className="mt-3 max-w-xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              Track NZ DOC availability, catch live holds, and keep every booking run organized in one place.
+              Track NZ DOC availability, get notified fast, and move from search to checkout without losing context.
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-              Hut Hunter watches huts and campsites for you, highlights when your requested nights open up, and helps you move quickly from detection to checkout.
+              Hut Hunter keeps availability checks, alerting, booking holds, and auto-booking in one focused workflow.
             </p>
           </div>
 
           <div className="mt-10 grid gap-3 sm:grid-cols-3">
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
-              <p className="text-sm font-semibold text-foreground">Monitor routes</p>
+              <p className="text-sm font-semibold text-foreground">Availability Checks</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Create watch jobs for Great Walks, standard huts, and campsites with your preferred date, direction, and party setup.
+                Run repeat checks across Great Walks, standard huts, and campsites with your preferred dates, direction, and party setup.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
-              <p className="text-sm font-semibold text-foreground">Move fast on holds</p>
+              <p className="text-sm font-semibold text-foreground">Notifications</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                When a site opens up, Hut Hunter can capture the booking flow, preserve artifacts, and hand you off to payment.
+                Route alerts to email or Gotify, with per-account delivery targets encrypted at rest.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
-              <p className="text-sm font-semibold text-foreground">Reuse your roster</p>
+              <p className="text-sm font-semibold text-foreground">Booking Holds and Auto-Booking</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Save occupants once, attach them to future jobs, and enable auto-booking when you want the worker to continue past availability checks.
+                Save camper details once, capture live holds, and let Hut Hunter continue into booking when you want it to.
               </p>
             </div>
           </div>
@@ -121,8 +121,8 @@ export function AuthScreen() {
               </h2>
               <p className="text-sm text-muted-foreground">
                 {mode === 'register'
-                  ? 'Set up your roster and start building watch jobs.'
-                  : 'Sign in to get back to your watchlist, holds, and saved occupants.'}
+                  ? 'Set up your roster and start creating hunts.'
+                  : 'Sign in to get back to your hunts, holds, and saved campers.'}
               </p>
             </div>
           </div>

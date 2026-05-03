@@ -30,31 +30,31 @@ export const JOB_FILTERS: JobFilterDefinition[] = [
   {
     key: 'all',
     label: 'All',
-    emptyLabel: 'No jobs available yet.',
+    emptyLabel: 'No hunts available yet.',
     matches: () => true,
   },
   {
     key: 'active',
     label: 'Active',
-    emptyLabel: 'No active jobs right now.',
+    emptyLabel: 'No active hunts right now.',
     matches: (job) => isLiveJob(job),
   },
   {
     key: 'ready',
     label: 'Ready',
-    emptyLabel: 'No jobs are fully available right now.',
+    emptyLabel: 'No hunts are fully available right now.',
     matches: (job, pendingBookings) => getDisplayStatus(job, pendingBookings) === 'result_available',
   },
   {
     key: 'holds',
     label: 'Holds',
-    emptyLabel: 'No jobs are holding inventory right now.',
+    emptyLabel: 'No hunts are holding inventory right now.',
     matches: (job) => job.status === 'hold_placed' && !hasHoldExpired(job),
   },
   {
     key: 'watching',
     label: 'Watching',
-    emptyLabel: 'No jobs are on an automatic monitoring schedule.',
+    emptyLabel: 'No hunts are on an automatic schedule.',
     matches: (job) => job.enable_monitoring && isLiveJob(job),
   },
   {
@@ -66,13 +66,13 @@ export const JOB_FILTERS: JobFilterDefinition[] = [
   {
     key: 'cancelled',
     label: 'Cancelled',
-    emptyLabel: 'No cancelled jobs.',
+    emptyLabel: 'No cancelled hunts.',
     matches: (job) => job.status === 'cancelled',
   },
   {
     key: 'expired',
     label: 'Expired',
-    emptyLabel: 'No expired jobs.',
+    emptyLabel: 'No expired hunts.',
     matches: (job) => job.status === 'expired',
   },
 ]

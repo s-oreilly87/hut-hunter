@@ -272,7 +272,7 @@ function GenericResultView({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
               <p className="font-medium tracking-tight text-foreground">
-                Worker Error
+                Automation Error
               </p>
               <p className="text-sm leading-5 text-foreground/85">
                 {primaryMessage ?? 'The latest run returned an unstructured error payload.'}
@@ -691,11 +691,11 @@ function MonitoringSection({
             </h3>
             {!job.credentials_configured ? (
               <Badge className="bg-amber-500 text-white hover:bg-amber-500">
-                No credentials
+                No sign-in
               </Badge>
             ) : (
               <Badge variant={job.auto_book ? 'default' : 'outline'}>
-                {job.auto_book ? 'Auto-book' : 'Check only'}
+                {job.auto_book ? 'Auto-book' : 'Checks only'}
               </Badge>
             )}
           </div>
@@ -724,10 +724,10 @@ function MonitoringSection({
             <p>
               {displayStatus === 'hold_placed'
                 ? 'Paused while the active hold waits for payment.'
-                : 'Paused while Hut Hunter tries to secure the hold.'}
+                : 'Paused while Hut Hunter secures the hold.'}
             </p>
           ) : isOn && (
-            <p>Every {job.interval_minutes} min</p>
+            <p>Every {job.interval_minutes} minutes</p>
           )}
         </div>
 
@@ -827,7 +827,7 @@ export function JobCard({
   const handleDelete = (id: string, name: string) => {
     if (
       !window.confirm(
-        `Delete "${name}"?\n\nThis removes the job and its booking state. You can't undo this.`,
+        `Delete "${name}"?\n\nThis removes the hunt and its booking state. You can't undo this.`,
       )
     ) {
       return
@@ -844,10 +844,10 @@ export function JobCard({
             <LayoutDashboard className="size-5" />
           </div>
           <CardTitle className="mt-4 text-base font-semibold tracking-tight">
-            Job details stay here
+            Hunt details stay here
           </CardTitle>
           <CardDescription className="max-w-md text-sm leading-5 text-pretty">
-            Select any watch job to inspect its params, latest availability
+            Select any hunt to inspect its inputs, latest availability
             evidence, and booking controls.
           </CardDescription>
         </CardHeader>
@@ -855,7 +855,7 @@ export function JobCard({
           <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
             <p className="text-sm font-medium text-foreground">What you get here</p>
             <p className="mt-1.5 text-sm leading-5 text-pretty text-muted-foreground">
-              Stored inputs, current state, latest worker result, and artifact links — in one place so the list stays lightweight.
+              Stored inputs, current state, latest automation result, and artifact links in one focused view.
             </p>
           </div>
         </CardContent>
@@ -1099,14 +1099,14 @@ export function JobCard({
               {missingOccupants && (
                 <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
                   <p className="text-sm text-muted-foreground">
-                    Occupants are required on this job before booking can start. Add them via Edit to enable auto-book and manual booking.
+                    Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
                   </p>
                 </div>
               )}
               {missingCredentials && (
                 <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
                   <p className="text-sm text-muted-foreground">
-                    Stored booking credentials are required on this job before booking can start. Add them from the Booking Credentials menu in the header.
+                    A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
                   </p>
                 </div>
               )}
@@ -1138,20 +1138,20 @@ export function JobCard({
               </div>
               <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
                 <p className="text-sm text-muted-foreground">
-                  No worker result has been stored for this job yet.
+                  No automation result has been stored for this hunt yet.
                 </p>
               </div>
               {missingOccupants && (
                 <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
                   <p className="text-sm text-muted-foreground">
-                    Occupants are required on this job before booking can start. Add them via Edit to enable auto-book and manual booking.
+                    Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
                   </p>
                 </div>
               )}
               {missingCredentials && (
                 <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
                   <p className="text-sm text-muted-foreground">
-                    Stored booking credentials are required on this job before booking can start. Add them from the Booking Credentials menu in the header.
+                    A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
                   </p>
                 </div>
               )}

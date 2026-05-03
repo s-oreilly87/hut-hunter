@@ -69,7 +69,7 @@ function getMobileStickyHeaderOffset(): number {
 
 function getJobTitle(job: WatchJob): string {
   const trimmed = job.name.trim()
-  return trimmed || 'Untitled Job'
+  return trimmed || 'Untitled Hunt'
 }
 
 type DashboardStat = {
@@ -214,7 +214,7 @@ function AccountMenu({
               onClick={() => runAction(onOpenNotifications)}
             >
               <BellRing className="size-4 text-muted-foreground" />
-              Notification Options
+              Notifications
             </button>
             <button
               type="button"
@@ -222,7 +222,7 @@ function AccountMenu({
               onClick={() => runAction(onOpenCredentials)}
             >
               <LockKeyhole className="size-4 text-muted-foreground" />
-              Booking Credentials
+              Booking Site Sign-Ins
             </button>
             <button
               type="button"
@@ -230,7 +230,7 @@ function AccountMenu({
               onClick={() => runAction(onOpenOccupants)}
             >
               <Users className="size-4 text-muted-foreground" />
-              Occupants
+              Campers
             </button>
             <button
               type="button"
@@ -238,7 +238,7 @@ function AccountMenu({
               onClick={() => runAction(onCreateJob)}
             >
               <Plus className="size-4 text-muted-foreground" />
-              New Watch Job
+              New Hunt
             </button>
             <button
               type="button"
@@ -283,7 +283,7 @@ function FilterDropdown({
 
   const label = isFiltered
     ? filters.map((k) => getJobFilterDefinition(k).label).join(', ')
-    : 'All Jobs'
+    : 'All Hunts'
 
   const toggle = (key: JobFilterKey) => {
     if (key === 'all') {
@@ -393,10 +393,10 @@ function OccupantsTile({ onOpen }: { onOpen: () => void }) {
       </div>
       <div className="mt-4 flex-1">
         <p className="text-sm font-semibold tracking-tight text-foreground">
-          No Occupants Added
+          No Campers Added
         </p>
         <p className="mt-2 text-sm leading-5 text-pretty text-muted-foreground">
-          Add occupant details to enable the automated booking flow — Hut Hunter needs passenger info to complete checkout.
+          Add camper details to enable automated booking. Hut Hunter needs passenger info to complete checkout.
         </p>
       </div>
       <button
@@ -405,7 +405,7 @@ function OccupantsTile({ onOpen }: { onOpen: () => void }) {
         onClick={onOpen}
       >
         <Plus className="size-3.5" />
-        Add Occupants
+        Add Campers
       </button>
     </article>
   )
@@ -425,11 +425,11 @@ function CredentialsTile({
       </div>
       <div className="mt-4 flex-1">
         <p className="text-sm font-semibold tracking-tight text-foreground">
-          Booking Credentials Missing
+          Booking Site Sign-Ins Missing
         </p>
         <p className="mt-2 text-sm leading-5 text-pretty text-muted-foreground">
-          Save your DOC login per adapter so the worker can continue from availability into the booking flow.
-          {missingCount > 1 ? ` ${missingCount} adapters still need credentials.` : ''}
+          Save your DOC login for each booking site so Hut Hunter can continue from checks into booking.
+          {missingCount > 1 ? ` ${missingCount} booking sites still need a sign-in.` : ''}
         </p>
       </div>
       <button
@@ -438,7 +438,7 @@ function CredentialsTile({
         onClick={onOpen}
       >
         <LockKeyhole className="size-3.5" />
-        Add Credentials
+        Add Sign-Ins
       </button>
     </article>
   )
@@ -451,10 +451,10 @@ function NoJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
         <Clock3 className="size-5" />
       </div>
       <p className="mt-3 text-sm font-semibold tracking-tight text-foreground">
-        No watch jobs yet
+        No hunts yet
       </p>
       <p className="mt-1.5 max-w-[22ch] text-sm leading-5 text-pretty text-muted-foreground">
-        Create a job to start monitoring availability.
+        Create a hunt to start monitoring availability.
       </p>
       <button
         type="button"
@@ -462,7 +462,7 @@ function NoJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
         onClick={onCreateJob}
       >
         <Plus className="size-3.5" />
-        Create a Watch Job
+        Create a Hunt
       </button>
     </article>
   )
@@ -475,10 +475,10 @@ function CreateMoreJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
         <Plus className="size-5" />
       </div>
       <p className="mt-3 text-sm font-semibold tracking-tight text-foreground">
-        Create More Jobs
+        Create Another Hunt
       </p>
       <p className="mt-1.5 max-w-[24ch] text-sm leading-5 text-pretty text-muted-foreground">
-        Add another watch job for a new route, date range, or accommodation type.
+        Add another hunt for a new route, date range, or accommodation type.
       </p>
       <button
         type="button"
@@ -486,7 +486,7 @@ function CreateMoreJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
         onClick={onCreateJob}
       >
         <Plus className="size-3.5" />
-        New Watch Job
+        New Hunt
       </button>
     </article>
   )
@@ -657,7 +657,7 @@ function MobilePrimaryNav({
           onClick={() => navigate({ name: 'jobs' })}
         >
           <Search className="size-4" />
-          Watch Jobs
+          Hunts
         </Button>
       </div>
     </nav>
@@ -747,13 +747,19 @@ function DesktopApp({
           <section className="app-panel flex min-h-[26rem] flex-col overflow-hidden">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 sm:px-6">
               <h2 className="text-base font-semibold tracking-tight text-foreground">
-                Watch Jobs
+                Hunts
               </h2>
-              <FilterDropdown
-                filters={statusFilters}
-                onChange={onStatusFiltersChange}
-                filterCounts={filterCounts}
-              />
+              <div className="flex items-center gap-2">
+                <FilterDropdown
+                  filters={statusFilters}
+                  onChange={onStatusFiltersChange}
+                  filterCounts={filterCounts}
+                />
+                <Button size="sm" onClick={() => navigate({ name: 'create-job' })}>
+                  <Plus className="size-4" />
+                  New Hunt
+                </Button>
+              </div>
             </div>
             <div className="min-h-0 flex-1 px-4 py-4 sm:px-6">
               <JobList
@@ -859,13 +865,19 @@ function MobileApp({
           <section className="app-panel flex flex-col overflow-hidden">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-5">
               <h2 className="text-base font-semibold tracking-tight text-foreground">
-                Watch Jobs
+                Hunts
               </h2>
-              <FilterDropdown
-                filters={statusFilters}
-                onChange={onStatusFiltersChange}
-                filterCounts={filterCounts}
-              />
+              <div className="flex items-center gap-2">
+                <FilterDropdown
+                  filters={statusFilters}
+                  onChange={onStatusFiltersChange}
+                  filterCounts={filterCounts}
+                />
+                <Button size="sm" onClick={() => navigate({ name: 'create-job' })}>
+                  <Plus className="size-4" />
+                  New Hunt
+                </Button>
+              </div>
             </div>
             <div className="px-4 py-4 sm:px-5">
               <JobList
@@ -881,7 +893,7 @@ function MobileApp({
         {route.name === 'job-detail' && (
           <>
             <MobileBackBar
-              backLabel="Watch Jobs"
+              backLabel="Hunts"
               onBack={() => navigate({ name: 'jobs' })}
             />
             <JobCard
@@ -894,7 +906,7 @@ function MobileApp({
         {route.name === 'create-job' && (
           <>
             <MobileBackBar
-              backLabel="Watch Jobs"
+              backLabel="Hunts"
               onBack={() => navigate({ name: 'jobs' })}
             />
             <CreateJobPage
@@ -909,7 +921,7 @@ function MobileApp({
         {route.name === 'edit-job' && selectedJob && (
           <>
             <MobileBackBar
-              backLabel="Job Card"
+              backLabel="Hunt"
               onBack={() => navigate({ name: 'job-detail', jobId: selectedJob.id })}
             />
             <EditJobPage
@@ -940,7 +952,7 @@ function LoadingScreen() {
             Loading your workspace
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Checking your session and restoring your jobs.
+            Checking your session and restoring your hunts.
           </p>
         </div>
       </div>
@@ -1046,7 +1058,7 @@ function AuthenticatedApp({
       filterKey: 'active',
       label: 'Active',
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'active', pendingBookings)).length,
-      description: 'Jobs still in play and ready for action.',
+      description: 'Hunts still in play and ready for action.',
       icon: Activity,
       jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'active', pendingBookings)),
     },
@@ -1062,7 +1074,7 @@ function AuthenticatedApp({
       filterKey: 'holds',
       label: 'Live Holds',
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'holds', pendingBookings)).length,
-      description: 'Jobs currently holding inventory pending checkout.',
+      description: 'Hunts currently holding inventory pending checkout.',
       icon: Hand,
       jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'holds', pendingBookings)),
     },
@@ -1078,7 +1090,7 @@ function AuthenticatedApp({
       filterKey: 'cancelled',
       label: 'Cancelled',
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'cancelled', pendingBookings)).length,
-      description: 'Jobs manually stopped before completion.',
+      description: 'Hunts manually stopped before completion.',
       icon: XCircle,
       jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'cancelled', pendingBookings)),
     },
@@ -1086,7 +1098,7 @@ function AuthenticatedApp({
       filterKey: 'expired',
       label: 'Expired',
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'expired', pendingBookings)).length,
-      description: 'Jobs whose booking windows have already passed.',
+      description: 'Hunts whose booking windows have already passed.',
       icon: Clock3,
       jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'expired', pendingBookings)),
     },

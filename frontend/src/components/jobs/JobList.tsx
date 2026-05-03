@@ -55,7 +55,7 @@ function getTrackFieldKey(
 
 function getJobTitle(job: WatchJob): string {
   const trimmed = job.name.trim()
-  return trimmed || 'Untitled Job'
+  return trimmed || 'Untitled Hunt'
 }
 
 function getJobSubtitle(
@@ -154,11 +154,11 @@ function JobActivityMeta({
       <div>
         {!job.credentials_configured ? (
           <Badge className="bg-amber-500 text-white hover:bg-amber-500">
-            No credentials
+            No sign-in
           </Badge>
         ) : (
           <Badge variant={job.auto_book ? 'default' : 'outline'}>
-            {job.auto_book ? 'Auto-book' : 'Check only'}
+            {job.auto_book ? 'Auto-book' : 'Checks only'}
           </Badge>
         )}
       </div>
@@ -352,11 +352,10 @@ export function JobList({
           <Clock3 className="size-5" />
         </div>
         <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
-          No watch jobs yet
+          No hunts yet
         </h3>
         <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground text-pretty">
-          Create a job to start polling availability, store the result trail, and
-          keep the booking path ready when space opens.
+          Create a hunt to start checking availability, storing result history, and preparing the booking path when space opens.
         </p>
       </div>
     )
@@ -371,12 +370,12 @@ export function JobList({
           <Clock3 className="size-5" />
         </div>
         <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
-          No matching jobs
+          No matching hunts
         </h3>
         <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground text-pretty">
           {isFiltered
-            ? 'No jobs match the selected filters. Try adjusting or clearing the filter.'
-            : 'No jobs available.'}
+            ? 'No hunts match the selected filters. Try adjusting or clearing them.'
+            : 'No hunts available.'}
         </p>
       </div>
     )
@@ -402,7 +401,7 @@ export function JobList({
                   {group.adapterName}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {group.jobs.length} job{group.jobs.length === 1 ? '' : 's'}
+                  {group.jobs.length} hunt{group.jobs.length === 1 ? '' : 's'}
                 </p>
               </div>
               <ChevronDown
@@ -476,7 +475,7 @@ export function JobList({
                   <Table>
                     <TableHeader className="bg-secondary/60">
                       <TableRow className="border-border/80 hover:bg-secondary/60">
-                        <TableHead className="w-[48%] pl-4">Job</TableHead>
+                        <TableHead className="w-[48%] pl-4">Hunt</TableHead>
                         <TableHead className="w-[32%]">Status</TableHead>
                         <TableHead className="pr-4">Last Checked</TableHead>
                       </TableRow>
