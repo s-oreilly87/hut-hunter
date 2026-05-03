@@ -24,12 +24,20 @@ def is_job_expired(adapter_id: str, params: dict) -> bool:
         return False
 
 
+def adapter_requires_credentials(adapter_id: str) -> bool:
+    cls = _REGISTRY.get(adapter_id)
+    if cls is None:
+        raise ValueError(f"Unknown adapter: {adapter_id}. Available: {list(_REGISTRY.keys())}")
+    return bool(cls.requires_credentials)
+
+
 def list_adapters() -> list[dict]:
     return [
         {
             "adapter_id": cls.adapter_id,
             "name": cls.name,
             "param_fields": [f.__dict__ for f in cls.param_fields()],
+            "requires_credentials": cls.requires_credentials,
             # Expiry metadata — None means the adapter has no booking cutoff.
             # Consumed by the frontend for date validation and by the worker
             # to gate availability checks.

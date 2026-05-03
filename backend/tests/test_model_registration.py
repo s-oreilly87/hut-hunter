@@ -18,7 +18,7 @@ def test_worker_import_registers_all_models() -> None:
             (
                 "from sqlmodel import SQLModel; "
                 "import app.workers.tasks; "
-                "required = {'watchjob', 'appuser', 'occupant', 'cartsession'}; "
+                "required = {'watchjob', 'appuser', 'occupant', 'adaptercredential', 'cartsession'}; "
                 "missing = sorted(required - set(SQLModel.metadata.tables)); "
                 "assert not missing, missing"
             ),

@@ -152,9 +152,15 @@ function JobActivityMeta({
         <MonitoringBadge job={job} displayStatus={displayStatus} />
       </div>
       <div>
-        <Badge variant={job.auto_book ? 'default' : 'outline'}>
-          {job.auto_book ? 'Auto-book' : 'Check only'}
-        </Badge>
+        {!job.credentials_configured ? (
+          <Badge className="bg-amber-500 text-white hover:bg-amber-500">
+            No credentials
+          </Badge>
+        ) : (
+          <Badge variant={job.auto_book ? 'default' : 'outline'}>
+            {job.auto_book ? 'Auto-book' : 'Check only'}
+          </Badge>
+        )}
       </div>
     </>
   )

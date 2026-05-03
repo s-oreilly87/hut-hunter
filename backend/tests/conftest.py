@@ -30,6 +30,7 @@ os.environ.setdefault(
 
 from app.api import routes
 from app.core.crypto import encrypt
+from app.models.credential import AdapterCredential
 from app.models.job import JobStatus, WatchJob, utcnow
 from app.models.session import CartSession
 from app.models.user import AppUser
@@ -225,6 +226,30 @@ def seed_job(session_factory, make_job_params, auth_user):
             return job
 
     return _seed_job
+
+
+@pytest.fixture
+def seed_credential(session_factory, auth_user):
+    async def _seed_credential(
+        *,
+        user_id: str | None = None,
+        adapter_id: str = "doc_great_walk",
+        username: str = "doc-user@example.com",
+        password: str = "doc-password",
+    ) -> AdapterCredential:
+        credential = AdapterCredential(
+            user_id=user_id or auth_user.id,
+            adapter_id=adapter_id,
+            encrypted_username=encrypt(username),
+            encrypted_password=encrypt(password),
+        )
+        async with session_factory() as session:
+            session.add(credential)
+            await session.commit()
+            await session.refresh(credential)
+            return credential
+
+    return _seed_credential
 
 
 @pytest.fixture

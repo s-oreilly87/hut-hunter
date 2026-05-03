@@ -9,6 +9,7 @@ from datetime import datetime, time
 from pathlib import Path
 
 from app.core.config import settings
+from app.models.credential import AdapterCredentialSecret
 
 class AvailabilityStatus(str, Enum):
     AVAILABLE = "available"
@@ -81,9 +82,11 @@ class BaseAdapter(ABC):
     cart_hold_minutes: int | None = None
     cart_inactive_after_minutes: int | None = None
     cart_keepalive_interval_minutes: int | None = None
+    requires_credentials: bool = False
 
     def __init__(self) -> None:
         self._artifact_log: list[ArtifactSnapshot] = []
+        self._login_credentials: AdapterCredentialSecret | None = None
 
     @classmethod
     @abstractmethod
@@ -157,3 +160,9 @@ class BaseAdapter(ABC):
         artifacts = self._artifact_log[:]
         self._artifact_log.clear()
         return artifacts
+
+    def set_login_credentials(
+        self,
+        credentials: AdapterCredentialSecret | None,
+    ) -> None:
+        self._login_credentials = credentials

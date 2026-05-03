@@ -11,13 +11,14 @@ from arq.connections import RedisSettings
 from sqlmodel import select
 
 from app.adapters.base import AvailabilityStatus, BookingResult
+from app.adapters import adapter_requires_credentials, get_adapter
+from app.core.adapter_credentials import get_user_adapter_credentials
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notify import notify_gotify
 import app.models  # noqa: F401 - registers SQLModel metadata
 from app.models.job import JobStatus, WatchJob, is_job_expired, utcnow
 from app.models.session import CartSession
-from app.adapters import get_adapter
 from playwright.async_api import async_playwright, ViewportSize
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,10 @@ def _check_job_arq_id(job_id: str) -> str:
 def _params_have_occupants(params: dict) -> bool:
     occupants = params.get("occupants")
     return isinstance(occupants, list) and len(occupants) > 0
+
+
+def _job_needs_credentials(adapter_id: str) -> bool:
+    return adapter_requires_credentials(adapter_id)
 
 
 # Dedicated arq queue name for hold jobs. Polling and hold work run on
@@ -454,6 +459,16 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             return {"job_id": job_id, "status": f"skipped_{job.status}"}
 
         auto_book = job.auto_book
+        user_credentials = await get_user_adapter_credentials(
+            session,
+            job.user_id or "",
+            job.adapter_id,
+        )
+        credentials_configured = (
+            True
+            if not _job_needs_credentials(job.adapter_id)
+            else user_credentials is not None
+        )
         # Snapshot the previous result now so we can suppress repeat partial
         # notifications later (we only alert when the status *changes* to
         # partial — not on every check while it stays partial).
@@ -537,6 +552,25 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                 "has no occupants selected, so booking could not start.\n"
                 + "\n".join(lines)
                 + "\n\nAdd occupants to the job, then book manually."
+            ),
+            priority=8,
+        )
+    elif all_fully_available and auto_book and not credentials_configured:
+        logger.warning(
+            "Job %s reached auto-bookable availability without stored credentials; skipping hold",
+            job_id,
+        )
+        lines = [
+            f"- {r.site}: {r.total_available} spot(s)"
+            for r in fully_available
+        ]
+        await notify_gotify(
+            title="🏕️ Availability Detected!",
+            message=(
+                f"All sites fully available on {params.get('date')} but this job "
+                "has no stored booking credentials for its adapter, so booking could not start.\n"
+                + "\n".join(lines)
+                + "\n\nSave booking credentials for this adapter, then book manually."
             ),
             priority=8,
         )
@@ -683,6 +717,12 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
         except ValueError as e:
             logger.error(f"Hold: unknown adapter: {e}")
             return {"error": str(e)}
+        credentials = await get_user_adapter_credentials(
+            session,
+            job.user_id or "",
+            job.adapter_id,
+        )
+        adapter.set_login_credentials(credentials)
 
         # Race safety: between the poll enqueuing this task and us picking it
         # up, another hold may have already succeeded (status flipped to
@@ -707,65 +747,77 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     booking: BookingResult | None = None
     availability_dropped = False
     fully_available: list = []
-
-    try:
-        async with _browser_page(
-            headless=False,
-            display=settings.browser_display,
-        ) as (page, keep_alive):
-            try:
-                await adapter.fill_form(page, params)
-                hold_results = await adapter.detect_availability(page, params)
-                logger.info(f"Hold-phase recheck for job {job_id}: {hold_results}")
-
-                fully_available = [
-                    r for r in hold_results
-                    if r.status == AvailabilityStatus.AVAILABLE
-                ]
-
-                if not fully_available:
-                    logger.warning(
-                        f"Availability dropped before hold for job {job_id}"
-                    )
-                    availability_dropped = True
-                else:
-                    params["_job_id"] = job_id
-                    try:
-                        booking = await adapter.attempt_hold(page, params)
-                        hold_artifacts = _consume_adapter_artifacts(adapter)
-                        await _save_artifacts(
-                            job_id,
-                            hold_artifacts,
-                            last_base=_latest_artifact_base(hold_artifacts),
-                            reset_history=True,
-                        )
-                        logger.info(
-                            f"Hold result for job {job_id}: "
-                            f"held={booking.held} url={booking.reservation_url} "
-                            f"msg={booking.message}"
-                        )
-                        if booking and booking.held:
-                            keep_alive(job_id)
-                    except NotImplementedError:
-                        logger.info(
-                            f"Adapter {adapter.adapter_id} does not support holds yet"
-                        )
-            except Exception as e:
-                base = await _snapshot_safe(
-                    adapter, page, f"hold_error_{type(e).__name__}"
-                )
-                await _save_artifacts(
-                    job_id,
-                    _consume_adapter_artifacts(adapter),
-                    last_base=base,
-                    reset_history=True,
-                )
-                raise
-    except Exception as e:
-        logger.error(f"Hold task error for job {job_id}: {e}", exc_info=True)
-        booking = BookingResult(
-            success=False, held=False, message=f"Hold task error: {e}"
+    if _job_needs_credentials(job.adapter_id) and credentials is None:
+        logger.warning(
+            "Hold skipped for job %s: no stored credentials for adapter %s",
+            job_id,
+            job.adapter_id,
         )
+        booking = BookingResult(
+            success=False,
+            held=False,
+            message="Stored booking credentials are missing for this adapter.",
+        )
+
+    if booking is None:
+        try:
+            async with _browser_page(
+                headless=False,
+                display=settings.browser_display,
+            ) as (page, keep_alive):
+                try:
+                    await adapter.fill_form(page, params)
+                    hold_results = await adapter.detect_availability(page, params)
+                    logger.info(f"Hold-phase recheck for job {job_id}: {hold_results}")
+
+                    fully_available = [
+                        r for r in hold_results
+                        if r.status == AvailabilityStatus.AVAILABLE
+                    ]
+
+                    if not fully_available:
+                        logger.warning(
+                            f"Availability dropped before hold for job {job_id}"
+                        )
+                        availability_dropped = True
+                    else:
+                        params["_job_id"] = job_id
+                        try:
+                            booking = await adapter.attempt_hold(page, params)
+                            hold_artifacts = _consume_adapter_artifacts(adapter)
+                            await _save_artifacts(
+                                job_id,
+                                hold_artifacts,
+                                last_base=_latest_artifact_base(hold_artifacts),
+                                reset_history=True,
+                            )
+                            logger.info(
+                                f"Hold result for job {job_id}: "
+                                f"held={booking.held} url={booking.reservation_url} "
+                                f"msg={booking.message}"
+                            )
+                            if booking and booking.held:
+                                keep_alive(job_id)
+                        except NotImplementedError:
+                            logger.info(
+                                f"Adapter {adapter.adapter_id} does not support holds yet"
+                            )
+                except Exception as e:
+                    base = await _snapshot_safe(
+                        adapter, page, f"hold_error_{type(e).__name__}"
+                    )
+                    await _save_artifacts(
+                        job_id,
+                        _consume_adapter_artifacts(adapter),
+                        last_base=base,
+                        reset_history=True,
+                    )
+                    raise
+        except Exception as e:
+            logger.error(f"Hold task error for job {job_id}: {e}", exc_info=True)
+            booking = BookingResult(
+                success=False, held=False, message=f"Hold task error: {e}"
+            )
 
     # --- 2. Notifications (hold outcome only) ---
     if booking and booking.held and booking.reservation_url:
@@ -804,7 +856,16 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
         # One notification listing all sites that were available but couldn't
         # be held (covers both single-site and multi-night multi-site cases).
         msg = booking.message if booking else "Hold not attempted"
-        if fully_available:
+        if booking and "Stored booking credentials are missing" in msg:
+            await notify_gotify(
+                title="🏕️ Booking blocked",
+                message=(
+                    f"Availability was ready to book on {params.get('date')}, "
+                    "but this adapter has no stored booking credentials."
+                ),
+                priority=8,
+            )
+        elif fully_available:
             site_lines = [
                 f"  • {r.site} — {r.total_available} spot(s)"
                 for r in fully_available

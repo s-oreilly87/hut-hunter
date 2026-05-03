@@ -58,6 +58,7 @@ export interface WatchJob {
   params: Record<string, unknown>
   status: JobStatus
   auto_book: boolean
+  credentials_configured: boolean
   // Scheduler state for periodic polling. When enable_monitoring=true, the
   // backend scheduler dispatches check_availability every interval_minutes
   // and next_check_at reflects when the next dispatch is due. next_check_at
@@ -126,6 +127,7 @@ export interface AdapterInfo {
   adapter_id: string
   name: string
   param_fields: ParamField[]
+  requires_credentials: boolean
   // Set when the adapter has a time-bounded booking window. Used by the
   // frontend for date validation and stale-job display.
   // null timezone means "use client local timezone"
@@ -151,6 +153,20 @@ export interface OccupantCreate {
   gender: string
   country: string
   category: string
+}
+
+export interface AdapterCredential {
+  id: string
+  adapter_id: string
+  username: string
+  has_password: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface AdapterCredentialUpsert {
+  username: string
+  password?: string | null
 }
 
 export const adaptersApi = {
@@ -181,6 +197,13 @@ export const occupantsApi = {
   update: (id: string, data: Partial<OccupantCreate>) =>
     api.patch<Occupant>(`/occupants/${id}`, data).then(r => r.data),
   remove: (id: string) => api.delete(`/occupants/${id}`),
+}
+
+export const credentialsApi = {
+  list: () => api.get<AdapterCredential[]>('/credentials').then(r => r.data),
+  upsert: (adapterId: string, data: AdapterCredentialUpsert) =>
+    api.put<AdapterCredential>(`/credentials/${adapterId}`, data).then(r => r.data),
+  remove: (adapterId: string) => api.delete(`/credentials/${adapterId}`),
 }
 
 export const jobsApi = {

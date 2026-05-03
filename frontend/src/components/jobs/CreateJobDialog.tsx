@@ -14,7 +14,7 @@ import {
   Settings2,
 } from 'lucide-react'
 import {
-  jobsApi, adaptersApi, occupantsApi,
+  jobsApi, adaptersApi, credentialsApi, occupantsApi,
   type ParamField, type WatchJob, type Occupant,
 } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -39,14 +39,28 @@ function facilityDisplayName(opt: string): string {
   return m ? m[1].trim() : opt
 }
 
-function formatDisplayDate(value: string): string {
-  const [day, month, year] = value.split('/')
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value.trim())
+}
+
+function isDayFirstDate(value: string): boolean {
+  return /^\d{2}\/\d{2}\/\d{4}$/.test(value.trim())
+}
+
+function toInputDateValue(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (isIsoDate(trimmed)) return trimmed
+  const [day, month, year] = trimmed.split('/')
   if (!day || !month || !year) return ''
   return `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
 }
 
-function parseInputDate(value: string): string {
-  const [year, month, day] = value.split('-')
+function toAdapterDateValue(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (isDayFirstDate(trimmed)) return trimmed
+  const [year, month, day] = trimmed.split('-')
   if (!year || !month || !day) return ''
   return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year.padStart(4, '0')}`
 }
@@ -320,8 +334,8 @@ function ParamFieldInput({
     return (
       <Input
         type="date"
-        value={formatDisplayDate(String(value ?? ''))}
-        onChange={e => onChange(parseInputDate(e.target.value))}
+        value={toInputDateValue(String(value ?? ''))}
+        onChange={e => onChange(e.target.value)}
         disabled={disabled}
       />
     )
@@ -431,13 +445,22 @@ function isDateValidInTz(dateStr: string, timezone: string): boolean {
   return jobInt >= tzInt
 }
 
+function normalizeDateParamValue(field: ParamField, value: unknown): unknown {
+  if (field.type !== 'date' || typeof value !== 'string') return value
+  return toInputDateValue(value)
+}
+
 function buildDefaultParams(fields: ParamField[]): Record<string, unknown> {
   return Object.fromEntries(
-    fields.map(f => [f.key, f.default ?? ''])
+    fields.map(f => [f.key, normalizeDateParamValue(f, f.default ?? '')])
   )
 }
 
-function buildParamsFromJob(job: WatchJob): Record<string, unknown> {
+function buildParamsFromJob(
+  job: WatchJob,
+  fields: ParamField[],
+): Record<string, unknown> {
+  const fieldsByKey = new Map(fields.map((field) => [field.key, field]))
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(job.params)) {
     if (k === 'occupants') continue
@@ -445,7 +468,8 @@ function buildParamsFromJob(job: WatchJob): Record<string, unknown> {
       // Keep legacy string payloads editable after the multiselect migration.
       out[k] = v.split(',').map(s => s.trim()).filter(Boolean)
     } else {
-      out[k] = v ?? ''
+      const field = fieldsByKey.get(k)
+      out[k] = field ? normalizeDateParamValue(field, v ?? '') : (v ?? '')
     }
   }
   return out
@@ -563,9 +587,7 @@ function JobFormBody({
   const [selectedAdapterId, setSelectedAdapterId] = useState(
     mode === 'edit' && initialJob ? initialJob.adapter_id : '',
   )
-  const [params, setParams] = useState<Record<string, unknown>>(() =>
-    mode === 'edit' && initialJob ? buildParamsFromJob(initialJob) : {},
-  )
+  const [params, setParams] = useState<Record<string, unknown>>({})
   const [autoBook, setAutoBook] = useState(
     mode === 'edit' && initialJob ? initialJob.auto_book : false,
   )
@@ -598,8 +620,14 @@ function JobFormBody({
     queryKey: ['occupants'],
     queryFn: occupantsApi.list,
   })
+  const { data: credentials = [] } = useQuery({
+    queryKey: ['credentials'],
+    queryFn: credentialsApi.list,
+  })
 
   const selectedAdapter = adapters.find(a => a.adapter_id === selectedAdapterId)
+  const hasCredentialsForSelectedAdapter = !selectedAdapter?.requires_credentials
+    || credentials.some((credential) => credential.adapter_id === selectedAdapterId)
   const selectedOccupantCount = selectedOccupantIds.length
   const selectedOccupantsPresent = selectedOccupantCount > 0
   const enteredPeopleCount = parseInt(String(params.people ?? '0'), 10)
@@ -608,10 +636,22 @@ function JobFormBody({
     : enteredPeopleCount
 
   useEffect(() => {
-    if (!selectedOccupantsPresent && autoBook) {
+    if (
+      mode !== 'edit'
+      || !initialJob
+      || !selectedAdapter
+      || Object.keys(params).length > 0
+    ) {
+      return
+    }
+    setParams(buildParamsFromJob(initialJob, selectedAdapter.param_fields))
+  }, [initialJob, mode, params, selectedAdapter])
+
+  useEffect(() => {
+    if ((!selectedOccupantsPresent || !hasCredentialsForSelectedAdapter) && autoBook) {
       setAutoBook(false)
     }
-  }, [selectedOccupantsPresent, autoBook])
+  }, [selectedOccupantsPresent, hasCredentialsForSelectedAdapter, autoBook])
 
   const resolveOptions = (
     field: ParamField,
@@ -728,7 +768,12 @@ function JobFormBody({
     const parsedParams: Record<string, unknown> = {}
     for (const field of selectedAdapter.param_fields) {
       if (field.key === 'occupants') continue
-      parsedParams[field.key] = params[field.key]
+      const value = params[field.key]
+      parsedParams[field.key] = (
+        field.type === 'date' && typeof value === 'string'
+          ? toAdapterDateValue(value)
+          : value
+      )
     }
 
     if (!(effectivePeopleCount > 0)) {
@@ -740,6 +785,10 @@ function JobFormBody({
 
     if (autoBook && !selectedOccupantsPresent) {
       setError('Select occupants before enabling auto-book')
+      return
+    }
+    if (autoBook && !hasCredentialsForSelectedAdapter) {
+      setError('Save booking credentials for this adapter before enabling auto-book')
       return
     }
 
@@ -871,6 +920,11 @@ function JobFormBody({
                   ))}
                 </SelectContent>
               </Select>
+              {selectedAdapter?.requires_credentials && !hasCredentialsForSelectedAdapter && (
+                <p className="text-xs text-amber-700">
+                  No credentials saved for this adapter - booking actions will not be available.
+                </p>
+              )}
             </div>
           </FormSection>
 
@@ -946,11 +1000,16 @@ function JobFormBody({
                       checked={autoBook}
                       onCheckedChange={setAutoBook}
                       id="auto-book"
-                      disabled={!selectedOccupantsPresent}
+                      disabled={!selectedOccupantsPresent || !hasCredentialsForSelectedAdapter}
                     />
                     {!selectedOccupantsPresent && (
                       <p className="max-w-56 text-xs text-muted-foreground">
                         Select occupants to enable auto-book.
+                      </p>
+                    )}
+                    {selectedOccupantsPresent && !hasCredentialsForSelectedAdapter && (
+                      <p className="max-w-56 text-xs text-muted-foreground">
+                        Save booking credentials for this adapter in the header before enabling auto-book.
                       </p>
                     )}
                   </div>
