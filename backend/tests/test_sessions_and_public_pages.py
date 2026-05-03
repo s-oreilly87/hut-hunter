@@ -1,8 +1,9 @@
+import json
 from datetime import timedelta
 
 import pytest
 
-from app.models.job import JobStatus, utcnow
+from app.models.job import JobStatus, WatchJob, utcnow
 
 pytestmark = pytest.mark.asyncio
 
@@ -79,3 +80,30 @@ async def test_pay_page_returns_gone_when_hold_cart_has_expired(client, seed_job
 
     assert response.status_code == 410
     assert "Hold expired" in response.text
+
+
+async def test_resume_and_pay_routes_require_authentication(
+    anonymous_client,
+    seed_cart,
+    session_factory,
+    make_job_params,
+):
+    job = WatchJob(
+        user_id="some-user",
+        name="Private Job",
+        adapter_id="doc_great_walk",
+        params=json.dumps(make_job_params()),
+        status=JobStatus.HOLD_PLACED.value,
+    )
+    async with session_factory() as session:
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+
+    await seed_cart(job.id, expires_at=utcnow() + timedelta(minutes=20))
+
+    resume_response = await anonymous_client.get(f"/api/v1/jobs/{job.id}/resume")
+    pay_response = await anonymous_client.get(f"/pay/{job.id}")
+
+    assert resume_response.status_code == 401
+    assert pay_response.status_code == 401

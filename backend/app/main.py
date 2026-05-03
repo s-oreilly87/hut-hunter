@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import verify_db_connection
-from app.models import job, session, occupant  # noqa — imported for SQLModel table registration
+import app.models  # noqa: F401 - registers SQLModel metadata
+from app.api.auth import auth_router
 from app.api.routes import router, public_router
 
 
@@ -23,6 +24,7 @@ app = FastAPI(
 )
 
 app.include_router(router)
+app.include_router(auth_router)
 app.include_router(public_router)
 
 _ARTIFACTS_DIR = settings.artifacts_dir

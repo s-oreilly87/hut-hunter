@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import pool
 from alembic import context
 from app.core.config import settings
-from app.models import job, occupant, session  # noqa: F401 - registers metadata
+import app.models  # noqa: F401 - registers SQLModel metadata
 from sqlmodel import SQLModel
 
 config = context.config

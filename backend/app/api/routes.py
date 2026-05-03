@@ -1,13 +1,14 @@
 import json
 import logging
 from datetime import timedelta
-from typing import List, cast
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from arq.connections import RedisSettings, create_pool
 
+from app.api.auth import get_current_user
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.crypto import decrypt
@@ -24,6 +25,7 @@ from app.models.job import (
 )
 from app.models.session import CartSession
 from app.models.occupant import Occupant, OccupantCreate, OccupantRead, OccupantUpdate
+from app.models.user import AppUser
 from app.adapters import list_adapters
 
 # Minimum interval the UI should permit (matches the form's min=1). Enforced
@@ -82,9 +84,50 @@ async def _serialize_job(
     return WatchJobRead.from_db(job, cart_expires_at=cart_expires_at)
 
 
+async def _get_owned_job(
+    session: AsyncSession,
+    user_id: str,
+    job_id: str,
+) -> WatchJob:
+    job = (
+        await session.execute(
+            select(WatchJob).where(
+                WatchJob.id == job_id,
+                WatchJob.user_id == user_id,
+            )
+        )
+    ).scalars().first()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+async def _get_owned_occupant(
+    session: AsyncSession,
+    user_id: str,
+    occupant_id: str,
+) -> Occupant:
+    occupant = (
+        await session.execute(
+            select(Occupant).where(
+                Occupant.id == occupant_id,
+                Occupant.user_id == user_id,
+            )
+        )
+    ).scalars().first()
+    if occupant is None:
+        raise HTTPException(status_code=404, detail="Occupant not found")
+    return occupant
+
+
 @router.get("/jobs", response_model=List[WatchJobRead])
-async def list_jobs(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(WatchJob))
+async def list_jobs(
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+):
+    result = await session.execute(
+        select(WatchJob).where(WatchJob.user_id == current_user.id)
+    )
     jobs = result.scalars().all()
     return [await _serialize_job(session, job) for job in jobs]
 
@@ -94,6 +137,7 @@ async def create_job(
     body: WatchJobCreate,
     session: AsyncSession = Depends(get_session),
     redis=Depends(get_redis),
+    current_user: AppUser = Depends(get_current_user),
 ):
     """Create a new watch job.
 
@@ -111,6 +155,7 @@ async def create_job(
         )
 
     job = WatchJob(
+        user_id=current_user.id,
         name=body.name,
         adapter_id=body.adapter_id,
         params=json.dumps(body.params),
@@ -152,10 +197,12 @@ async def create_job(
 
 
 @router.get("/jobs/{job_id}", response_model=WatchJobRead)
-async def get_job(job_id: str, session: AsyncSession = Depends(get_session)):
-    job = cast(WatchJob | None, await session.get(WatchJob, job_id))
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+async def get_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+):
+    job = await _get_owned_job(session, current_user.id, job_id)
     return await _serialize_job(session, job)
 
 
@@ -165,6 +212,7 @@ async def update_job(
     body: WatchJobUpdate,
     session: AsyncSession = Depends(get_session),
     redis=Depends(get_redis),
+    current_user: AppUser = Depends(get_current_user),
 ):
     """Partial update — name, params, auto_book, enable_monitoring,
     interval_minutes are mutable. Editing params invalidates the cached
@@ -180,9 +228,7 @@ async def update_job(
       • interval change (monitoring already on) → reschedule next_check_at
                          to now + new_interval so the cadence restarts cleanly.
     """
-    job = cast(WatchJob | None, await session.get(WatchJob, job_id))
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = await _get_owned_job(session, current_user.id, job_id)
 
     # exclude_unset so clients can send just the keys they want to change
     patch = body.model_dump(exclude_unset=True)
@@ -276,6 +322,7 @@ async def delete_job(
     job_id: str,
     session: AsyncSession = Depends(get_session),
     redis=Depends(get_redis),
+    current_user: AppUser = Depends(get_current_user),
 ):
     """Delete a job and any cart sessions attached to it.
 
@@ -283,9 +330,7 @@ async def delete_job(
     signal so the headed Chromium holding the reservation gets torn down — no
     point leaving a worker pinned to a job that no longer exists. The DB
     delete proceeds regardless; the close signal is best-effort."""
-    job = cast(WatchJob | None, await session.get(WatchJob, job_id))
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = await _get_owned_job(session, current_user.id, job_id)
 
     had_live_hold = job.status == JobStatus.HOLD_PLACED.value
 
@@ -315,6 +360,7 @@ async def trigger_job(
     job_id: str,
     session: AsyncSession = Depends(get_session),
     redis=Depends(get_redis),
+    current_user: AppUser = Depends(get_current_user),
 ):
     """Manually enqueue a check for this job.
 
@@ -322,9 +368,7 @@ async def trigger_job(
     the job is already HOLD_PLACED and the cart hasn't expired, reject with
     409 — the user should finish or cancel the current hold via /pay first.
     Expired HOLD_PLACED is treated as CHECKING (lazy expiry)."""
-    job = await session.get(WatchJob, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = await _get_owned_job(session, current_user.id, job_id)
 
     # Block triggers on expired jobs (adapter's booking cutoff has passed).
     params = json.loads(job.params)
@@ -385,6 +429,7 @@ async def book_job(
     job_id: str,
     session: AsyncSession = Depends(get_session),
     redis=Depends(get_redis),
+    current_user: AppUser = Depends(get_current_user),
 ):
     """Manually dispatch the hold worker for this job.
 
@@ -401,9 +446,7 @@ async def book_job(
     """
     from app.workers.tasks import HOLD_QUEUE_NAME
 
-    job = await session.get(WatchJob, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = await _get_owned_job(session, current_user.id, job_id)
 
     if job.status == JobStatus.HOLD_PLACED.value:
         cart = await _latest_cart(session, job_id)
@@ -527,15 +570,14 @@ async def _latest_cart(session: AsyncSession, job_id: str) -> CartSession | None
 
 async def _finalize_hold(
     session: AsyncSession,
+    user_id: str,
     job_id: str,
     new_status: JobStatus,
 ) -> WatchJob:
     """Shared body of /complete and /cancel — both flip the job into a
     terminal status, stamp the cart as completed, and commit. The caller
     separately enqueues the browser close."""
-    job = await session.get(WatchJob, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = await _get_owned_job(session, user_id, job_id)
 
     cart = await _latest_cart(session, job_id)
     if not cart:
@@ -558,13 +600,14 @@ async def complete_booking(
     job_id: str,
     session: AsyncSession = Depends(get_session),
     redis=Depends(get_redis),
+    current_user: AppUser = Depends(get_current_user),
 ):
     """User pressed 'Booking Complete' on /pay. Job goes to BOOKING_COMPLETE
     (terminal — no reason to keep watching a hut already booked).
 
     Enqueues a receipt snapshot before the browser close so the user ends up
     with a screenshot of the confirmation page linked on the JobCard."""
-    await _finalize_hold(session, job_id, JobStatus.BOOKING_COMPLETE)
+    await _finalize_hold(session, current_user.id, job_id, JobStatus.BOOKING_COMPLETE)
     await _enqueue_complete_snapshot(job_id, redis)
     await _enqueue_browser_close(job_id, redis)
     return {"status": "completed", "job_id": job_id}
@@ -575,10 +618,11 @@ async def cancel_booking(
     job_id: str,
     session: AsyncSession = Depends(get_session),
     redis=Depends(get_redis),
+    current_user: AppUser = Depends(get_current_user),
 ):
     """User pressed 'Cancel' on /pay. Job goes to CANCELLED — polling is
     halted; the user can re-trigger later to resume checking."""
-    await _finalize_hold(session, job_id, JobStatus.CANCELLED)
+    await _finalize_hold(session, current_user.id, job_id, JobStatus.CANCELLED)
     await _enqueue_browser_close(job_id, redis)
     return {"status": "cancelled", "job_id": job_id}
 
@@ -588,8 +632,15 @@ async def cancel_booking(
 # ---------------------------------------------------------------------------
 
 @router.get("/occupants", response_model=list[OccupantRead])
-async def list_occupants(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(Occupant).order_by(Occupant.created_at))
+async def list_occupants(
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+):
+    result = await session.execute(
+        select(Occupant)
+        .where(Occupant.user_id == current_user.id)
+        .order_by(Occupant.created_at)
+    )
     return result.scalars().all()
 
 
@@ -597,8 +648,9 @@ async def list_occupants(session: AsyncSession = Depends(get_session)):
 async def create_occupant(
     body: OccupantCreate,
     session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
 ):
-    occupant = Occupant(**body.model_dump())
+    occupant = Occupant(user_id=current_user.id, **body.model_dump())
     session.add(occupant)
     await session.commit()
     await session.refresh(occupant)
@@ -610,10 +662,9 @@ async def update_occupant(
     occupant_id: str,
     body: OccupantUpdate,
     session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
 ):
-    occupant = await session.get(Occupant, occupant_id)
-    if not occupant:
-        raise HTTPException(status_code=404, detail="Occupant not found")
+    occupant = await _get_owned_occupant(session, current_user.id, occupant_id)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(occupant, field, value)
     session.add(occupant)
@@ -626,10 +677,9 @@ async def update_occupant(
 async def delete_occupant(
     occupant_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
 ):
-    occupant = await session.get(Occupant, occupant_id)
-    if not occupant:
-        raise HTTPException(status_code=404, detail="Occupant not found")
+    occupant = await _get_owned_occupant(session, current_user.id, occupant_id)
     await session.delete(occupant)
     await session.commit()
     return None
@@ -638,8 +688,10 @@ async def delete_occupant(
 @router.get("/jobs/{job_id}/resume")
 async def resume_cart(
     job_id: str,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
 ):
+    await _get_owned_job(session, current_user.id, job_id)
     # Multiple cart sessions may exist per job if attempt_hold ran more than once;
     # always use the most recent.
     cart = (await session.execute(
@@ -690,6 +742,7 @@ async def resume_cart(
 async def pay(
     job_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
 ):
     """
     Pay page — embedded noVNC iframe showing the headed Chromium running in
@@ -697,9 +750,7 @@ async def pay(
     the iframe when the job is HOLD_PLACED and the cart is still within its
     25-minute window.
     """
-    job = await session.get(WatchJob, job_id)
-    if not job:
-        return HTMLResponse("<h1>Job not found</h1>", status_code=404)
+    job = await _get_owned_job(session, current_user.id, job_id)
 
     cart = await _latest_cart(session, job_id)
 

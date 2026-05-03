@@ -42,3 +42,47 @@ async def test_occupant_crud_flow(client):
     final_list_response = await client.get("/api/v1/occupants")
     assert final_list_response.status_code == 200
     assert final_list_response.json() == []
+
+
+async def test_occupants_are_scoped_per_user(client):
+    create_response = await client.post(
+        "/api/v1/occupants",
+        json={
+            "first_name": "Taylor",
+            "last_name": "Ngata",
+            "age": 28,
+            "gender": "Female",
+            "country": "New Zealand",
+            "category": "NZ Adult (18+)",
+        },
+    )
+    occupant_id = create_response.json()["id"]
+
+    logout_response = await client.post("/api/v1/auth/logout")
+    assert logout_response.status_code == 204
+
+    register_response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "other@example.com",
+            "password": "password123",
+        },
+    )
+    assert register_response.status_code == 201
+
+    list_response = await client.get("/api/v1/occupants")
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+    hidden_response = await client.patch(
+        f"/api/v1/occupants/{occupant_id}",
+        json={"age": 29},
+    )
+    assert hidden_response.status_code == 404
+
+
+async def test_occupants_require_authentication(anonymous_client):
+    response = await anonymous_client.get("/api/v1/occupants")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"

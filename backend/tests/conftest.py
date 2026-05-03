@@ -32,6 +32,7 @@ from app.api import routes
 from app.core.crypto import encrypt
 from app.models.job import JobStatus, WatchJob, utcnow
 from app.models.session import CartSession
+from app.models.user import AppUser
 from app.main import app
 import app.core.database as database
 
@@ -94,7 +95,7 @@ async def test_context(tmp_path, monkeypatch) -> TestContext:
 
 
 @pytest_asyncio.fixture
-async def client(test_context: TestContext) -> AsyncClient:
+async def anonymous_client(test_context: TestContext) -> AsyncClient:
     async with LifespanManager(test_context.app):
         transport = ASGITransport(app=test_context.app)
         async with AsyncClient(
@@ -102,6 +103,19 @@ async def client(test_context: TestContext) -> AsyncClient:
             base_url="http://testserver",
         ) as async_client:
             yield async_client
+
+
+@pytest_asyncio.fixture
+async def client(anonymous_client: AsyncClient) -> AsyncClient:
+    response = await anonymous_client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "owner@example.com",
+            "password": "password123",
+        },
+    )
+    assert response.status_code == 201
+    return anonymous_client
 
 
 @pytest.fixture
@@ -114,6 +128,15 @@ def session_factory(
     test_context: TestContext,
 ) -> async_sessionmaker[AsyncSession]:
     return test_context.session_factory
+
+
+@pytest_asyncio.fixture
+async def auth_user(session_factory, client) -> AppUser:
+    async with session_factory() as session:
+        result = await session.execute(
+            select(AppUser).where(AppUser.email == "owner@example.com")
+        )
+        return result.scalars().one()
 
 
 @pytest.fixture
@@ -161,9 +184,10 @@ def make_job_payload(make_job_params):
 
 
 @pytest.fixture
-def seed_job(session_factory, make_job_params):
+def seed_job(session_factory, make_job_params, auth_user):
     async def _seed_job(
         *,
+        user_id: str | None = None,
         name: str = "Seeded Job",
         adapter_id: str = "doc_great_walk",
         params: dict[str, Any] | None = None,
@@ -178,6 +202,7 @@ def seed_job(session_factory, make_job_params):
         artifact_history: list[dict[str, Any]] | None = None,
     ) -> WatchJob:
         job = WatchJob(
+            user_id=user_id or auth_user.id,
             name=name,
             adapter_id=adapter_id,
             params=json.dumps(params or make_job_params()),

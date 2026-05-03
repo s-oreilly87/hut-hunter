@@ -85,6 +85,7 @@ class WatchJob(SQLModel, table=True):
         default_factory=lambda: str(uuid.uuid4()),
         primary_key=True
     )
+    user_id: str | None = Field(default=None, foreign_key="appuser.id", index=True)
     name: str                          # e.g. "Tongariro Alpine Crossing"
     adapter_id: str                    # which site adapter to use e.g. "doc_nz"
     params: str                        # JSON blob of search params

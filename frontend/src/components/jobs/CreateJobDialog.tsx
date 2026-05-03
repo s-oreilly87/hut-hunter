@@ -1,6 +1,15 @@
-import { createElement, useEffect, useState, type ReactNode } from 'react'
+import {
+  createElement,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ChevronDown,
   Plus,
   Settings2,
 } from 'lucide-react'
@@ -16,17 +25,196 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Select, SelectContent, SelectGroup, SelectItem, SelectLabel,
+  Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { InfoTooltip, SectionHeading } from '@/components/ui/section-heading'
 import { getJobParamIcon } from '@/components/jobs/jobParamDisplay'
+import { cn } from '@/lib/utils'
 
 const FACILITY_OPTION_DISPLAY_RE = /^(.+?)\s*\(\d+\/\d+\)(?:\s*—\s*.+)?$/
 
 function facilityDisplayName(opt: string): string {
   const m = FACILITY_OPTION_DISPLAY_RE.exec(opt.trim())
   return m ? m[1].trim() : opt
+}
+
+function formatDisplayDate(value: string): string {
+  const [day, month, year] = value.split('/')
+  if (!day || !month || !year) return ''
+  return `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+}
+
+function parseInputDate(value: string): string {
+  const [year, month, day] = value.split('-')
+  if (!year || !month || !day) return ''
+  return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year.padStart(4, '0')}`
+}
+
+type SearchableOptionGroup = {
+  label?: string
+  options: string[]
+}
+
+function SearchableSelectInput({
+  value,
+  onChange,
+  groups,
+  placeholder,
+  disabled = false,
+  required = false,
+  displayValue,
+}: {
+  value: string
+  onChange: (value: string) => void
+  groups: SearchableOptionGroup[]
+  placeholder: string
+  disabled?: boolean
+  required?: boolean
+  displayValue?: (value: string) => string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const renderValue = displayValue ?? ((option: string) => option)
+  const selectedLabel = value ? renderValue(value) : ''
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState(selectedLabel)
+  const deferredQuery = useDeferredValue(query)
+
+  useEffect(() => {
+    if (!open) {
+      setQuery(selectedLabel)
+    }
+  }, [selectedLabel, open])
+
+  useEffect(() => {
+    if (!open) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [open])
+
+  const totalOptions = groups.reduce((count, group) => count + group.options.length, 0)
+  const normalizedQuery = deferredQuery.trim().toLowerCase()
+  const showTruncatedHint = !normalizedQuery && totalOptions > 24
+
+  const filteredGroups = useMemo(() => {
+    if (!normalizedQuery) {
+      let remaining = 24
+      return groups
+        .map((group) => {
+          const slice = remaining > 0 ? group.options.slice(0, remaining) : []
+          remaining -= slice.length
+          return { label: group.label, options: slice }
+        })
+        .filter((group) => group.options.length > 0)
+    }
+
+    return groups
+      .map((group) => ({
+        label: group.label,
+        options: group.options.filter((option) => {
+          const label = renderValue(option).toLowerCase()
+          return label.includes(normalizedQuery) || option.toLowerCase().includes(normalizedQuery)
+        }),
+      }))
+      .filter((group) => group.options.length > 0)
+  }, [groups, normalizedQuery, renderValue])
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <Input
+          value={query}
+          placeholder={placeholder}
+          disabled={disabled}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setOpen(true)
+            setQuery(event.target.value)
+          }}
+          className="pr-9"
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={disabled}
+          aria-hidden="true"
+          className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground disabled:opacity-60"
+          onClick={() => setOpen((current) => !current)}
+        >
+          <ChevronDown className={cn('size-4 transition', open && 'rotate-180')} />
+        </button>
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-lg ring-1 ring-black/5">
+          {!required && value && (
+            <button
+              type="button"
+              className="mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange('')
+                setQuery('')
+                setOpen(false)
+              }}
+            >
+              Clear selection
+            </button>
+          )}
+
+          {filteredGroups.length > 0 ? (
+            filteredGroups.map((group) => (
+              <div key={group.label ?? 'options'} className="space-y-1">
+                {group.label && (
+                  <p className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+                    {group.label}
+                  </p>
+                )}
+                {group.options.map((option) => {
+                  const selected = option === value
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      className={cn(
+                        'flex w-full items-start rounded-xl px-3 py-2 text-left text-sm hover:bg-secondary/70',
+                        selected && 'bg-primary/10 text-primary',
+                      )}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        onChange(option)
+                        setQuery(renderValue(option))
+                        setOpen(false)
+                      }}
+                    >
+                      {renderValue(option)}
+                    </button>
+                  )
+                })}
+              </div>
+            ))
+          ) : (
+            <p className="px-3 py-3 text-sm text-muted-foreground">
+              No matches found.
+            </p>
+          )}
+
+          {showTruncatedHint && (
+            <p className="px-3 pt-3 text-xs text-muted-foreground">
+              Showing the first 24 options. Start typing to narrow the list.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ParamFieldInput({
@@ -96,33 +284,24 @@ function ParamFieldInput({
   }
 
   if (field.type === 'select' && (field.options_tree || selectOptions)) {
-    const tree = field.options_tree
     const isFacility = field.key === 'facility'
+    const groups: SearchableOptionGroup[] = field.options_tree
+      ? field.options_tree.map((group) => ({
+          label: group.group,
+          options: group.items,
+        }))
+      : [{ options: selectOptions ?? [] }]
+
     return (
-      <Select value={String(value ?? '')} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger>
-          <SelectValue placeholder={`Select ${field.label}`} />
-        </SelectTrigger>
-        <SelectContent>
-          {tree
-            ? tree.map(group => (
-                <SelectGroup key={group.group}>
-                  <SelectLabel>{group.group}</SelectLabel>
-                  {group.items.map(opt => (
-                    <SelectItem key={opt} value={opt}>
-                      {isFacility ? facilityDisplayName(opt) : opt}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))
-            : selectOptions!.map(opt => (
-                <SelectItem key={opt} value={opt}>
-                  {isFacility ? facilityDisplayName(opt) : opt}
-                </SelectItem>
-              ))
-          }
-        </SelectContent>
-      </Select>
+      <SearchableSelectInput
+        value={String(value ?? '')}
+        onChange={(nextValue) => onChange(nextValue)}
+        groups={groups}
+        placeholder={`Select ${field.label}`}
+        disabled={disabled}
+        required={field.required}
+        displayValue={isFacility ? facilityDisplayName : undefined}
+      />
     )
   }
 
@@ -140,10 +319,9 @@ function ParamFieldInput({
   if (field.type === 'date') {
     return (
       <Input
-        type="text"
-        placeholder="DD/MM/YYYY"
-        value={String(value ?? '')}
-        onChange={e => onChange(e.target.value)}
+        type="date"
+        value={formatDisplayDate(String(value ?? ''))}
+        onChange={e => onChange(parseInputDate(e.target.value))}
         disabled={disabled}
       />
     )

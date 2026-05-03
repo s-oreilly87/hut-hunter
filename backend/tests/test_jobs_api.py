@@ -66,6 +66,34 @@ async def test_create_job_rejects_auto_book_without_occupants(
     assert fake_redis.calls == []
 
 
+async def test_jobs_are_scoped_per_user(client, make_job_payload):
+    create_response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(name="User One Job", enable_monitoring=False),
+    )
+    assert create_response.status_code == 201
+    job_id = create_response.json()["id"]
+
+    logout_response = await client.post("/api/v1/auth/logout")
+    assert logout_response.status_code == 204
+
+    register_response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "other@example.com",
+            "password": "password123",
+        },
+    )
+    assert register_response.status_code == 201
+
+    list_response = await client.get("/api/v1/jobs")
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+    hidden_response = await client.get(f"/api/v1/jobs/{job_id}")
+    assert hidden_response.status_code == 404
+
+
 async def test_get_job_surfaces_expiry_and_artifact_urls(client, seed_job, seed_cart, make_job_params):
     job = await seed_job(
         params=make_job_params(date="01/01/2000"),
