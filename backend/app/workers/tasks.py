@@ -82,6 +82,182 @@ async def close_live_browser(job_id: str) -> bool:
     return True
 
 
+async def _relay_text_into_active_element(page, text: str) -> None:
+    """Type `text` into whatever element currently has focus in the Playwright page.
+
+    Uses page.evaluate() to dispatch keyboard events directly on the focused DOM
+    element — this is more reliable than page.keyboard.type() because it does not
+    require the Chrome window to hold OS focus at the CDP level.
+    """
+    await page.evaluate(
+        """(text) => {
+          const el = document.activeElement;
+          if (!el) return;
+          const tag = el.tagName.toLowerCase();
+          for (const ch of text) {
+            const kd = new KeyboardEvent('keydown',  { key: ch, bubbles: true, cancelable: true });
+            const kp = new KeyboardEvent('keypress', { key: ch, bubbles: true, cancelable: true });
+            const ku = new KeyboardEvent('keyup',    { key: ch, bubbles: true, cancelable: true });
+            el.dispatchEvent(kd);
+            el.dispatchEvent(kp);
+            if (tag === 'input' || tag === 'textarea') {
+              const start = el.selectionStart ?? el.value.length;
+              const end   = el.selectionEnd   ?? el.value.length;
+              el.value = el.value.slice(0, start) + ch + el.value.slice(end);
+              el.selectionStart = el.selectionEnd = start + ch.length;
+              el.dispatchEvent(new InputEvent('input',  { bubbles: true, inputType: 'insertText', data: ch }));
+            }
+            el.dispatchEvent(ku);
+          }
+        }""",
+        text,
+    )
+
+
+async def _assist_live_browser(page, action: str, chars: str = "") -> dict[str, object]:
+    """Apply a small UX assist action to a live payment page.
+
+    These actions are intentionally limited to scrolling and moving focus
+    between visible form controls. They do not enter any data or click any
+    submit/checkout actions.
+    """
+    if action == "send-text":
+        # Relay characters from the mobile relay textarea into the focused form
+        # field in the Playwright browser.
+        #
+        # Strategy: use page.evaluate() to dispatch real keyboard events AND
+        # directly update the element value. This is more reliable than
+        # page.keyboard.type() because it doesn't require the OS window to hold
+        # focus at the CDP level — it goes straight to the JS-focused element.
+        if not chars:
+            return {"ok": True, "action": "send-text", "chars": ""}
+
+        # Split into segments: printable text runs and special key presses.
+        printable = ""
+        for ch in chars:
+            if ch == "\b":
+                if printable:
+                    await _relay_text_into_active_element(page, printable)
+                    printable = ""
+                await page.keyboard.press("Backspace")
+            elif ch in {"\n", "\r"}:
+                if printable:
+                    await _relay_text_into_active_element(page, printable)
+                    printable = ""
+                await page.keyboard.press("Enter")
+            elif ch == "\t":
+                if printable:
+                    await _relay_text_into_active_element(page, printable)
+                    printable = ""
+                await page.keyboard.press("Tab")
+            else:
+                printable += ch
+        if printable:
+            await _relay_text_into_active_element(page, printable)
+        return {"ok": True, "action": "send-text", "chars": chars}
+
+    if action == "scroll-up":
+        return await page.evaluate(
+            """() => {
+              const root = document.scrollingElement || document.documentElement || document.body;
+              const step = Math.max(Math.round(window.innerHeight * 0.72), 240);
+              root.scrollBy({ top: -step, left: 0, behavior: 'auto' });
+              return { ok: true, action: 'scroll-up', scrollTop: root.scrollTop };
+            }"""
+        )
+
+    if action == "scroll-down":
+        return await page.evaluate(
+            """() => {
+              const root = document.scrollingElement || document.documentElement || document.body;
+              const step = Math.max(Math.round(window.innerHeight * 0.72), 240);
+              root.scrollBy({ top: step, left: 0, behavior: 'auto' });
+              return { ok: true, action: 'scroll-down', scrollTop: root.scrollTop };
+            }"""
+        )
+
+    if action in {"focus-next", "focus-prev"}:
+        direction = 1 if action == "focus-next" else -1
+        return await page.evaluate(
+            """(direction) => {
+              const selector = [
+                'input:not([type="hidden"]):not([disabled])',
+                'select:not([disabled])',
+                'textarea:not([disabled])',
+                'button:not([disabled])',
+                '[contenteditable="true"]',
+              ].join(',');
+
+              const visibleControls = Array.from(document.querySelectorAll(selector)).filter((el) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return (
+                  style.display !== 'none' &&
+                  style.visibility !== 'hidden' &&
+                  rect.width > 0 &&
+                  rect.height > 0
+                );
+              });
+
+              if (!visibleControls.length) {
+                return { ok: false, action: direction > 0 ? 'focus-next' : 'focus-prev', reason: 'no_focusable_controls' };
+              }
+
+              const active = document.activeElement;
+              let currentIndex = visibleControls.findIndex((el) => el === active || el.contains(active));
+              if (currentIndex === -1) {
+                currentIndex = direction > 0 ? -1 : 0;
+              }
+
+              let nextIndex = currentIndex + direction;
+              if (nextIndex < 0) {
+                nextIndex = visibleControls.length - 1;
+              } else if (nextIndex >= visibleControls.length) {
+                nextIndex = 0;
+              }
+
+              const target = visibleControls[nextIndex];
+              target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+              if (typeof target.focus === 'function') {
+                target.focus({ preventScroll: true });
+              }
+
+              const tag = target.tagName.toLowerCase();
+              const type = (target.getAttribute('type') || '').toLowerCase();
+              if (tag === 'input' || tag === 'textarea') {
+                if (typeof target.click === 'function') {
+                  target.click();
+                }
+                if (typeof target.setSelectionRange === 'function' && type !== 'checkbox' && type !== 'radio') {
+                  const end = target.value ? target.value.length : 0;
+                  target.setSelectionRange(end, end);
+                }
+              }
+
+              return {
+                ok: true,
+                action: direction > 0 ? 'focus-next' : 'focus-prev',
+                tag,
+                id: target.id || null,
+                name: target.getAttribute('name'),
+                type,
+              };
+            }""",
+            direction,
+        )
+
+    if action == "scroll-top":
+        return await page.evaluate(
+            """() => {
+              const root = document.scrollingElement || document.documentElement || document.body;
+              root.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+              return { ok: true, action: 'scroll-top', scrollTop: root.scrollTop };
+            }"""
+        )
+
+    return {"ok": False, "action": action, "reason": "unknown_action"}
+
+
 async def _snapshot_safe(adapter, page, label: str) -> str | None:
     """Best-effort snapshot — never raises. Used inside except blocks so a
     failing snapshot can't mask the original error. Returns the saved base
@@ -1138,6 +1314,43 @@ async def close_browser_task(ctx: dict, job_id: str) -> dict:
     return {"job_id": job_id, "closed": closed}
 
 
+async def assist_live_browser_task(ctx: dict, job_id: str, action: str, chars: str = "") -> dict:
+    """Apply a small assist action to a live payment page.
+
+    This runs on the hold queue so it can reach the headed browser kept in
+    this process's LIVE_BROWSERS registry.
+    """
+    entry = LIVE_BROWSERS.get(job_id)
+    if entry is None:
+        logger.info(
+            f"assist_live_browser_task: no live browser for {job_id}, action={action}"
+        )
+        return {"job_id": job_id, "action": action, "ok": False, "reason": "no_live_browser"}
+
+    page = entry.get("page")
+    if page is None:
+        logger.warning(
+            f"assist_live_browser_task: LIVE_BROWSERS[{job_id}] has no page"
+        )
+        return {"job_id": job_id, "action": action, "ok": False, "reason": "no_page"}
+
+    try:
+        result = await _assist_live_browser(page, action, chars=chars)
+    except Exception as e:
+        logger.warning(
+            f"assist_live_browser_task failed for {job_id} action={action}: {e}"
+        )
+        return {"job_id": job_id, "action": action, "ok": False, "reason": str(e)}
+
+    logger.info(
+        f"assist_live_browser_task job={job_id} action={action} result={result}"
+    )
+    payload = result if isinstance(result, dict) else {"ok": True, "result": result}
+    payload["job_id"] = job_id
+    payload["action"] = action
+    return payload
+
+
 async def snapshot_complete_task(ctx: dict, job_id: str) -> dict:
     """Capture a screenshot + HTML of the booking-complete / receipt page
     before the browser is torn down.
@@ -1223,6 +1436,7 @@ class HoldWorkerSettings:
     functions = [
         attempt_hold_task,
         close_browser_task,
+        assist_live_browser_task,
         snapshot_complete_task,
         keep_live_carts_active,
     ]

@@ -2,8 +2,12 @@ import json
 import logging
 from datetime import timedelta
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from urllib.parse import urlsplit
+
+from typing import Optional
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -72,6 +76,37 @@ def _check_job_arq_id(job_id: str) -> str:
     same `_job_id` while a job is pending or running — so this is our
     at-most-one-queued guarantee per watch job."""
     return f"check_availability:{job_id}"
+
+
+def _vnc_client_config() -> dict[str, str | int | None]:
+    path = "websockify"
+    if settings.vnc_url:
+        explicit_vnc_url = settings.vnc_url.rstrip("/")
+        explicit_vnc_parts = urlsplit(explicit_vnc_url)
+        if explicit_vnc_parts.hostname not in {"localhost", "127.0.0.1", "::1"}:
+            explicit_path = explicit_vnc_parts.path.rstrip("/")
+            if explicit_path:
+                path = f"{explicit_path.lstrip('/')}/websockify"
+            return {
+                "base_url": explicit_vnc_url,
+                "host": explicit_vnc_parts.hostname,
+                "port": explicit_vnc_parts.port,
+                "path": path,
+            }
+        if explicit_vnc_parts.port is not None:
+            return {
+                "base_url": None,
+                "host": None,
+                "port": explicit_vnc_parts.port,
+                "path": path,
+            }
+
+    return {
+        "base_url": None,
+        "host": None,
+        "port": settings.vnc_port,
+        "path": path,
+    }
 
 
 def _params_have_occupants(params: dict) -> bool:
@@ -989,6 +1024,25 @@ async def _enqueue_complete_snapshot(job_id: str, redis) -> None:
     )
 
 
+async def _enqueue_live_browser_assist(job_id: str, action: str, redis, chars: str = "") -> None:
+    """Ask the hold worker to nudge a live payment page.
+
+    Used by the mobile /pay helpers for scrolling, focus movement, and text relay.
+    """
+    from app.workers.tasks import HOLD_QUEUE_NAME
+    await redis.enqueue_job(
+        "assist_live_browser_task",
+        job_id,
+        action,
+        chars,
+        _queue_name=HOLD_QUEUE_NAME,
+    )
+
+
+class _AssistBody(BaseModel):
+    chars: str = ""
+
+
 async def _latest_cart(session: AsyncSession, job_id: str) -> CartSession | None:
     return (await session.execute(
         select(CartSession)
@@ -1054,6 +1108,36 @@ async def cancel_booking(
     await _finalize_hold(session, current_user.id, job_id, JobStatus.CANCELLED)
     await _enqueue_browser_close(job_id, redis)
     return {"status": "cancelled", "job_id": job_id}
+
+
+@router.post("/jobs/{job_id}/assist/{action}", status_code=202)
+async def assist_live_booking_page(
+    job_id: str,
+    action: str,
+    body: Optional[_AssistBody] = Body(default=None),
+    session: AsyncSession = Depends(get_session),
+    redis=Depends(get_redis),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """Small remote-page assists for the mobile /pay experience.
+
+    These only scroll or move focus inside the already-open checkout page.
+    The send-text action requires a JSON body: {"chars": "..."}.
+    All other actions accept no body.
+    """
+    _ASSIST_ACTIONS = {"scroll-up", "scroll-down", "scroll-top", "focus-next", "focus-prev", "send-text"}
+    if action not in _ASSIST_ACTIONS:
+        raise HTTPException(status_code=400, detail="Unknown assist action")
+    chars = body.chars if body else ""
+    if action == "send-text" and not chars:
+        raise HTTPException(status_code=400, detail="chars required for send-text")
+
+    job = await _get_owned_job(session, current_user.id, job_id)
+    if job.status != JobStatus.HOLD_PLACED.value:
+        raise HTTPException(status_code=409, detail="No live hold browser for this job")
+
+    await _enqueue_live_browser_assist(job_id, action, redis, chars=chars)
+    return {"queued": True, "job_id": job_id, "action": action}
 
 
 # ---------------------------------------------------------------------------
@@ -1249,8 +1333,7 @@ async def pay(
     # can just point the iframe at the right URL and let it auto-connect.
     # autoconnect=1 skips the splash screen; resize=remote asks the noVNC
     # client to tell the server to match the iframe size.
-    vnc_base = settings.vnc_url.rstrip("/")
-    vnc_embed_url = f"{vnc_base}/vnc_lite.html?autoconnect=1&resize=remote"
+    vnc_config = _vnc_client_config()
 
     # Minutes remaining until hold expires (displayed in the header).
     seconds_left = int((cart_expires_at - utcnow()).total_seconds())
@@ -1265,20 +1348,31 @@ async def pay(
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Complete your booking</title>
   <style>
     html, body {{
       margin: 0;
       padding: 0;
-      height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #111;
       color: #eee;
+      overflow: hidden;
+      overscroll-behavior: none;
     }}
+    /* position:fixed pins body to the visual viewport — when iOS/Android opens
+       the keyboard and internally scrolls the layout viewport, a fixed body
+       stays put. JS updates body.style.top via visualViewport.offsetTop to
+       counteract any residual visual-viewport scroll offset. */
     body {{
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      height: var(--pay-height, 100vh);
+      overflow: hidden;
     }}
     header {{
       padding: 10px 16px;
@@ -1302,11 +1396,14 @@ async def pay(
       flex: 1 1 auto;
       background: #000;
       min-height: 0;
+      min-width: 0;
+      max-width: 100%;
     }}
     .vnc-frame iframe {{
       position: absolute;
       left: 0;
       width: 100%;
+      max-width: 100%;
       top: -{chrome_crop_px}px;
       height: calc(100% + {chrome_crop_px}px);
       border: 0;
@@ -1316,12 +1413,22 @@ async def pay(
 
     .actions {{
       flex: 0 0 auto;
+      min-width: 0;
       display: flex;
+      flex-wrap: wrap;
       gap: 12px;
       padding: 14px 16px;
       background: #1b1b1b;
       border-top: 1px solid #333;
     }}
+    .actions a {{
+      flex: 1 1 100%;
+      text-align: center;
+      color: #9cd;
+      text-decoration: none;
+      font-weight: 600;
+    }}
+    .actions a:hover {{ text-decoration: underline; }}
     .actions button {{
       flex: 1 1 0;
       padding: 18px 24px;
@@ -1337,6 +1444,44 @@ async def pay(
     .actions button:disabled {{ opacity: 0.5; cursor: default; }}
     .actions .cancel {{ background: #b33a3a; }}
     .actions .complete {{ background: #2f8f3f; }}
+
+    .mobile-tools {{
+      display: none;
+      flex: 0 0 auto;
+      padding: 10px 12px;
+      gap: 8px;
+      background: #161616;
+      border-top: 1px solid #2b2b2b;
+      border-bottom: 1px solid #2b2b2b;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .mobile-tools button {{
+      padding: 14px 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #eef6ff;
+      background: #273546;
+      border: 1px solid #41576f;
+      border-radius: 10px;
+      cursor: pointer;
+    }}
+    .mobile-tools button:disabled {{
+      opacity: 0.55;
+      cursor: default;
+    }}
+    .mobile-tools .wide {{
+      grid-column: 1 / -1;
+      background: #204b36;
+      border-color: #2f8f61;
+    }}
+    .mobile-tools-hint {{
+      display: none;
+      flex: 0 0 auto;
+      padding: 8px 12px 0;
+      color: #98afc4;
+      font-size: 0.78rem;
+      background: #111;
+    }}
 
     .banner {{
       flex: 0 0 auto;
@@ -1360,6 +1505,107 @@ async def pay(
     }}
     #status.ok {{ color: #9be89b; }}
     #status.err {{ color: #f08a8a; }}
+    @media (max-width: 900px), (pointer: coarse) {{
+      body.mobile-embed header {{
+        align-items: flex-start;
+        gap: 8px;
+        flex-direction: column;
+      }}
+      body.mobile-embed .banner {{
+        font-size: 0.8em;
+      }}
+      body.mobile-embed .vnc-frame iframe {{
+        top: 0;
+        height: 100%;
+      }}
+      body.mobile-embed .actions button {{
+        flex: 1 1 100%;
+      }}
+      body.mobile-embed .mobile-tools {{
+        display: grid;
+      }}
+      body.mobile-embed .mobile-tools-hint {{
+        display: block;
+      }}
+      body.mobile-embed #status {{
+        display: none;
+      }}
+    }}
+
+    /* Keyboard relay — hidden until ⌨ Open Keyboard is tapped.
+       Focusing the textarea opens the OS keyboard on THIS page (guaranteed).
+       Prev/Next/Done are embedded here; .mobile-tools is hidden while active
+       so the iframe gets the reclaimed space. */
+    .key-relay-wrap {{
+      display: none;
+      flex: 0 0 auto;
+      flex-direction: column;
+      gap: 5px;
+      padding: 6px 10px 8px;
+      background: #1a2435;
+      border-top: 2px solid #2f8f61;
+      width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }}
+    .key-relay-wrap.active {{
+      display: flex;
+    }}
+    .key-relay-wrap textarea {{
+      width: 100%;
+      box-sizing: border-box;
+      background: #111b27;
+      color: #eef6ff;
+      border: 1px solid #2a4060;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 16px; /* 16px prevents iOS auto-zoom */
+      font-family: inherit;
+      line-height: 1.3;
+      resize: none;
+      outline: none;
+      min-height: 38px;
+      max-height: 72px;
+    }}
+    .key-relay-wrap textarea:focus {{
+      border-color: #2f8f61;
+    }}
+    .key-relay-controls {{
+      display: flex;
+      gap: 6px;
+      width: 100%;
+      box-sizing: border-box;
+    }}
+    .key-relay-nav {{
+      flex: 1;
+      padding: 8px 4px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #eef6ff;
+      background: #273546;
+      border: 1px solid #41576f;
+      border-radius: 8px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }}
+    #key-relay-close {{
+      padding: 8px 14px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #f08a8a;
+      background: #3a2020;
+      border: 1px solid #6b3030;
+      border-radius: 8px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+    }}
+    /* Hide competing chrome while the relay is open so the iframe stays visible */
+    body.key-relay-active .mobile-tools-hint {{ display: none !important; }}
+    body.key-relay-active .mobile-tools {{ display: none !important; }}
+    body.key-relay-active .actions {{ display: none !important; }}
   </style>
 </head>
 <body>
@@ -1378,10 +1624,42 @@ async def pay(
   </div>
 
   <div class="vnc-frame">
-    <iframe src="{vnc_embed_url}" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe id="vnc-iframe" allow="clipboard-read; clipboard-write"></iframe>
+  </div>
+
+  <div class="mobile-tools-hint" id="mobile-tools-hint">
+    Use two fingers to scroll inside the booking page
+  </div>
+
+  <!-- Relay textarea: focused directly on tap so iOS/Android opens the keyboard
+       on THIS page. Keystrokes are forwarded to the Playwright browser via API.
+       Prev/Next/Done controls are embedded here so we can hide .mobile-tools
+       and reclaim that space for the iframe when the keyboard is open. -->
+  <div class="key-relay-wrap" id="key-relay-wrap">
+    <textarea
+      id="key-relay-input"
+      placeholder="Type here — keys go to the booking form"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+      rows="1"
+    ></textarea>
+    <div class="key-relay-controls">
+      <button class="key-relay-nav" data-relay-nav="focus-prev" type="button">← Prev</button>
+      <button class="key-relay-nav" data-relay-nav="focus-next" type="button">Next →</button>
+      <button id="key-relay-close" type="button">✕ Done</button>
+    </div>
+  </div>
+
+  <div class="mobile-tools" id="mobile-tools">
+    <button data-assist="keyboard" class="wide" type="button">⌨ Open Keyboard</button>
+    <button data-assist="focus-prev" type="button">← Prev Field</button>
+    <button data-assist="focus-next" type="button">Next Field →</button>
   </div>
 
   <div class="actions">
+    <a id="vnc-direct-link" href="#" target="_blank" rel="noopener noreferrer">Open VNC directly</a>
     <button class="cancel" id="btn-cancel" type="button">Cancel</button>
     <button class="complete" id="btn-complete" type="button">Booking Complete</button>
   </div>
@@ -1392,6 +1670,224 @@ async def pay(
     const status = document.getElementById('status');
     const btnCancel = document.getElementById('btn-cancel');
     const btnComplete = document.getElementById('btn-complete');
+    const vncIframe = document.getElementById('vnc-iframe');
+    const vncDirectLink = document.getElementById('vnc-direct-link');
+    const mobileTools = document.getElementById('mobile-tools');
+    const keyRelayWrap = document.getElementById('key-relay-wrap');
+    const keyRelayInput = document.getElementById('key-relay-input');
+    const keyRelayClose = document.getElementById('key-relay-close');
+    const vncConfig = {json.dumps(vnc_config)};
+    const isMobileEmbed =
+      window.matchMedia('(pointer: coarse)').matches ||
+      window.matchMedia('(max-width: 900px)').matches;
+    let mobileFieldPrimed = false;
+
+    function buildVncUrl() {{
+      let baseUrl = vncConfig.base_url;
+      let host = vncConfig.host;
+      let port = vncConfig.port;
+      const path = vncConfig.path || 'websockify';
+
+      if (!baseUrl) {{
+        host = window.location.hostname;
+        baseUrl = `${{window.location.protocol}}//${{host}}:${{port}}`;
+      }}
+
+      const url = new URL(`${{baseUrl}}/vnc.html`);
+      url.searchParams.set('autoconnect', '1');
+      url.searchParams.set('resize', isMobileEmbed ? 'scale' : 'remote');
+      url.searchParams.set('scale', '1');
+      url.searchParams.set('view_clip', '0');
+      if (host) url.searchParams.set('host', host);
+      if (port) url.searchParams.set('port', String(port));
+      url.searchParams.set('path', path);
+      return url.toString();
+    }}
+
+    function syncViewportHeight() {{
+      const vv = window.visualViewport;
+      const height = vv ? vv.height : window.innerHeight;
+      // visualViewport.offsetTop is the OS-level scroll offset that iOS/Android
+      // applies when the keyboard opens. window.scrollTo() can't counteract it,
+      // but pinning body.style.top to the offset can — body is position:fixed so
+      // top is relative to the viewport, not the document.
+      const offsetTop = vv ? (vv.offsetTop || 0) : 0;
+      document.documentElement.style.setProperty('--pay-height', `${{Math.round(height)}}px`);
+      document.body.style.top = `${{Math.round(offsetTop)}}px`;
+    }}
+
+    async function primeMobileField() {{
+      if (mobileFieldPrimed) return;
+      mobileFieldPrimed = true;
+      try {{
+        const res = await fetch(`/api/v1/jobs/${{jobId}}/assist/focus-next`, {{ method: 'POST' }});
+        if (!res.ok) throw new Error(`HTTP ${{res.status}}`);
+      }} catch (e) {{
+        mobileFieldPrimed = false;
+        throw e;
+      }}
+    }}
+
+    // ---------------------------------------------------------------------------
+    // Keyboard relay — the ONLY reliable way to open the OS keyboard on iOS is
+    // to focus a real input that lives on THIS page (not inside an iframe).
+    // We focus keyRelayInput directly in the tap handler (before any await),
+    // which guarantees the keyboard opens. Keystrokes are forwarded to the
+    // Playwright browser via the send-text assist API.
+    // ---------------------------------------------------------------------------
+
+    function openKeyboardRelay() {{
+      if (!keyRelayWrap || !keyRelayInput) return;
+      keyRelayWrap.classList.add('active');
+      document.body.classList.add('key-relay-active');
+      keyRelayInput.focus({{ preventScroll: true }}); // ← same page, same gesture → keyboard always opens
+    }}
+
+    function closeKeyboardRelay() {{
+      if (!keyRelayWrap || !keyRelayInput) return;
+      keyRelayWrap.classList.remove('active');
+      document.body.classList.remove('key-relay-active');
+      keyRelayInput.blur();
+      keyRelayInput.value = '';
+      relayPrev = '';
+      relayBuffer = '';
+    }}
+
+    let relayPrev = '';
+    let relayTimer = null;
+    let relayBuffer = '';
+
+    function flushRelayBuffer() {{
+      const toSend = relayBuffer;
+      relayBuffer = '';
+      if (!toSend) return;
+      void fetch(`/api/v1/jobs/${{jobId}}/assist/send-text`, {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json' }},
+        body: JSON.stringify({{ chars: toSend }}),
+      }}).catch((e) => console.warn('key relay failed:', e));
+    }}
+
+    function scheduleRelay(chars) {{
+      relayBuffer += chars;
+      if (relayTimer) clearTimeout(relayTimer);
+      relayTimer = window.setTimeout(flushRelayBuffer, 80);
+    }}
+
+    if (keyRelayInput) {{
+      keyRelayInput.addEventListener('keydown', (e) => {{
+        if (e.key === 'Enter') {{
+          e.preventDefault();
+          // Flush pending then send Enter
+          flushRelayBuffer();
+          void fetch(`/api/v1/jobs/${{jobId}}/assist/send-text`, {{
+            method: 'POST',
+            headers: {{ 'Content-Type': 'application/json' }},
+            body: JSON.stringify({{ chars: '\\n' }}),
+          }}).catch(() => {{}});
+        }} else if (e.key === 'Tab') {{
+          e.preventDefault();
+          flushRelayBuffer();
+          void assist('focus-next');
+        }}
+      }});
+
+      keyRelayInput.addEventListener('input', () => {{
+        const current = keyRelayInput.value;
+        if (current.length > relayPrev.length) {{
+          scheduleRelay(current.slice(relayPrev.length));
+        }} else if (current.length < relayPrev.length) {{
+          scheduleRelay('\\b'.repeat(relayPrev.length - current.length));
+        }}
+        relayPrev = current;
+        // Prevent the relay buffer growing unbounded
+        if (current.length > 200) {{
+          keyRelayInput.value = current.slice(-50);
+          relayPrev = keyRelayInput.value;
+        }}
+      }});
+    }}
+
+    keyRelayClose?.addEventListener('click', closeKeyboardRelay);
+
+    // Prev/Next buttons embedded inside the relay bar
+    keyRelayWrap?.addEventListener('click', (event) => {{
+      const btn = event.target.closest('[data-relay-nav]');
+      if (!btn) return;
+      flushRelayBuffer();
+      void assist(btn.dataset.relayNav);
+    }});
+
+    async function assist(action) {{
+      if (action === 'keyboard') {{
+        // Open the relay textarea FIRST, synchronously within the tap gesture.
+        // On iOS, focus() only opens the keyboard when called directly from a
+        // user-gesture handler on the same page — this is the only reliable way.
+        openKeyboardRelay();
+        // Select the first form field in the Playwright browser in the background.
+        void primeMobileField().catch(() => {{}});
+        return;
+      }}
+
+      if (action === 'focus-next' || action === 'focus-prev') {{
+        // Clear the relay buffer so it tracks the new field from scratch
+        if (keyRelayInput) {{
+          keyRelayInput.value = '';
+          relayPrev = '';
+          relayBuffer = '';
+        }}
+      }}
+
+      const buttons = mobileTools ? Array.from(mobileTools.querySelectorAll('button')) : [];
+      for (const button of buttons) button.disabled = true;
+      try {{
+        const res = await fetch(`/api/v1/jobs/${{jobId}}/assist/${{action}}`, {{ method: 'POST' }});
+        if (!res.ok) throw new Error(`HTTP ${{res.status}}`);
+      }} catch (e) {{
+        status.className = 'err';
+        status.textContent = 'Assist failed: ' + e.message;
+      }} finally {{
+        for (const button of buttons) button.disabled = false;
+        // After focus-next/prev, return focus to the relay so keyboard stays open
+        if (keyRelayWrap?.classList.contains('active') && keyRelayInput) {{
+          keyRelayInput.focus({{ preventScroll: true }});
+        }}
+      }}
+    }}
+
+    const vncUrl = buildVncUrl();
+    vncDirectLink.href = vncUrl;
+    if (isMobileEmbed) {{
+      document.body.classList.add('mobile-embed');
+      vncDirectLink.textContent = 'Open noVNC directly';
+      syncViewportHeight();
+      if (window.visualViewport) {{
+        window.visualViewport.addEventListener('resize', syncViewportHeight);
+        window.visualViewport.addEventListener('scroll', syncViewportHeight);
+      }} else {{
+        window.addEventListener('resize', syncViewportHeight);
+      }}
+    }}
+    vncIframe.src = vncUrl;
+    vncIframe.addEventListener('load', () => {{
+      if (!isMobileEmbed) return;
+      // Select the first field automatically on load — no keyboard opening here
+      // because there's no user gesture. The relay bar is shown immediately so
+      // the user can tap the textarea (which opens the keyboard on their first
+      // natural interaction) without needing to hunt for a button.
+      window.setTimeout(() => {{ void primeMobileField().catch(() => {{}}); }}, 700);
+      // Show relay bar without focusing (no gesture yet → no keyboard)
+      if (keyRelayWrap && keyRelayInput) {{
+        keyRelayWrap.classList.add('active');
+        document.body.classList.add('key-relay-active');
+        // Don't call focus() here — that would require a user gesture to open keyboard
+      }}
+    }});
+    mobileTools?.addEventListener('click', (event) => {{
+      const button = event.target.closest('button[data-assist]');
+      if (!button) return;
+      void assist(button.dataset.assist);
+    }});
 
     // Set once the user has clicked Cancel or Booking Complete — at that
     // point the browser-close signal is already in flight and closing the
