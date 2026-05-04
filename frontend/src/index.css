@@ -127,9 +127,11 @@
     scroll-behavior: smooth;
   }
 
+  html,
   body,
   #root {
-    min-height: 100vh;
+    height: 100dvh;
+    min-height: 100dvh;
   }
 
   body {
@@ -177,7 +179,29 @@
   }
 
   .app-panel {
-    @apply rounded-[1.75rem] border border-white/60 bg-card/85 shadow-[0_18px_60px_-30px_rgba(23,47,36,0.45)] backdrop-blur-md;
+    @apply gap-0 py-0 rounded-[1.75rem] border border-white/60 bg-card/85 shadow-[0_18px_60px_-30px_rgba(23,47,36,0.45)] backdrop-blur-md;
+  }
+
+  .app-panel-frame {
+    @apply flex h-full min-h-0 flex-col overflow-hidden;
+  }
+
+  .app-panel-body-scroll {
+    @apply min-h-0 flex-1 overflow-y-auto overscroll-contain;
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      black 3rem,
+      black calc(100% - 3rem),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      black 3rem,
+      black calc(100% - 3rem),
+      transparent 100%
+    );
   }
 
   .dashboard-enter {

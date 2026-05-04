@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
   AlertTriangle,
+  ArrowLeft,
   CheckCircle2,
   CircleHelp,
   FileCode2,
@@ -53,6 +54,7 @@ import {
 } from '@/lib/time'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import { getHeaderFields } from '@/components/jobs/jobParamDisplay'
+import { cn } from '@/lib/utils'
 
 function titleize(key: string): string {
   return key
@@ -786,9 +788,15 @@ function HoldExpiryCountdown({ cartExpiresAt }: { cartExpiresAt: string | null }
 export function JobCard({
   onRequestEdit,
   onDeleted,
+  onBack,
+  backLabel = 'Back',
+  className,
 }: {
   onRequestEdit?: (job: WatchJob) => void
   onDeleted?: () => void
+  onBack?: () => void
+  backLabel?: string
+  className?: string
 } = {}) {
   const queryClient = useQueryClient()
   const {
@@ -838,7 +846,7 @@ export function JobCard({
 
   if (!selectedJobId) {
     return (
-      <Card className="app-panel border-border/80 bg-card/85">
+      <Card className={cn('app-panel app-panel-frame border-border/80 bg-card/85', className)}>
         <CardHeader className="pb-3">
           <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <LayoutDashboard className="size-5" />
@@ -851,12 +859,14 @@ export function JobCard({
             evidence, and booking controls.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 pb-6">
-          <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
-            <p className="text-sm font-medium text-foreground">What you get here</p>
-            <p className="mt-1.5 text-sm leading-5 text-pretty text-muted-foreground">
-              Stored inputs, current state, latest automation result, and artifact links in one focused view.
-            </p>
+        <CardContent className="app-panel-body-scroll px-6">
+          <div className="grid gap-3 pb-6">
+            <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
+              <p className="text-sm font-medium text-foreground">What you get here</p>
+              <p className="mt-1.5 text-sm leading-5 text-pretty text-muted-foreground">
+                Stored inputs, current state, latest automation result, and artifact links in one focused view.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -865,14 +875,16 @@ export function JobCard({
 
   if (isLoading) {
     return (
-      <Card className="app-panel border-border/80 bg-card/85">
-        <CardContent className="grid gap-3 px-6 py-6">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-20 animate-pulse rounded-2xl bg-muted/60"
-            />
-          ))}
+      <Card className={cn('app-panel app-panel-frame border-border/80 bg-card/85', className)}>
+        <CardContent className="app-panel-body-scroll px-6">
+          <div className="grid gap-3 pb-6">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-20 animate-pulse rounded-2xl bg-muted/60"
+              />
+            ))}
+          </div>
         </CardContent>
       </Card>
     )
@@ -911,252 +923,283 @@ export function JobCard({
   )
   const holdArtifacts = getHoldFlowArtifacts(job.artifact_history)
   const completedArtifacts = getCompletedBookingArtifacts(holdArtifacts, receiptArtifact)
+  const actions = (
+    <>
+      <Button size="sm" variant="outline" onClick={handleEdit}>
+        <Settings2 className="size-4" />
+        Edit
+      </Button>
+      <Button
+        size="sm"
+        variant="destructive"
+        disabled={deleting}
+        onClick={() => handleDelete(job.id, job.name)}
+      >
+        <Trash2 className="size-4" />
+        {deleting ? 'Deleting...' : 'Delete'}
+      </Button>
+    </>
+  )
 
   return (
     <>
-      <Card className="app-panel border-border/80 bg-card/90">
-        <CardHeader className="gap-4 border-b border-border/70 pb-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <CardTitle className="text-xl tracking-tight">{job.name}</CardTitle>
-              <CardDescription className="mt-2 max-w-3xl text-sm leading-5">
+      <Card className={cn('app-panel app-panel-frame border-border/80 bg-card/90', className)}>
+        <CardHeader className="shrink-0 gap-4 border-b border-border/70 pb-5">
+          {onBack ? (
+            <>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
+                <div className="min-w-0">
+                  <Button size="sm" variant="ghost" className="-ml-2 w-fit" onClick={onBack}>
+                    <ArrowLeft className="size-4" />
+                    {backLabel}
+                  </Button>
+                </div>
+                <div className="min-w-0 pt-1 text-center">
+                  <CardTitle className="truncate text-lg tracking-tight sm:text-xl">
+                    {job.name}
+                  </CardTitle>
+                </div>
+                <div className="flex min-w-0 flex-wrap justify-end gap-2">
+                  {actions}
+                </div>
+              </div>
+              <CardDescription className="text-center text-sm leading-5">
                 <HeaderParamSummary params={job.params} />
               </CardDescription>
+            </>
+          ) : (
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-xl tracking-tight">{job.name}</CardTitle>
+                <CardDescription className="mt-2 max-w-3xl text-sm leading-5">
+                  <HeaderParamSummary params={job.params} />
+                </CardDescription>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                {actions}
+              </div>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={handleEdit}>
-                <Settings2 className="size-4" />
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={deleting}
-                onClick={() => handleDelete(job.id, job.name)}
-              >
-                <Trash2 className="size-4" />
-                {deleting ? 'Deleting...' : 'Delete'}
-              </Button>
-            </div>
-          </div>
+          )}
         </CardHeader>
 
-        <CardContent className="space-y-6 px-6 py-6">
-          <MonitoringSection
-            job={job}
-            displayStatus={displayStatus}
-            onTrigger={() => trigger.mutate(job.id)}
-            triggerQueued={queued}
-            hideTrigger={hideTrigger}
-          />
+        <CardContent className="app-panel-body-scroll px-6">
+          <div className="space-y-6 pb-6">
+            <MonitoringSection
+              job={job}
+              displayStatus={displayStatus}
+              onTrigger={() => trigger.mutate(job.id)}
+              triggerQueued={queued}
+              hideTrigger={hideTrigger}
+            />
 
-          {job.status === 'booking_complete' && (
-            <section className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Stamp className="size-4 text-primary" />
-                <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
-                  Booking Complete
-                </h3>
-              </div>
-              <div className="rounded-[1.25rem] border border-emerald-500/25 bg-emerald-500/8 px-4 py-4">
-                <p className="text-sm text-muted-foreground">
-                  Booking flow completed at {formatDateTime(job.last_checked_at)}
-                </p>
-              </div>
-              {completedArtifacts.length > 0 && <ArtifactGallery artifacts={completedArtifacts} />}
-            </section>
-          )}
-
-          {job.status === 'hold_placed' && !holdExpired && (
-            <section className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {job.status === 'booking_complete' && (
+              <section className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <ImageIcon className="size-4 text-primary" />
+                  <Stamp className="size-4 text-primary" />
                   <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
-                    Complete Payment
+                    Booking Complete
                   </h3>
                 </div>
-                <BookButton job={job} className="w-full sm:w-auto" size="default" />
-              </div>
-              <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
-                <p className="text-base font-medium tracking-tight text-foreground">
-                  The hold is active and waiting for payment.
-                </p>
-                <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                  Review the captured cart stages below if you want to confirm the itinerary before paying.
-                </p>
-                <HoldExpiryCountdown cartExpiresAt={job.cart_expires_at} />
-              </div>
-              {holdArtifacts.length > 0 ? (
-                <ArtifactGallery artifacts={holdArtifacts} />
-              ) : (
-                <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
+                <div className="rounded-[1.25rem] border border-emerald-500/25 bg-emerald-500/8 px-4 py-4">
                   <p className="text-sm text-muted-foreground">
-                    No cart-stage snapshots are available for this hold yet.
+                    Booking flow completed at {formatDateTime(job.last_checked_at)}
                   </p>
                 </div>
-              )}
-            </section>
-          )}
+                {completedArtifacts.length > 0 && <ArtifactGallery artifacts={completedArtifacts} />}
+              </section>
+            )}
 
-          {holdExpired && (
-            <section className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="size-4 text-primary" />
-                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
-                    Hold Expired
-                  </h3>
-                </div>
-                <BookButton job={job} className="w-full sm:w-auto" size="default" />
-              </div>
-              <div className="rounded-[1.25rem] border border-zinc-500/25 bg-zinc-500/8 px-4 py-4">
-                <p className="text-base font-medium tracking-tight text-foreground">
-                  The 25-minute payment window has closed.
-                </p>
-                <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                  You can attempt the hold again from here, or run a fresh check first if you want to reconfirm availability.
-                </p>
-              </div>
-              {holdArtifacts.length > 0 ? (
-                <ArtifactGallery artifacts={holdArtifacts} />
-              ) : (
-                <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
-                  <p className="text-sm text-muted-foreground">
-                    No cart-stage snapshots are available from the expired hold.
-                  </p>
-                </div>
-              )}
-            </section>
-          )}
-
-          {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed' && (
-            displayStatus === 'booking' || displayStatus === 'attempting_hold'
-          ) && (
-            <section className="space-y-3">
-              <div className="flex items-center gap-2">
-                <LayoutDashboard className="size-4 text-primary" />
-                <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
-                  Last Result
-                </h3>
-              </div>
-              <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
-                    <Loader2 className="size-5 animate-spin" />
+            {job.status === 'hold_placed' && !holdExpired && (
+              <section className="space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="size-4 text-primary" />
+                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
+                      Complete Payment
+                    </h3>
                   </div>
-                  <div>
-                    <p className="font-medium tracking-tight text-foreground">Booking in progress</p>
-                    <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                      Attempting to secure your hold…
+                  <BookButton job={job} className="w-full sm:w-auto" size="default" />
+                </div>
+                <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+                  <p className="text-base font-medium tracking-tight text-foreground">
+                    The hold is active and waiting for payment.
+                  </p>
+                  <p className="mt-2 text-sm leading-5 text-muted-foreground">
+                    Review the captured cart stages below if you want to confirm the itinerary before paying.
+                  </p>
+                  <HoldExpiryCountdown cartExpiresAt={job.cart_expires_at} />
+                </div>
+                {holdArtifacts.length > 0 ? (
+                  <ArtifactGallery artifacts={holdArtifacts} />
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
+                    <p className="text-sm text-muted-foreground">
+                      No cart-stage snapshots are available for this hold yet.
                     </p>
                   </div>
+                )}
+              </section>
+            )}
+
+            {holdExpired && (
+              <section className="space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="size-4 text-primary" />
+                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
+                      Hold Expired
+                    </h3>
+                  </div>
+                  <BookButton job={job} className="w-full sm:w-auto" size="default" />
                 </div>
-              </div>
-              {job.last_result && (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Latest availability that triggered the booking attempt:
+                <div className="rounded-[1.25rem] border border-zinc-500/25 bg-zinc-500/8 px-4 py-4">
+                  <p className="text-base font-medium tracking-tight text-foreground">
+                    The 25-minute payment window has closed.
                   </p>
-                  <LastResultView
-                    result={job.last_result}
-                    artifactPng={job.last_artifact_png}
-                    artifactHtml={job.last_artifact_html}
-                  />
-                  {jobHasPartialAvailability(job) && (
-                    <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-                      <PartialAvailabilityHelp />
+                  <p className="mt-2 text-sm leading-5 text-muted-foreground">
+                    You can attempt the hold again from here, or run a fresh check first if you want to reconfirm availability.
+                  </p>
+                </div>
+                {holdArtifacts.length > 0 ? (
+                  <ArtifactGallery artifacts={holdArtifacts} />
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
+                    <p className="text-sm text-muted-foreground">
+                      No cart-stage snapshots are available from the expired hold.
+                    </p>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed' && (
+              displayStatus === 'booking' || displayStatus === 'attempting_hold'
+            ) && (
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <LayoutDashboard className="size-4 text-primary" />
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
+                    Last Result
+                  </h3>
+                </div>
+                <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
+                      <Loader2 className="size-5 animate-spin" />
                     </div>
-                  )}
-                </div>
-              )}
-            </section>
-          )}
-
-          {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
-            && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
-            && job.last_result && (
-            <section className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <LayoutDashboard className="size-4 text-primary" />
-                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
-                      Latest Result
-                    </h3>
+                    <div>
+                      <p className="font-medium tracking-tight text-foreground">Booking in progress</p>
+                      <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                        Attempting to secure your hold…
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {formatRelativeTime(job.last_checked_at)}
-                  </p>
                 </div>
-                <BookButton job={job} className="w-full sm:w-auto" size="default" />
-              </div>
-              <LastResultView
-                result={job.last_result}
-                artifactPng={job.last_artifact_png}
-                artifactHtml={job.last_artifact_html}
-              />
-              {missingOccupants && (
-                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-                  <p className="text-sm text-muted-foreground">
-                    Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
-                  </p>
-                </div>
-              )}
-              {missingCredentials && (
-                <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
-                  <p className="text-sm text-muted-foreground">
-                    A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
-                  </p>
-                </div>
-              )}
-              {jobHasPartialAvailability(job) && (
-                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-                  <PartialAvailabilityHelp />
-                </div>
-              )}
-            </section>
-          )}
-
-          {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
-            && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
-            && !job.last_result && (
-            <section className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <LayoutDashboard className="size-4 text-primary" />
-                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
-                      Latest Result
-                    </h3>
+                {job.last_result && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Latest availability that triggered the booking attempt:
+                    </p>
+                    <LastResultView
+                      result={job.last_result}
+                      artifactPng={job.last_artifact_png}
+                      artifactHtml={job.last_artifact_html}
+                    />
+                    {jobHasPartialAvailability(job) && (
+                      <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+                        <PartialAvailabilityHelp />
+                      </div>
+                    )}
                   </div>
+                )}
+              </section>
+            )}
+
+            {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
+              && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
+              && job.last_result && (
+              <section className="space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <LayoutDashboard className="size-4 text-primary" />
+                      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
+                        Latest Result
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {formatRelativeTime(job.last_checked_at)}
+                    </p>
+                  </div>
+                  <BookButton job={job} className="w-full sm:w-auto" size="default" />
+                </div>
+                <LastResultView
+                  result={job.last_result}
+                  artifactPng={job.last_artifact_png}
+                  artifactHtml={job.last_artifact_html}
+                />
+                {missingOccupants && (
+                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+                    <p className="text-sm text-muted-foreground">
+                      Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
+                    </p>
+                  </div>
+                )}
+                {missingCredentials && (
+                  <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
+                    <p className="text-sm text-muted-foreground">
+                      A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
+                    </p>
+                  </div>
+                )}
+                {jobHasPartialAvailability(job) && (
+                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+                    <PartialAvailabilityHelp />
+                  </div>
+                )}
+              </section>
+            )}
+
+            {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
+              && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
+              && !job.last_result && (
+              <section className="space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <LayoutDashboard className="size-4 text-primary" />
+                      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
+                        Latest Result
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {formatRelativeTime(job.last_checked_at)}
+                    </p>
+                  </div>
+                  <BookButton job={job} className="w-full sm:w-auto" size="default" />
+                </div>
+                <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
                   <p className="text-sm text-muted-foreground">
-                    {formatRelativeTime(job.last_checked_at)}
+                    No automation result has been stored for this hunt yet.
                   </p>
                 </div>
-                <BookButton job={job} className="w-full sm:w-auto" size="default" />
-              </div>
-              <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
-                <p className="text-sm text-muted-foreground">
-                  No automation result has been stored for this hunt yet.
-                </p>
-              </div>
-              {missingOccupants && (
-                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-                  <p className="text-sm text-muted-foreground">
-                    Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
-                  </p>
-                </div>
-              )}
-              {missingCredentials && (
-                <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
-                  <p className="text-sm text-muted-foreground">
-                    A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
-                  </p>
-                </div>
-              )}
-            </section>
-          )}
+                {missingOccupants && (
+                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+                    <p className="text-sm text-muted-foreground">
+                      Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
+                    </p>
+                  </div>
+                )}
+                {missingCredentials && (
+                  <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
+                    <p className="text-sm text-muted-foreground">
+                      A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
+                    </p>
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
         </CardContent>
       </Card>
 
