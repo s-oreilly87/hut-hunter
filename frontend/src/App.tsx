@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
-  ArrowLeft,
   BellRing,
   Check,
   ChevronDown,
@@ -50,21 +49,32 @@ function getPrimarySection(route: AppRoute): 'dashboard' | 'jobs' {
   return route.name === 'dashboard' ? 'dashboard' : 'jobs'
 }
 
-function getJobSelector(jobId: string): string {
-  const escapedId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-    ? CSS.escape(jobId)
-    : jobId.replace(/"/g, '\\"')
+function useElementHeightCssVar<T extends HTMLElement>(cssVarName: string) {
+  const ref = useRef<T | null>(null)
 
-  return `[data-job-id="${escapedId}"]`
-}
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
 
-function getMobileStickyHeaderOffset(): number {
-  if (typeof window === 'undefined') return 64
+    const root = document.documentElement
+    const update = () => {
+      root.style.setProperty(cssVarName, `${node.getBoundingClientRect().height}px`)
+    }
 
-  const stickyHeader = document.querySelector<HTMLElement>('[data-sticky-header="true"]')
-  const headerHeight = stickyHeader?.getBoundingClientRect().height ?? 0
+    update()
 
-  return headerHeight + 16
+    const resizeObserver = new ResizeObserver(update)
+    resizeObserver.observe(node)
+    window.addEventListener('resize', update)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', update)
+      root.style.removeProperty(cssVarName)
+    }
+  }, [cssVarName])
+
+  return ref
 }
 
 function getJobTitle(job: WatchJob): string {
@@ -113,8 +123,10 @@ function AppHeader({
   onOpenNotifications: () => void
   onCreateJob: () => void
 }) {
+  const headerRef = useElementHeightCssVar<HTMLDivElement>('--app-header-height')
+
   return (
-    <div data-sticky-header="true" className="sticky top-0 z-50 isolate">
+    <div ref={headerRef} data-sticky-header="true" className="sticky top-0 z-50 isolate">
       <div className="border-b border-border/30 bg-background/94 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <NavBrand />
@@ -614,25 +626,6 @@ function StatsGrid({
   )
 }
 
-// ─── Mobile Navigation ────────────────────────────────────────────────────────
-
-function MobileBackBar({
-  backLabel,
-  onBack,
-}: {
-  backLabel?: string
-  onBack: () => void
-}) {
-  return (
-    <div className="px-1 pt-3">
-      <Button size="sm" variant="ghost" className="-ml-2 w-fit" onClick={onBack}>
-        <ArrowLeft className="size-4" />
-        {backLabel ?? 'Back'}
-      </Button>
-    </div>
-  )
-}
-
 function MobilePrimaryNav({
   route,
   navigate,
@@ -640,10 +633,14 @@ function MobilePrimaryNav({
   route: AppRoute
   navigate: (route: AppRoute) => void
 }) {
+  const navRef = useElementHeightCssVar<HTMLElement>('--app-mobile-nav-height')
   const activeSection = getPrimarySection(route)
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 border-t border-border/70 bg-background/96 px-4 py-3 backdrop-blur">
+    <nav
+      ref={navRef}
+      className="fixed inset-x-0 bottom-0 border-t border-border/70 bg-background/96 px-4 py-3 backdrop-blur"
+    >
       <div className="mx-auto grid max-w-md grid-cols-2 gap-2">
         <Button
           variant={activeSection === 'dashboard' ? 'default' : 'outline'}
@@ -716,7 +713,7 @@ function DesktopApp({
   missingCredentialCount,
 }: AppViewProps) {
   return (
-    <div className="app-shell min-h-dvh">
+    <div className="app-shell flex h-dvh flex-col overflow-hidden">
       <AppHeader
         userEmail={userEmail}
         onLogout={onLogout}
@@ -727,7 +724,7 @@ function DesktopApp({
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col overflow-hidden px-4 pb-8 pt-6 sm:px-6 lg:px-8">
         <div className="dashboard-enter">
           <StatsGrid
             stats={stats}
@@ -743,8 +740,8 @@ function DesktopApp({
           />
         </div>
 
-        <main className="dashboard-enter-delay mt-5 grid flex-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)]">
-          <section className="app-panel flex min-h-[26rem] flex-col overflow-hidden">
+        <main className="dashboard-enter-delay mt-5 grid min-h-0 flex-1 overflow-hidden gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)] xl:grid-rows-[minmax(0,1fr)]">
+          <section className="app-panel app-panel-frame min-h-[26rem]">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 sm:px-6">
               <h2 className="text-base font-semibold tracking-tight text-foreground">
                 Hunts
@@ -761,16 +758,19 @@ function DesktopApp({
                 </Button>
               </div>
             </div>
-            <div className="min-h-0 flex-1 px-4 py-4 sm:px-6">
-              <JobList
-                statusFilters={statusFilters}
-                onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
-              />
+            <div className="app-panel-body-scroll px-4 sm:px-6">
+              <div className="py-6">
+                <JobList
+                  statusFilters={statusFilters}
+                  onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
+                />
+              </div>
             </div>
           </section>
 
-          <aside className="xl:sticky xl:top-20 xl:self-start">
+          <aside className="min-h-0">
             <JobCard
+              className="h-full"
               onRequestEdit={(job) => navigate({ name: 'edit-job', jobId: job.id })}
             />
           </aside>
@@ -830,8 +830,11 @@ function MobileApp({
   hasOccupants,
   missingCredentialCount,
 }: AppViewProps) {
+  const hasFullscreenCardRoute = route.name !== 'dashboard'
+  const mobileNavPadding = 'calc(var(--app-mobile-nav-height, 0px) + 1rem)'
+
   return (
-    <div className="app-shell min-h-dvh pb-24">
+    <div className="app-shell flex h-dvh flex-col overflow-hidden">
       <AppHeader
         userEmail={userEmail}
         onLogout={onLogout}
@@ -842,7 +845,13 @@ function MobileApp({
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
 
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 pb-4 pt-4">
+      <div
+        className={cn(
+          'mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pt-4',
+          route.name === 'dashboard' ? 'overflow-y-auto' : 'overflow-hidden',
+        )}
+        style={{ paddingBottom: hasFullscreenCardRoute ? mobileNavPadding : mobileNavPadding }}
+      >
         {route.name === 'dashboard' && (
           <StatsGrid
             stats={stats}
@@ -862,7 +871,7 @@ function MobileApp({
         )}
 
         {route.name === 'jobs' && (
-          <section className="app-panel flex flex-col overflow-hidden">
+          <section className="app-panel app-panel-frame flex-1">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-5">
               <h2 className="text-base font-semibold tracking-tight text-foreground">
                 Hunts
@@ -879,56 +888,47 @@ function MobileApp({
                 </Button>
               </div>
             </div>
-            <div className="px-4 py-4 sm:px-5">
-              <JobList
-                collapseGroupsByDefault
-                showIndexes
-                statusFilters={statusFilters}
-                onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
-              />
+            <div className="app-panel-body-scroll px-4 sm:px-5">
+              <div className="py-6">
+                <JobList
+                  collapseGroupsByDefault
+                  showIndexes
+                  statusFilters={statusFilters}
+                  onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
+                />
+              </div>
             </div>
           </section>
         )}
 
         {route.name === 'job-detail' && (
-          <>
-            <MobileBackBar
-              backLabel="Hunts"
-              onBack={() => navigate({ name: 'jobs' })}
-            />
-            <JobCard
-              onRequestEdit={(job) => navigate({ name: 'edit-job', jobId: job.id })}
-              onDeleted={() => navigate({ name: 'jobs' }, { replace: true })}
-            />
-          </>
+          <JobCard
+            className="flex-1"
+            backLabel="Hunts"
+            onBack={() => navigate({ name: 'jobs' })}
+            onRequestEdit={(job) => navigate({ name: 'edit-job', jobId: job.id })}
+            onDeleted={() => navigate({ name: 'jobs' }, { replace: true })}
+          />
         )}
 
         {route.name === 'create-job' && (
-          <>
-            <MobileBackBar
-              backLabel="Hunts"
-              onBack={() => navigate({ name: 'jobs' })}
-            />
-            <CreateJobPage
-              onDone={(job) => {
-                setSelectedJobId(job.id)
-                navigate({ name: 'jobs' }, { replace: true })
-              }}
-            />
-          </>
+          <CreateJobPage
+            backLabel="Hunts"
+            onBack={() => navigate({ name: 'jobs' })}
+            onDone={(job) => {
+              setSelectedJobId(job.id)
+              navigate({ name: 'jobs' }, { replace: true })
+            }}
+          />
         )}
 
         {route.name === 'edit-job' && selectedJob && (
-          <>
-            <MobileBackBar
-              backLabel="Hunt"
-              onBack={() => navigate({ name: 'job-detail', jobId: selectedJob.id })}
-            />
-            <EditJobPage
-              job={selectedJob}
-              onDone={(job) => navigate({ name: 'job-detail', jobId: job.id }, { replace: true })}
-            />
-          </>
+          <EditJobPage
+            job={selectedJob}
+            backLabel="Hunt"
+            onBack={() => navigate({ name: 'job-detail', jobId: selectedJob.id })}
+            onDone={(job) => navigate({ name: 'job-detail', jobId: job.id }, { replace: true })}
+          />
         )}
       </div>
 
@@ -1134,37 +1134,6 @@ function AuthenticatedApp({
     if (!isMobile) return
     if (route.name === 'jobs' && selectedJobId) return
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-  }, [isMobile, route, selectedJobId])
-
-  useEffect(() => {
-    if (!isMobile) return
-    if (route.name !== 'jobs' || !selectedJobId) return
-
-    let cancelled = false
-
-    const scrollSelectedJobIntoView = () => {
-      if (cancelled) return
-
-      const selectedNode = document.querySelector<HTMLElement>(getJobSelector(selectedJobId))
-      if (!selectedNode) return
-
-      const top = Math.max(
-        0,
-        selectedNode.getBoundingClientRect().top + window.scrollY - getMobileStickyHeaderOffset(),
-      )
-      window.scrollTo({ top, left: 0, behavior: 'auto' })
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(scrollSelectedJobIntoView)
-      })
-    }, 80)
-
-    return () => {
-      cancelled = true
-      window.clearTimeout(timeoutId)
-    }
   }, [isMobile, route, selectedJobId])
 
   const sharedProps: AppViewProps = {

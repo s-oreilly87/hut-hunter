@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowLeft,
   ChevronDown,
   Plus,
   Settings2,
@@ -651,11 +652,13 @@ function JobFormBody({
   initialJob,
   onDone,
   presentation,
+  showPageHeading = true,
 }: {
   mode: Mode
   initialJob?: WatchJob
   onDone: (job: WatchJob) => void
   presentation: 'dialog' | 'page'
+  showPageHeading?: boolean
 }) {
   const qc = useQueryClient()
   const [name, setName] = useState(
@@ -990,11 +993,11 @@ function JobFormBody({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-      ) : (
+      ) : showPageHeading ? (
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           {title}
         </h1>
-      )}
+      ) : null}
       <div className="grid gap-4 py-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
         <div className="space-y-4">
           <FormSection title="Hunt Setup">
@@ -1209,20 +1212,47 @@ function JobFormPage({
   mode,
   initialJob,
   onDone,
+  onBack,
+  backLabel = 'Back',
 }: {
   mode: Mode
   initialJob?: WatchJob
   onDone: (job: WatchJob) => void
+  onBack?: () => void
+  backLabel?: string
 }) {
+  const title = mode === 'create' ? 'Create Hunt' : 'Edit Hunt'
+
   return (
-    <section className="app-panel px-4 py-5 sm:px-6">
-      <JobFormBody
-        key={`${mode}:${initialJob?.id ?? 'new'}:page`}
-        mode={mode}
-        initialJob={initialJob}
-        onDone={onDone}
-        presentation="page"
-      />
+    <section className="app-panel app-panel-frame flex-1">
+      <div className="shrink-0 border-b border-border/70 px-4 py-4 sm:px-6">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div className="min-w-0">
+            {onBack && (
+              <Button size="sm" variant="ghost" className="-ml-2 w-fit" onClick={onBack}>
+                <ArrowLeft className="size-4" />
+                {backLabel}
+              </Button>
+            )}
+          </div>
+          <h1 className="text-center text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+            {title}
+          </h1>
+          <div />
+        </div>
+      </div>
+      <div className="app-panel-body-scroll px-4 sm:px-6">
+        <div>
+          <JobFormBody
+            key={`${mode}:${initialJob?.id ?? 'new'}:page`}
+            mode={mode}
+            initialJob={initialJob}
+            onDone={onDone}
+            presentation="page"
+            showPageHeading={false}
+          />
+        </div>
+      </div>
     </section>
   )
 }
@@ -1262,10 +1292,14 @@ export function CreateJobDialog({
 
 export function CreateJobPage({
   onDone,
+  onBack,
+  backLabel,
 }: {
   onDone: (job: WatchJob) => void
+  onBack?: () => void
+  backLabel?: string
 }) {
-  return <JobFormPage mode="create" onDone={onDone} />
+  return <JobFormPage mode="create" onDone={onDone} onBack={onBack} backLabel={backLabel} />
 }
 
 export function EditJobDialog({
@@ -1290,9 +1324,21 @@ export function EditJobDialog({
 export function EditJobPage({
   job,
   onDone,
+  onBack,
+  backLabel,
 }: {
   job: WatchJob
   onDone: (job: WatchJob) => void
+  onBack?: () => void
+  backLabel?: string
 }) {
-  return <JobFormPage mode="edit" initialJob={job} onDone={onDone} />
+  return (
+    <JobFormPage
+      mode="edit"
+      initialJob={job}
+      onDone={onDone}
+      onBack={onBack}
+      backLabel={backLabel}
+    />
+  )
 }
