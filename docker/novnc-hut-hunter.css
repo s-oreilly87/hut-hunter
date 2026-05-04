@@ -1,0 +1,102 @@
+@media (any-pointer: coarse) {
+  #noVNC_control_bar_anchor.noVNC_vcenter {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: auto;
+    width: 100%;
+    display: block !important;
+    pointer-events: none;
+    transform: none !important;
+  }
+
+  #noVNC_control_bar_anchor.noVNC_vcenter > * {
+    pointer-events: auto;
+  }
+
+  #noVNC_control_bar_anchor.noVNC_right {
+    left: 0;
+    right: 0;
+  }
+
+  #noVNC_control_bar {
+    left: 0 !important;
+    width: 100%;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+  }
+
+  #noVNC_control_bar.noVNC_open {
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+  }
+
+  #noVNC_control_bar::before {
+    display: none;
+  }
+
+  #noVNC_control_bar_handle {
+    left: 0;
+    top: -18px;
+    transform: none;
+    width: 100%;
+    height: 18px;
+    border-radius: 18px 18px 0 0;
+    background-position: center;
+    box-shadow: none;
+  }
+
+  #noVNC_control_bar_handle:after,
+  #noVNC_control_bar.noVNC_open #noVNC_control_bar_handle:after,
+  .noVNC_right #noVNC_control_bar_handle:after,
+  .noVNC_right #noVNC_control_bar.noVNC_open #noVNC_control_bar_handle:after {
+    top: 6px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%) rotate(90deg);
+  }
+
+  #noVNC_control_bar_handle div {
+    display: none !important;
+  }
+
+  #noVNC_control_bar > .noVNC_scroll {
+    max-height: 128px;
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  #noVNC_control_bar > .noVNC_scroll > * {
+    margin: 0;
+  }
+
+  #noVNC_control_bar .noVNC_logo,
+  #noVNC_control_bar .noVNC_logo + hr {
+    display: none;
+  }
+
+  #noVNC_mobile_buttons {
+    display: flex !important;
+    gap: 8px;
+  }
+
+  #noVNC_control_bar .noVNC_button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  #noVNC_keyboardinput {
+    position: fixed;
+    left: 8px;
+    bottom: 8px;
+    width: 2px;
+    height: 2px;
+    opacity: 0.01;
+    z-index: 40;
+  }
+
+}

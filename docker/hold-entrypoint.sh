@@ -17,11 +17,39 @@
 set -euo pipefail
 
 DISPLAY_NUM="${DISPLAY_NUM:-99}"
-VNC_PORT="${VNC_PORT:-5900}"
-NOVNC_PORT="${NOVNC_PORT:-6080}"
+# Public noVNC HTTP/WebSocket port. Keep VNC_PORT as the primary env name
+# because the API also uses it when building the /pay iframe URL.
+NOVNC_PORT="${VNC_PORT:-${NOVNC_PORT:-6080}}"
+# Raw RFB/VNC port exposed only inside the container. Keep it distinct from
+# the public noVNC port so setting VNC_PORT in .env does not break startup.
+X11VNC_PORT="${X11VNC_PORT:-5900}"
 SCREEN_GEOMETRY="${SCREEN_GEOMETRY:-1280x800x24}"
 
 export DISPLAY=":${DISPLAY_NUM}"
+
+NOVNC_HTML="/usr/share/novnc/vnc.html"
+NOVNC_CSS_TARGET="/usr/share/novnc/app/styles/hut-hunter-mobile.css"
+NOVNC_JS_TARGET="/usr/share/novnc/app/hut-hunter-mobile.js"
+
+if [[ -f /opt/hut-hunter-novnc/novnc-hut-hunter.css ]]; then
+    cp /opt/hut-hunter-novnc/novnc-hut-hunter.css "${NOVNC_CSS_TARGET}"
+fi
+if [[ -f /opt/hut-hunter-novnc/novnc-hut-hunter.js ]]; then
+    cp /opt/hut-hunter-novnc/novnc-hut-hunter.js "${NOVNC_JS_TARGET}"
+fi
+
+if [[ -f "${NOVNC_HTML}" ]]; then
+    if ! grep -q 'hut-hunter-mobile.css' "${NOVNC_HTML}"; then
+        sed -i \
+            's#<link rel="stylesheet" href="app/styles/input.css">#<link rel="stylesheet" href="app/styles/input.css">\n    <link rel="stylesheet" href="app/styles/hut-hunter-mobile.css">#' \
+            "${NOVNC_HTML}"
+    fi
+    if ! grep -q 'hut-hunter-mobile.js' "${NOVNC_HTML}"; then
+        sed -i \
+            's#</head>#    <script type="module" crossorigin="anonymous" src="app/hut-hunter-mobile.js"></script>\n</head>#' \
+            "${NOVNC_HTML}"
+    fi
+fi
 
 # Clean up any stale X11 state left over from a previous run of this
 # container. With `restart: unless-stopped` Docker reuses the container's
@@ -48,10 +76,10 @@ for i in $(seq 1 50); do
     sleep 0.1
 done
 
-echo "[hold-entrypoint] starting x11vnc on :${VNC_PORT}"
+echo "[hold-entrypoint] starting x11vnc on :${X11VNC_PORT}"
 # -forever    keep running after first client disconnects
 # -shared     allow multiple simultaneous viewers
-# -nopw       no auth (the whole service is behind Cloudflare Access / firewall)
+# -nopw       no auth (the whole service is behind the app / local network)
 # -rfbport    VNC port
 # -quiet      reduce log noise
 x11vnc \
@@ -59,7 +87,7 @@ x11vnc \
     -forever \
     -shared \
     -nopw \
-    -rfbport "${VNC_PORT}" \
+    -rfbport "${X11VNC_PORT}" \
     -quiet \
     -bg \
     -o /tmp/x11vnc.log
@@ -71,7 +99,7 @@ echo "[hold-entrypoint] starting noVNC (websockify) on :${NOVNC_PORT}"
 websockify \
     --web=/usr/share/novnc \
     "${NOVNC_PORT}" \
-    "localhost:${VNC_PORT}" &
+    "localhost:${X11VNC_PORT}" &
 WEBSOCKIFY_PID=$!
 
 cleanup() {

@@ -61,6 +61,8 @@ COPY backend /app
 # Entrypoint for the hold worker (starts Xvfb + x11vnc + noVNC, then execs
 # the arq worker).
 COPY docker/hold-entrypoint.sh /usr/local/bin/hold-entrypoint.sh
+COPY docker/novnc-hut-hunter.css /opt/hut-hunter-novnc/novnc-hut-hunter.css
+COPY docker/novnc-hut-hunter.js /opt/hut-hunter-novnc/novnc-hut-hunter.js
 RUN chmod +x /usr/local/bin/hold-entrypoint.sh
 
 # Default command is the API. Compose overrides this for the workers.

@@ -10,8 +10,8 @@ x-app: &app
   env_file:
     - .env
   # Override the DB / Redis hosts to resolve inside the compose network.
-  # Everything else (SECRET_KEY, ENCRYPTION_KEY, APP_URL, VNC_URL, SMTP_*)
-  # comes from .env.
+  # Everything else (SECRET_KEY, ENCRYPTION_KEY, APP_URL, VNC_PORT/VNC_URL,
+  # SMTP_*) comes from .env.
   environment:
     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD:-huthunter}@postgres:5432/${POSTGRES_DB:-huthunter}
     REDIS_URL: redis://redis:6379
@@ -100,9 +100,11 @@ services:
       SMTP_PORT: 1025
       BROWSER_DISPLAY: ":99"
       DISPLAY: ":99"
+      X11VNC_PORT: 5900
     ports:
-      # noVNC HTTP/WebSocket endpoint. Put a Cloudflare tunnel in front of
-      # this port and set VNC_URL in .env to the public hostname.
+      # noVNC HTTP/WebSocket endpoint. By default the pay page will use the
+      # current app host with VNC_PORT; set VNC_URL only when noVNC lives on a
+      # different public hostname.
       - "6080:6080"
     # /dev/shm defaults to 64MB in containers, which Chromium will exhaust
     # on any non-trivial page and start crashing with SIGBUS.
