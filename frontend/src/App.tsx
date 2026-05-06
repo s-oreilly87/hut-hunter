@@ -759,7 +759,7 @@ function DesktopApp({
               </div>
             </div>
             <div className="app-panel-body-scroll px-4 sm:px-6">
-              <div className="py-6">
+              <div className="pt-6 pb-6">
                 <JobList
                   statusFilters={statusFilters}
                   onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
@@ -889,7 +889,7 @@ function MobileApp({
               </div>
             </div>
             <div className="app-panel-body-scroll px-4 sm:px-5">
-              <div className="py-6">
+              <div className="pt-6 pb-6">
                 <JobList
                   collapseGroupsByDefault
                   showIndexes
