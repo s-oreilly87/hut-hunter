@@ -1242,7 +1242,7 @@ function JobFormPage({
         </div>
       </div>
       <div className="app-panel-body-scroll px-4 sm:px-6">
-        <div>
+        <div className="pt-6 pb-6">
           <JobFormBody
             key={`${mode}:${initialJob?.id ?? 'new'}:page`}
             mode={mode}

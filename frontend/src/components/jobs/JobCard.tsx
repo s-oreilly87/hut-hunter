@@ -846,8 +846,8 @@ export function JobCard({
 
   if (!selectedJobId) {
     return (
-      <Card className={cn('app-panel app-panel-frame border-border/80 bg-card/85', className)}>
-        <CardHeader className="pb-3">
+      <Card className={cn('app-panel app-panel-frame gap-0 py-0 border-border/80 bg-card/85', className)}>
+        <CardHeader className="pt-6 pb-3">
           <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <LayoutDashboard className="size-5" />
           </div>
@@ -860,7 +860,7 @@ export function JobCard({
           </CardDescription>
         </CardHeader>
         <CardContent className="app-panel-body-scroll px-6">
-          <div className="grid gap-3 pb-6">
+          <div className="grid gap-3 pt-6 pb-6">
             <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
               <p className="text-sm font-medium text-foreground">What you get here</p>
               <p className="mt-1.5 text-sm leading-5 text-pretty text-muted-foreground">
@@ -875,9 +875,9 @@ export function JobCard({
 
   if (isLoading) {
     return (
-      <Card className={cn('app-panel app-panel-frame border-border/80 bg-card/85', className)}>
+      <Card className={cn('app-panel app-panel-frame gap-0 py-0 border-border/80 bg-card/85', className)}>
         <CardContent className="app-panel-body-scroll px-6">
-          <div className="grid gap-3 pb-6">
+          <div className="grid gap-3 pt-6 pb-6">
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
@@ -943,8 +943,8 @@ export function JobCard({
 
   return (
     <>
-      <Card className={cn('app-panel app-panel-frame border-border/80 bg-card/90', className)}>
-        <CardHeader className="shrink-0 gap-4 border-b border-border/70 pb-5">
+      <Card className={cn('app-panel app-panel-frame gap-0 py-0 border-border/80 bg-card/90', className)}>
+        <CardHeader className="shrink-0 gap-4 border-b border-border/70 pt-6 pb-5">
           {onBack ? (
             <>
               <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
@@ -983,7 +983,7 @@ export function JobCard({
         </CardHeader>
 
         <CardContent className="app-panel-body-scroll px-6">
-          <div className="space-y-6 pb-6">
+          <div className="space-y-6 pt-6 pb-6">
             <MonitoringSection
               job={job}
               displayStatus={displayStatus}
