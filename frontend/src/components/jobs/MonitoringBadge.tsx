@@ -108,16 +108,7 @@ export function MonitoringBadge({ job, displayStatus }: Props) {
         <Icon />
         {isOn ? (
           <span>
-            Monitoring
-            {countdownSeconds !== null && (
-              <>
-                {' ('}
-                <span className="tabular-nums">
-                  {formatCountdown(countdownSeconds)}
-                </span>
-                {')'}
-              </>
-            )}
+            Monitoring {countdownSeconds !== null && <span className="tabular-nums">({formatCountdown(countdownSeconds)})</span>}
           </span>
         ) : (
           <span>Paused</span>

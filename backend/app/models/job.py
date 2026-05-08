@@ -229,10 +229,12 @@ class WatchJobRead(SQLModel):
         parsed_params = json.loads(job.params)
 
         # Compute expiry on the fly — EXPIRED is never stored, just surfaced
-        # when the adapter says the start date has passed its booking cutoff.
+        # when the adapter says the start date has passed its booking cutoff,
+        # unless the job is already in a terminal state (like BOOKING_COMPLETE).
+        is_terminal = job.status in {s.value for s in TERMINAL_STATUSES}
         effective_status = (
             JobStatus.EXPIRED.value
-            if is_job_expired(job.adapter_id, parsed_params)
+            if not is_terminal and is_job_expired(job.adapter_id, parsed_params)
             else job.status
         )
 

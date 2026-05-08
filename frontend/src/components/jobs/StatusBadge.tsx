@@ -35,7 +35,7 @@ const STATUS_CLASS: Record<string, string | undefined> = {
   expired:              'bg-zinc-400 hover:bg-zinc-400 text-white',
   result_available:     'bg-emerald-600 hover:bg-emerald-600 text-white',
   result_partial:       'bg-amber-500 hover:bg-amber-500 text-white',
-  result_unavailable:   undefined,
+  result_unavailable:   'bg-rose-500 hover:bg-rose-500 text-white',
   result_hold_failed:   'bg-rose-600 hover:bg-rose-600 text-white',
 }
 
@@ -55,9 +55,13 @@ export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props
     ? Math.max(0, (new Date(cartExpiresAt).getTime() - nowMs) / 1000)
     : null
   const baseLabel = DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
-  const label = countdownSeconds !== null
-    ? `${baseLabel} (${formatCountdown(countdownSeconds)})`
-    : baseLabel
+  const label = countdownSeconds !== null ? (
+    <>
+      {baseLabel} <span className="tabular-nums">({formatCountdown(countdownSeconds)})</span>
+    </>
+  ) : (
+    baseLabel
+  )
   const isSecondary = status === 'paused' || status === 'cancelled' || status === 'result_unavailable'
   const badge = (
     <Badge
