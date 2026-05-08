@@ -242,19 +242,6 @@ export function JobList({
     }))
   }, [adapterNameById, filteredJobs])
 
-  const groupsWithIndexes = useMemo(() => {
-    let startIndex = 0
-
-    return groupedJobs.map((group) => {
-      const next = {
-        ...group,
-        startIndex,
-      }
-      startIndex += group.jobs.length
-      return next
-    })
-  }, [groupedJobs])
-
   const selectedGroupId = useMemo(
     () => groupedJobs.find((group) => group.jobs.some((job) => job.id === selectedJobId))?.adapterId ?? null,
     [groupedJobs, selectedJobId],
@@ -379,7 +366,7 @@ export function JobList({
 
   return (
     <div className="space-y-3">
-      {groupsWithIndexes.map((group) => {
+      {groupedJobs.map((group) => {
         const isExpanded = effectiveExpandedAdapters.has(group.adapterId)
 
         return (
@@ -411,11 +398,10 @@ export function JobList({
             {isExpanded && (
               <div className="px-3 py-3 sm:px-4">
                 <div className="grid gap-3 lg:hidden">
-                  {group.jobs.map((job, jobOffset) => {
+                  {group.jobs.map((job) => {
                     const displayStatus = getDisplayStatus(job, pendingBookings)
                     const isSelected = selectedJobId === job.id
                     const showStatusBadge = displayStatus !== 'checking'
-                    const jobIndex = group.startIndex + jobOffset + 1
 
                     return (
                       <div
@@ -488,11 +474,10 @@ export function JobList({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {group.jobs.map((job, jobOffset) => {
+                      {group.jobs.map((job) => {
                         const displayStatus = getDisplayStatus(job, pendingBookings)
                         const isSelected = selectedJobId === job.id
                         const showStatusBadge = displayStatus !== 'checking'
-                        const jobIndex = group.startIndex + jobOffset + 1
 
                         return (
                           <TableRow
