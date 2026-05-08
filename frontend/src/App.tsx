@@ -77,18 +77,12 @@ function useElementHeightCssVar<T extends HTMLElement>(cssVarName: string) {
   return ref
 }
 
-function getJobTitle(job: WatchJob): string {
-  const trimmed = job.name.trim()
-  return trimmed || 'Untitled Hunt'
-}
-
 type DashboardStat = {
   filterKey: JobFilterKey
   label: string
   value: number
   description: string
   icon: typeof Activity
-  jobs: WatchJob[]
 }
 
 // ─── App Header ───────────────────────────────────────────────────────────────
@@ -399,26 +393,28 @@ function FilterDropdown({
 
 function OccupantsTile({ onOpen }: { onOpen: () => void }) {
   return (
-    <article className="app-panel flex min-h-52 flex-col px-5 py-5">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
-        <Users className="size-5" />
+    <article className="app-panel flex min-h-28 flex-col px-5 py-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+            <Users className="size-4" />
+          </div>
+          <p className="text-sm font-semibold tracking-tight text-foreground">
+            Campers
+          </p>
+        </div>
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/8 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-500/10 hover:bg-amber-500/14"
+          onClick={onOpen}
+        >
+          <Plus className="size-3" />
+          Add
+        </button>
       </div>
-      <div className="mt-4 flex-1">
-        <p className="text-sm font-semibold tracking-tight text-foreground">
-          No Campers Added
-        </p>
-        <p className="mt-2 text-sm leading-5 text-pretty text-muted-foreground">
-          Add camper details to enable automated booking. Hut Hunter needs passenger info to complete checkout.
-        </p>
-      </div>
-      <button
-        type="button"
-        className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/8 px-3 py-2 text-sm font-medium text-amber-700 ring-1 ring-amber-500/10 hover:bg-amber-500/14 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
-        onClick={onOpen}
-      >
-        <Plus className="size-3.5" />
-        Add Campers
-      </button>
+      <p className="mt-2.5 text-xs leading-4 text-pretty text-muted-foreground">
+        Add camper details to enable automated booking. Hut Hunter needs passenger info to complete checkout.
+      </p>
     </article>
   )
 }
@@ -431,75 +427,86 @@ function CredentialsTile({
   missingCount: number
 }) {
   return (
-    <article className="app-panel flex min-h-52 flex-col px-5 py-5">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-700">
-        <LockKeyhole className="size-5" />
+    <article className="app-panel flex min-h-28 flex-col px-5 py-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-700">
+            <LockKeyhole className="size-4" />
+          </div>
+          <p className="text-sm font-semibold tracking-tight text-foreground">
+            Sign-Ins
+          </p>
+        </div>
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/8 px-2 py-1 text-xs font-medium text-sky-800 ring-1 ring-sky-500/10 hover:bg-sky-500/14"
+          onClick={onOpen}
+        >
+          <Plus className="size-3" />
+          Add
+        </button>
       </div>
-      <div className="mt-4 flex-1">
-        <p className="text-sm font-semibold tracking-tight text-foreground">
-          Booking Site Sign-Ins Missing
-        </p>
-        <p className="mt-2 text-sm leading-5 text-pretty text-muted-foreground">
-          Save your DOC login for each booking site so Hut Hunter can continue from checks into booking.
-          {missingCount > 1 ? ` ${missingCount} booking sites still need a sign-in.` : ''}
-        </p>
-      </div>
-      <button
-        type="button"
-        className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-sm font-medium text-sky-800 ring-1 ring-sky-500/10 hover:bg-sky-500/14 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
-        onClick={onOpen}
-      >
-        <LockKeyhole className="size-3.5" />
-        Add Sign-Ins
-      </button>
+      <p className="mt-2.5 text-xs leading-4 text-pretty text-muted-foreground">
+        Save your DOC login so Hut Hunter can continue from checks into booking.
+        {missingCount > 1 ? ` ${missingCount} sites still need a sign-in.` : ''}
+      </p>
     </article>
   )
 }
 
 function NoJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
   return (
-    <article className="flex min-h-52 flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-8 text-center">
-      <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-        <Clock3 className="size-5" />
+    <article className="flex min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Clock3 className="size-4.5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold tracking-tight text-foreground">
+              No hunts yet
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Create a hunt to start monitoring.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/8 px-4 py-2 text-sm font-medium text-primary ring-1 ring-primary/10 hover:bg-primary/12 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          onClick={onCreateJob}
+        >
+          <Plus className="size-4" />
+          Create a Hunt
+        </button>
       </div>
-      <p className="mt-3 text-sm font-semibold tracking-tight text-foreground">
-        No hunts yet
-      </p>
-      <p className="mt-1.5 max-w-[22ch] text-sm leading-5 text-pretty text-muted-foreground">
-        Create a hunt to start monitoring availability.
-      </p>
-      <button
-        type="button"
-        className="mt-4 flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/8 px-3 py-2 text-sm font-medium text-primary ring-1 ring-primary/10 hover:bg-primary/12 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        onClick={onCreateJob}
-      >
-        <Plus className="size-3.5" />
-        Create a Hunt
-      </button>
     </article>
   )
 }
 
 function CreateMoreJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
   return (
-    <article className="flex min-h-52 flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-8 text-center">
-      <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-        <Plus className="size-5" />
+    <article className="flex min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div>
+            <p className="text-sm font-semibold tracking-tight text-foreground">
+              New Hunt
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Monitor more routes or dates.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/8 px-4 py-2 text-sm font-medium text-primary ring-1 ring-primary/10 hover:bg-primary/12 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          onClick={onCreateJob}
+        >
+          <Plus className="size-4" />
+          Create
+        </button>
       </div>
-      <p className="mt-3 text-sm font-semibold tracking-tight text-foreground">
-        Create Another Hunt
-      </p>
-      <p className="mt-1.5 max-w-[24ch] text-sm leading-5 text-pretty text-muted-foreground">
-        Add another hunt for a new route, date range, or accommodation type.
-      </p>
-      <button
-        type="button"
-        className="mt-4 flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/8 px-3 py-2 text-sm font-medium text-primary ring-1 ring-primary/10 hover:bg-primary/12 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        onClick={onCreateJob}
-      >
-        <Plus className="size-3.5" />
-        New Hunt
-      </button>
     </article>
   )
 }
@@ -511,10 +518,10 @@ function StatsGrid({
   hasOccupants,
   missingCredentialCount,
   onFilterSelect,
-  onJobSelect,
   onCreateJob,
   onOpenOccupants,
   onOpenCredentials,
+  showNewHuntTile = true,
 }: {
   stats: DashboardStat[]
   totalJobs: number
@@ -522,20 +529,20 @@ function StatsGrid({
   hasOccupants: boolean
   missingCredentialCount: number
   onFilterSelect: (filterKey: JobFilterKey) => void
-  onJobSelect: (filterKey: JobFilterKey, jobId: string) => void
   onCreateJob: () => void
   onOpenOccupants: () => void
   onOpenCredentials: () => void
+  showNewHuntTile?: boolean
 }) {
   const visibleStats = stats.filter((s) => s.value > 0)
   const showOccupantsTile = !hasOccupants
   const showCredentialsTile = missingCredentialCount > 0
-  const showNoJobsTile = totalJobs === 0
+  const showNoJobsTile = totalJobs === 0 && showNewHuntTile
 
   return (
-    <section className="flex flex-wrap gap-3">
+    <section className="flex flex-wrap items-start gap-3">
       {showNoJobsTile ? (
-        <div className={cn('min-w-[220px] flex-1', !showOccupantsTile && 'basis-full')}>
+        <div className="w-full sm:w-80">
           <NoJobsTile onCreateJob={onCreateJob} />
         </div>
       ) : (
@@ -546,7 +553,7 @@ function StatsGrid({
               <article
                 key={stat.filterKey}
                 className={cn(
-                  'app-panel min-w-[180px] flex-1 px-5 py-5',
+                  'app-panel w-full min-h-28 overflow-hidden px-5 py-3.5 sm:w-64',
                   isActive && 'ring-2 ring-primary/25',
                 )}
               >
@@ -571,54 +578,29 @@ function StatsGrid({
                   </div>
                 </button>
 
-                <p className="mt-3 text-sm leading-5 text-pretty text-muted-foreground">
+                <p className="mt-2 text-xs leading-4 text-pretty text-muted-foreground">
                   {stat.description}
                 </p>
-
-                <div className="mt-4 min-h-0 flex-1">
-                  {stat.jobs.length > 0 ? (
-                    <div className="max-h-40 space-y-0.5 overflow-y-auto pr-0.5">
-                      {stat.jobs.map((job) => (
-                        <button
-                          key={job.id}
-                          type="button"
-                          className="block w-full truncate rounded-xl px-2 py-1.5 text-left text-sm font-medium text-foreground hover:bg-secondary/70 hover:text-primary"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onJobSelect(stat.filterKey, job.id)
-                          }}
-                          title={getJobTitle(job)}
-                        >
-                          {getJobTitle(job)}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex h-full items-center">
-                      <p className="text-sm text-muted-foreground">
-                        {getJobFilterDefinition(stat.filterKey).emptyLabel}
-                      </p>
-                    </div>
-                  )}
-                </div>
               </article>
             )
           })}
 
-          <div className="min-w-[220px] flex-1">
-            <CreateMoreJobsTile onCreateJob={onCreateJob} />
-          </div>
+          {showNewHuntTile && (
+            <div className="w-full sm:w-80">
+              <CreateMoreJobsTile onCreateJob={onCreateJob} />
+            </div>
+          )}
         </>
       )}
 
       {showOccupantsTile && (
-        <div className="min-w-[220px] flex-1">
+        <div className="w-full sm:w-80">
           <OccupantsTile onOpen={onOpenOccupants} />
         </div>
       )}
 
       {showCredentialsTile && (
-        <div className="min-w-[220px] flex-1">
+        <div className="w-full sm:w-80">
           <CredentialsTile onOpen={onOpenCredentials} missingCount={missingCredentialCount} />
         </div>
       )}
@@ -676,7 +658,6 @@ type AppViewProps = {
   statusFilters: JobFilterKey[]
   filterCounts: Map<JobFilterKey, number>
   onStatusFiltersChange: (filters: JobFilterKey[]) => void
-  onDashboardJobSelect: (filterKey: JobFilterKey, jobId: string) => void
   occupantsOpen: boolean
   setOccupantsOpen: (open: boolean) => void
   credentialsOpen: boolean
@@ -702,7 +683,6 @@ function DesktopApp({
   statusFilters,
   filterCounts,
   onStatusFiltersChange,
-  onDashboardJobSelect,
   occupantsOpen,
   setOccupantsOpen,
   credentialsOpen,
@@ -713,7 +693,7 @@ function DesktopApp({
   missingCredentialCount,
 }: AppViewProps) {
   return (
-    <div className="app-shell flex h-dvh flex-col overflow-hidden">
+    <div className="app-shell flex h-dvh flex-col overflow-y-auto">
       <AppHeader
         userEmail={userEmail}
         onLogout={onLogout}
@@ -724,7 +704,7 @@ function DesktopApp({
         onCreateJob={() => navigate({ name: 'create-job' })}
       />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col overflow-hidden px-4 pb-8 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8">
         <div className="dashboard-enter">
           <StatsGrid
             stats={stats}
@@ -733,15 +713,15 @@ function DesktopApp({
             hasOccupants={hasOccupants}
             missingCredentialCount={missingCredentialCount}
             onFilterSelect={(key) => onStatusFiltersChange([key])}
-            onJobSelect={onDashboardJobSelect}
             onCreateJob={() => navigate({ name: 'create-job' })}
             onOpenOccupants={() => setOccupantsOpen(true)}
             onOpenCredentials={() => setCredentialsOpen(true)}
+            showNewHuntTile={false}
           />
         </div>
 
-        <main className="dashboard-enter-delay mt-5 grid min-h-0 flex-1 overflow-hidden gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)] xl:grid-rows-[minmax(0,1fr)]">
-          <section className="app-panel app-panel-frame min-h-[26rem]">
+        <main className="dashboard-enter-delay mt-5 grid min-h-0 flex-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)] xl:grid-rows-[minmax(0,1fr)]">
+          <section className="app-panel app-panel-frame">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 sm:px-6">
               <h2 className="text-base font-semibold tracking-tight text-foreground">
                 Hunts
@@ -820,7 +800,6 @@ function MobileApp({
   statusFilters,
   filterCounts,
   onStatusFiltersChange,
-  onDashboardJobSelect,
   occupantsOpen,
   setOccupantsOpen,
   credentialsOpen,
@@ -834,7 +813,7 @@ function MobileApp({
   const mobileNavPadding = 'calc(var(--app-mobile-nav-height, 0px) + 1rem)'
 
   return (
-    <div className="app-shell flex h-dvh flex-col overflow-hidden">
+    <div className="app-shell flex h-dvh flex-col overflow-y-auto">
       <AppHeader
         userEmail={userEmail}
         onLogout={onLogout}
@@ -848,7 +827,6 @@ function MobileApp({
       <div
         className={cn(
           'mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pt-4',
-          route.name === 'dashboard' ? 'overflow-y-auto' : 'overflow-hidden',
         )}
         style={{ paddingBottom: hasFullscreenCardRoute ? mobileNavPadding : mobileNavPadding }}
       >
@@ -863,7 +841,6 @@ function MobileApp({
               onStatusFiltersChange([key])
               navigate({ name: 'jobs' })
             }}
-            onJobSelect={onDashboardJobSelect}
             onCreateJob={() => navigate({ name: 'create-job' })}
             onOpenOccupants={() => setOccupantsOpen(true)}
             onOpenCredentials={() => setCredentialsOpen(true)}
@@ -892,7 +869,6 @@ function MobileApp({
               <div className="pt-6 pb-6">
                 <JobList
                   collapseGroupsByDefault
-                  showIndexes
                   statusFilters={statusFilters}
                   onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
                 />
@@ -1044,15 +1020,6 @@ function AuthenticatedApp({
     }
   }
 
-  const handleDashboardJobSelect = (filterKey: JobFilterKey, jobId: string) => {
-    setStatusFilters([filterKey])
-    setSelectedJobId(jobId)
-
-    if (isMobile) {
-      navigate({ name: 'job-detail', jobId })
-    }
-  }
-
   const stats: DashboardStat[] = [
     {
       filterKey: 'active',
@@ -1060,7 +1027,6 @@ function AuthenticatedApp({
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'active', pendingBookings)).length,
       description: 'Hunts still in play and ready for action.',
       icon: Activity,
-      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'active', pendingBookings)),
     },
     {
       filterKey: 'ready',
@@ -1068,7 +1034,6 @@ function AuthenticatedApp({
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'ready', pendingBookings)).length,
       description: 'Latest checks show every requested site available.',
       icon: TentTree,
-      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'ready', pendingBookings)),
     },
     {
       filterKey: 'holds',
@@ -1076,7 +1041,6 @@ function AuthenticatedApp({
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'holds', pendingBookings)).length,
       description: 'Hunts currently holding inventory pending checkout.',
       icon: Hand,
-      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'holds', pendingBookings)),
     },
     {
       filterKey: 'booking_complete',
@@ -1084,7 +1048,6 @@ function AuthenticatedApp({
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'booking_complete', pendingBookings)).length,
       description: 'Bookings that reached a confirmed receipt state.',
       icon: Check,
-      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'booking_complete', pendingBookings)),
     },
     {
       filterKey: 'cancelled',
@@ -1092,7 +1055,6 @@ function AuthenticatedApp({
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'cancelled', pendingBookings)).length,
       description: 'Hunts manually stopped before completion.',
       icon: XCircle,
-      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'cancelled', pendingBookings)),
     },
     {
       filterKey: 'expired',
@@ -1100,7 +1062,6 @@ function AuthenticatedApp({
       value: sortedJobs.filter((job) => matchesJobFilter(job, 'expired', pendingBookings)).length,
       description: 'Hunts whose booking windows have already passed.',
       icon: Clock3,
-      jobs: sortedJobs.filter((job) => matchesJobFilter(job, 'expired', pendingBookings)),
     },
   ]
 
@@ -1149,7 +1110,6 @@ function AuthenticatedApp({
     statusFilters,
     filterCounts,
     onStatusFiltersChange: applyStatusFilters,
-    onDashboardJobSelect: handleDashboardJobSelect,
     occupantsOpen,
     setOccupantsOpen,
     credentialsOpen,

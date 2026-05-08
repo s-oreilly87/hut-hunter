@@ -96,34 +96,40 @@ function getJobMetaLine(job: WatchJob): string {
 
 function JobIdentity({
   job,
-  showIndexes,
-  jobIndex,
   adapterDateFieldKeyById,
   adapterTrackFieldKeyById,
 }: {
   job: WatchJob
-  showIndexes: boolean
-  jobIndex: number
   adapterDateFieldKeyById: Map<string, string>
   adapterTrackFieldKeyById: Map<string, string>
 }) {
   return (
-    <div className="space-y-1">
-      {showIndexes && (
-        <span className="inline-flex rounded-full border border-border/80 bg-secondary/55 px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          {jobIndex.toString().padStart(2, '0')}
-        </span>
-      )}
-      <p className="text-sm font-medium tracking-tight text-foreground">
+    <div className="space-y-0.5">
+      <p className="text-sm font-semibold tracking-tight text-foreground">
         {getJobTitle(job)}
       </p>
-      <p className="font-mono text-xs tracking-wide text-muted-foreground">
+      <p className="font-mono text-[11px] tracking-tight text-muted-foreground/90">
         {getJobSubtitle(job, adapterDateFieldKeyById, adapterTrackFieldKeyById)}
       </p>
-      <p className="text-xs text-muted-foreground/80">
+      <p className="text-[11px] text-muted-foreground/70">
         {getJobMetaLine(job)}
       </p>
     </div>
+  )
+}
+
+function AutoBookBadge({ job }: { job: WatchJob }) {
+  if (!job.credentials_configured) {
+    return (
+      <Badge className="bg-amber-500 text-white hover:bg-amber-500">
+        No sign-in
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant={job.auto_book ? 'default' : 'outline'}>
+      {job.auto_book ? 'Auto-book' : 'Notify only'}
+    </Badge>
   )
 }
 
@@ -152,15 +158,7 @@ function JobActivityMeta({
         <MonitoringBadge job={job} displayStatus={displayStatus} />
       </div>
       <div>
-        {!job.credentials_configured ? (
-          <Badge className="bg-amber-500 text-white hover:bg-amber-500">
-            No sign-in
-          </Badge>
-        ) : (
-          <Badge variant={job.auto_book ? 'default' : 'outline'}>
-            {job.auto_book ? 'Auto-book' : 'Checks only'}
-          </Badge>
-        )}
+        <AutoBookBadge job={job} />
       </div>
     </>
   )
@@ -168,12 +166,10 @@ function JobActivityMeta({
 
 export function JobList({
   collapseGroupsByDefault = false,
-  showIndexes = false,
   onJobSelect,
   statusFilters = [],
 }: {
   collapseGroupsByDefault?: boolean
-  showIndexes?: boolean
   onJobSelect?: (jobId: string) => void
   statusFilters?: JobFilterKey[]
 } = {}) {
@@ -442,28 +438,39 @@ export function JobList({
                           }
                         }}
                       >
-                        <div className="space-y-4">
-                          <JobIdentity
-                            job={job}
-                            showIndexes={showIndexes}
-                            jobIndex={jobIndex}
-                            adapterDateFieldKeyById={adapterDateFieldKeyById}
-                            adapterTrackFieldKeyById={adapterTrackFieldKeyById}
-                          />
+                        <div className="relative space-y-3">
+                          <div className="absolute right-0 top-0">
+                            <AutoBookBadge job={job} />
+                          </div>
 
-                          {showStatusBadge && (
-                            <div>
-                              <StatusBadge
-                                status={displayStatus}
-                                jobId={job.id}
-                                cartExpiresAt={job.cart_expires_at}
-                                artifactUrl={job.last_artifact_png}
-                              />
+                          <div className="pr-16">
+                            <JobIdentity
+                              job={job}
+                              adapterDateFieldKeyById={adapterDateFieldKeyById}
+                              adapterTrackFieldKeyById={adapterTrackFieldKeyById}
+                            />
+                          </div>
+
+                          <div className="space-y-2.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {showStatusBadge && (
+                                <StatusBadge
+                                  status={displayStatus}
+                                  jobId={job.id}
+                                  cartExpiresAt={job.cart_expires_at}
+                                  artifactUrl={job.last_artifact_png}
+                                />
+                              )}
+                              <p className="text-[11px] font-medium text-muted-foreground/70">
+                                {formatTimeAgo(job.last_checked_at)}
+                              </p>
                             </div>
-                          )}
 
-                          <div className="space-y-2 rounded-2xl bg-secondary/55 px-3 py-3">
-                            <JobActivityMeta job={job} displayStatus={displayStatus} />
+                            {displayStatus !== 'booking_complete' && (
+                              <div className="flex">
+                                <MonitoringBadge job={job} displayStatus={displayStatus} />
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -507,8 +514,6 @@ export function JobList({
                             >
                               <JobIdentity
                                 job={job}
-                                showIndexes={showIndexes}
-                                jobIndex={jobIndex}
                                 adapterDateFieldKeyById={adapterDateFieldKeyById}
                                 adapterTrackFieldKeyById={adapterTrackFieldKeyById}
                               />

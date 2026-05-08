@@ -211,9 +211,9 @@ function ArtifactLinkButton({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
+      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-foreground hover:bg-muted"
     >
-      <Icon className="size-4" />
+      <Icon className="size-3.5" />
       {children}
     </a>
   )
@@ -231,7 +231,7 @@ function ArtifactActions({
   if (!artifactPng && !artifactHtml) return null
 
   return (
-    <div className={`flex flex-wrap gap-2 border-t pt-4 ${borderClass}`}>
+    <div className={`flex flex-wrap gap-1.5 border-t pt-3 ${borderClass}`}>
       {artifactPng && (
         <ArtifactLinkButton href={artifactPng} icon={ImageIcon}>
           Screenshot
@@ -591,10 +591,10 @@ function ArtifactGallery({
       {artifacts.map((artifact, index) => (
         <div
           key={`${artifact.label}:${artifact.png_url}:${index}`}
-          className="overflow-hidden rounded-[1.25rem] border border-border/70 bg-background/80"
+          className="overflow-hidden rounded-2xl border border-border/70 bg-background/80"
         >
-          <div className="border-b border-border/70 px-4 py-3">
-            <p className="text-sm font-medium tracking-tight text-foreground">
+          <div className="border-b border-border/70 px-3.5 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
               {formatArtifactLabel(artifact.label)}
             </p>
           </div>
@@ -615,7 +615,7 @@ function ArtifactGallery({
             </a>
           )}
 
-          <div className="flex flex-wrap gap-2 px-4 py-3">
+          <div className="flex flex-wrap gap-1.5 px-3.5 py-2.5">
             {artifact.png_url && (
               <ArtifactLinkButton href={artifact.png_url} icon={ImageIcon}>
                 Screenshot
@@ -697,7 +697,7 @@ function MonitoringSection({
               </Badge>
             ) : (
               <Badge variant={job.auto_book ? 'default' : 'outline'}>
-                {job.auto_book ? 'Auto-book' : 'Checks only'}
+                {job.auto_book ? 'Auto-book' : 'Notify only'}
               </Badge>
             )}
           </div>
@@ -912,6 +912,7 @@ export function JobCard({
     || displayStatus === 'attempting_hold'
   const queued = optimisticTriggers.has(job.id)
   const deleting = remove.isPending
+  const isLocked = job.status === 'booking_complete'
   const receiptArtifact = getReceiptArtifact(job.artifact_history) ?? (
     job.status === 'booking_complete' && job.last_artifact_png && job.last_artifact_html
       ? {
@@ -925,7 +926,12 @@ export function JobCard({
   const completedArtifacts = getCompletedBookingArtifacts(holdArtifacts, receiptArtifact)
   const actions = (
     <>
-      <Button size="sm" variant="outline" onClick={handleEdit}>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={isLocked}
+        onClick={handleEdit}
+      >
         <Settings2 className="size-4" />
         Edit
       </Button>

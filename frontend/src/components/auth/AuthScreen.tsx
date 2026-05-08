@@ -54,7 +54,7 @@ export function AuthScreen() {
               Availability Tracking
             </p>
             <h1 className="mt-3 max-w-xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              Track NZ DOC availability, get notified fast, and move from search to checkout without losing context.
+              Track NZ DOC availability, get notified fast, and move from availability to checkout without losing your spot!
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
               Hut Hunter keeps availability checks, alerting, booking holds, and auto-booking in one focused workflow.
@@ -65,7 +65,7 @@ export function AuthScreen() {
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
               <p className="text-sm font-semibold text-foreground">Availability Checks</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Run repeat checks across Great Walks, standard huts, and campsites with your preferred dates, direction, and party setup.
+                Run regular checks across Great Walks, standard huts, and campsites with your preferred dates, direction, and party setup.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">

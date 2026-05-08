@@ -573,6 +573,11 @@ async def update_job(
                          to now + new_interval so the cadence restarts cleanly.
     """
     job = await _get_owned_job(session, current_user.id, job_id)
+    if job.status == JobStatus.BOOKING_COMPLETE.value:
+        raise HTTPException(
+            status_code=403,
+            detail="Completed bookings are locked and cannot be edited.",
+        )
 
     # exclude_unset so clients can send just the keys they want to change
     patch = body.model_dump(exclude_unset=True)
@@ -731,6 +736,12 @@ async def trigger_job(
     409 — the user should finish or cancel the current hold via /pay first.
     Expired HOLD_PLACED is treated as CHECKING (lazy expiry)."""
     job = await _get_owned_job(session, current_user.id, job_id)
+
+    if job.status == JobStatus.BOOKING_COMPLETE.value:
+        raise HTTPException(
+            status_code=409,
+            detail="This job is already booked and cannot be triggered again.",
+        )
 
     # Block triggers on expired jobs (adapter's booking cutoff has passed).
     params = json.loads(job.params)
