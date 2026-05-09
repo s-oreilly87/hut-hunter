@@ -379,6 +379,115 @@ function HoldFailedView({
   )
 }
 
+function AvailabilityResultTile({
+  entry,
+}: {
+  entry: AvailabilityResult
+}) {
+  const visual = getAvailabilityVisual(entry.status)
+  const copy = getAvailabilityCopy(entry)
+  const Icon = visual.icon
+
+  return (
+    <div className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}>
+      <div className="flex items-start gap-3">
+        <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
+          <Icon className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium tracking-tight text-foreground">
+                {entry.site}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-foreground/85">
+                {copy.summary}
+              </p>
+            </div>
+            <Badge
+              variant={entry.status === 'unknown' ? 'outline' : 'default'}
+              className={`shrink-0 ${visual.badgeClass}`}
+            >
+              {titleize(entry.status)}
+            </Badge>
+          </div>
+
+          {copy.details.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {copy.details.map((detail) => (
+                <span
+                  key={detail}
+                  className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
+                >
+                  {detail}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UnavailableResultTile({
+  entries,
+  unavailableArtifact,
+}: {
+  entries: AvailabilityResult[]
+  unavailableArtifact?: ArtifactRecord | null
+}) {
+  const visual = getAvailabilityVisual('unavailable')
+  const Icon = visual.icon
+  const siteCount = entries.length
+  const firstCopy = entries[0] ? getAvailabilityCopy(entries[0]) : null
+  const summary = siteCount === 1
+    ? (firstCopy?.summary ?? 'No availability was found for this site.')
+    : `No availability was found for ${siteCount} selected sites.`
+
+  return (
+    <div className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}>
+      <div className="flex items-start gap-3">
+        <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
+          <Icon className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium tracking-tight text-foreground">
+                {siteCount === 1 ? entries[0]?.site : 'Selected Sites'}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-foreground/85">
+                {summary}
+              </p>
+            </div>
+            <Badge className={`shrink-0 ${visual.badgeClass}`}>
+              Unavailable
+            </Badge>
+          </div>
+
+          {siteCount > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {entries.map((entry) => (
+                <span
+                  key={entry.site}
+                  className="rounded-full border border-rose-500/20 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
+                >
+                  {entry.site}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {unavailableArtifact && (
+            <ArtifactGallery artifacts={[unavailableArtifact]} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function LastResultView({
   result,
   artifactPng,
@@ -394,61 +503,34 @@ function LastResultView({
     return <p className="text-sm text-muted-foreground">No results captured yet.</p>
   }
 
+  const unavailableResults = result.filter(
+    (entry): entry is AvailabilityResult =>
+      isAvailabilityResult(entry) && entry.status === 'unavailable',
+  )
+  const hasUnavailableResults = unavailableResults.length > 0
+  let unavailableRendered = false
+
   return (
     <div className="space-y-3">
       {result.map((entry, index) => {
         if (isAvailabilityResult(entry)) {
-          const visual = getAvailabilityVisual(entry.status)
-          const copy = getAvailabilityCopy(entry)
-          const Icon = visual.icon
+          if (entry.status === 'unavailable') {
+            if (unavailableRendered) return null
+            unavailableRendered = true
+            return (
+              <UnavailableResultTile
+                key="unavailable-results"
+                entries={unavailableResults}
+                unavailableArtifact={unavailableArtifact}
+              />
+            )
+          }
 
-          return (
-            <div
-              key={index}
-              className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}
-            >
-              <div className="flex items-start gap-3">
-                <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
-                  <Icon className="size-5" />
-                </div>
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium tracking-tight text-foreground">
-                        {entry.site}
-                      </p>
-                      <p className="mt-1 text-sm leading-5 text-foreground/85">
-                        {copy.summary}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={entry.status === 'unknown' ? 'outline' : 'default'}
-                      className={`shrink-0 ${visual.badgeClass}`}
-                    >
-                      {titleize(entry.status)}
-                    </Badge>
-                  </div>
+          if (hasUnavailableResults) {
+            return <AvailabilityResultTile key={index} entry={entry} />
+          }
 
-                  {copy.details.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {copy.details.map((detail) => (
-                        <span
-                          key={detail}
-                          className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
-                        >
-                          {detail}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {entry.status === 'unavailable' && unavailableArtifact && (
-                    <ArtifactGallery artifacts={[unavailableArtifact]} />
-                  )}
-                </div>
-              </div>
-            </div>
-          )
+          return <AvailabilityResultTile key={index} entry={entry} />
         }
 
         if (isHoldFailedEntry(entry)) {
@@ -1173,6 +1255,7 @@ export function JobCard({
 
             {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
               && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
+              && displayStatus !== 'checking'
               && job.last_result && (
               <section className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1219,6 +1302,7 @@ export function JobCard({
 
             {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
               && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
+              && displayStatus !== 'checking'
               && !job.last_result && (
               <section className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
