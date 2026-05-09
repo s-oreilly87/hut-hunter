@@ -47,17 +47,24 @@ export function AuthScreen() {
       <div className="mx-auto grid min-h-dvh max-w-6xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,460px)] lg:px-8">
         <section className="app-panel flex flex-col justify-between overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
           <div>
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-              <TentTree className="size-6" />
+            <div className="flex items-center gap-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                <TentTree className="size-6" />
+              </div>
+                Hut Hunter
             </div>
             <p className="mt-8 text-sm font-medium uppercase tracking-[0.2em] text-primary/80">
-              Availability Tracking
+              Booking Assistant
             </p>
             <h1 className="mt-3 max-w-xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              Track NZ DOC availability, get notified fast, and move from availability to checkout without losing your spot!
+              Snag reservations for popular, hard to book huts and campsites
             </h1>
+            <p className="text-sm text-muted-foreground place-self-end">(*cough* Mueller Hut . . . )</p>
             <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-              Hut Hunter keeps availability checks, alerting, booking holds, and auto-booking in one focused workflow.
+              Monitor hut/campsite availability, get notified fast, and secure reservation holds so you don't lose your spot!
+            </p>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+              Hut Hunter keeps customizable availability checks, notifications, and auto-booking in one focused workflow.
             </p>
           </div>
 
@@ -71,13 +78,13 @@ export function AuthScreen() {
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
               <p className="text-sm font-semibold text-foreground">Notifications</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Route alerts to email or Gotify, with per-account delivery targets encrypted at rest.
+                Route availability alerts to email or Gotify (*requires Gotify server configuration)
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
               <p className="text-sm font-semibold text-foreground">Booking Holds and Auto-Booking</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Save camper details once, capture live holds, and let Hut Hunter continue into booking when you want it to.
+                Save your site logins (encrypted at rest) and camper details once, and Hut Hunter can continue through booking to secure a hold at the payment screen.
               </p>
             </div>
           </div>

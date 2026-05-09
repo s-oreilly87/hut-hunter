@@ -103,7 +103,8 @@ export function MobileApp({
             className="flex-1"
             backLabel="Hunts"
             onBack={() => navigate({ name: 'jobs' })}
-            onRequestEdit={(job) => navigate({ name: 'edit-job', jobId: job.id })}
+            onRequestEdit={(job, step) => navigate({ name: 'edit-job', jobId: job.id, step })}
+            onOpenOccupants={() => setOccupantsOpen(true)}
             onDeleted={() => navigate({ name: 'jobs' }, { replace: true })}
           />
         )}
@@ -125,6 +126,7 @@ export function MobileApp({
             backLabel="Hunt"
             onBack={() => navigate({ name: 'job-detail', jobId: selectedJob.id })}
             onDone={(job) => navigate({ name: 'job-detail', jobId: job.id }, { replace: true })}
+            step={route.step}
           />
         )}
       </div>

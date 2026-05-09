@@ -41,7 +41,7 @@ export function MonitoringBadge({ job, displayStatus }: Props) {
   if (displayStatus === 'hold_placed') {
     return (
       <Badge variant="outline" className="border-amber-500 text-amber-600">
-        Paused (hold active)
+        Hold placed
       </Badge>
     )
   }
@@ -57,7 +57,7 @@ export function MonitoringBadge({ job, displayStatus }: Props) {
   if (displayStatus === 'attempting_hold') {
     return (
       <Badge variant="outline" className="border-amber-500 text-amber-600">
-        Paused (securing hold)
+        Securing hold
       </Badge>
     )
   }

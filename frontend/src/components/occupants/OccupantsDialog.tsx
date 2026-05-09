@@ -4,10 +4,12 @@ import { Pencil, Trash2, Plus, X } from 'lucide-react'
 import {
   adaptersApi,
   occupantsApi,
+  jobsApi,
   type AdapterInfo,
   type Occupant,
   type OccupantCreate,
   type ParamField,
+  type WatchJob,
 } from '@/lib/api'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -58,6 +60,15 @@ function summarizeAdapterValues(
       return `${adapter.name} - ${parts.join(' · ')}`
     })
     .filter((value): value is string => Boolean(value))
+}
+
+function getActiveJobsUsingOccupant(occupantId: string, jobs: WatchJob[]): WatchJob[] {
+  return jobs.filter((job) => {
+    if (job.status === 'booking_complete' || job.status === 'cancelled') return false
+    const occupants = job.params.occupants
+    if (!Array.isArray(occupants)) return false
+    return occupants.some((o: any) => o && typeof o === 'object' && o.id === occupantId)
+  })
 }
 
 function OccupantExtraFieldInput({
@@ -322,6 +333,7 @@ export function OccupantsDialog({
 }) {
   const [editing, setEditing] = useState<EditingState>({ mode: 'none' })
   const [deleteTarget, setDeleteTarget] = useState<Occupant | null>(null)
+  const [updateTarget, setUpdateTarget] = useState<{ id: string; data: OccupantCreate } | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const qc = useQueryClient()
 
@@ -333,6 +345,11 @@ export function OccupantsDialog({
   const { data: adapters = [] } = useQuery({
     queryKey: ['adapters'],
     queryFn: adaptersApi.list,
+    enabled: open,
+  })
+  const { data: jobs = [] } = useQuery({
+    queryKey: ['jobs'],
+    queryFn: jobsApi.list,
     enabled: open,
   })
   const adaptersById = new Map(adapters.map(adapter => [adapter.adapter_id, adapter]))
@@ -380,6 +397,7 @@ export function OccupantsDialog({
   }
 
   const saving = create.isPending || update.isPending
+  const deleteUsedInJobsCount = deleteTarget ? getActiveJobsUsingOccupant(deleteTarget.id, jobs).length : 0
 
   return (
     <>
@@ -449,7 +467,12 @@ export function OccupantsDialog({
                       if (editing.mode === 'new') {
                         create.mutate(data)
                       } else {
-                        update.mutate({ id: editing.occupant.id, data })
+                        const usedInJobs = getActiveJobsUsingOccupant(editing.occupant.id, jobs)
+                        if (usedInJobs.length > 0) {
+                          setUpdateTarget({ id: editing.occupant.id, data })
+                        } else {
+                          update.mutate({ id: editing.occupant.id, data })
+                        }
                       }
                     }}
                   />
@@ -475,14 +498,37 @@ export function OccupantsDialog({
         }}
         title="Delete Camper"
         description={
-          deleteTarget
-            ? `Delete ${deleteTarget.first_name} ${deleteTarget.last_name} from the saved roster?`
-            : ''
+          deleteTarget ? (
+            <div className="space-y-2">
+              <p>Delete {deleteTarget.first_name} {deleteTarget.last_name} from the saved roster?</p>
+              {deleteUsedInJobsCount > 0 && (
+                <p className="font-medium text-destructive">
+                  Warning: This camper is used in {deleteUsedInJobsCount} active hunt{deleteUsedInJobsCount === 1 ? '' : 's'}. Deleting them will require these hunts to be edited/resaved to re-enable.
+                </p>
+              )}
+            </div>
+          ) : ''
         }
         confirmLabel="Delete Camper"
         confirming={remove.isPending}
         onConfirm={() => {
           if (deleteTarget) remove.mutate(deleteTarget.id)
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(updateTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setUpdateTarget(null)
+        }}
+        title="Update Camper"
+        description="This camper is used in active hunts. Making this change will require these hunts to be edited/resaved to re-enable them."
+        confirmLabel="Update Anyway"
+        confirming={update.isPending}
+        onConfirm={() => {
+          if (updateTarget) {
+            update.mutate({ id: updateTarget.id, data: updateTarget.data })
+            setUpdateTarget(null)
+          }
         }}
       />
     </>

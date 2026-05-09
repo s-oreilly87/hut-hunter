@@ -15,8 +15,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Pencil,
   Settings2,
-  X,
+  X, TentTree,
 } from 'lucide-react'
 import {
   jobsApi, adaptersApi, credentialsApi, occupantsApi,
@@ -1200,10 +1201,22 @@ function JobFormBody({
     queryFn: adaptersApi.list,
   })
 
-  const { data: roster = [], isLoading: occupantsLoading } = useQuery({
+  const { data: roster = [], isLoading: occupantsLoading, isError: occupantsError } = useQuery({
     queryKey: ['occupants'],
     queryFn: occupantsApi.list,
   })
+
+  // Sync selectedOccupantIds with roster (remove deleted occupants)
+  useEffect(() => {
+    if (!occupantsLoading && !occupantsError && selectedOccupantIds.length > 0) {
+      const validIds = selectedOccupantIds.filter(id =>
+        roster.some(o => o.id === id)
+      )
+      if (validIds.length !== selectedOccupantIds.length) {
+        setSelectedOccupantIds(validIds)
+      }
+    }
+  }, [roster, occupantsLoading, occupantsError, selectedOccupantIds])
   const { data: credentials = [] } = useQuery({
     queryKey: ['credentials'],
     queryFn: credentialsApi.list,
@@ -1507,7 +1520,7 @@ function JobFormBody({
     selectedOccupantDetailsComplete,
   }
 
-  // ── Page presentation: multi-step wizard ────────────────────────────────────
+  // ── Page presentation: multistep wizard ────────────────────────────────────
 
   if (presentation === 'page') {
     const bookingInputsComplete = selectedAdapter
@@ -1532,7 +1545,7 @@ function JobFormBody({
         })
       : false
     const stepBackLabels = [backLabel, WIZARD_STEPS[0], 'Details']
-    const wizardBackLabel = stepBackLabels[wizardStep] ?? backLabel
+    const wizardBackLabel = mode === 'edit' ? backLabel : (stepBackLabels[wizardStep] ?? backLabel)
     const isLastStep = wizardStep === (WIZARD_STEPS.length - 1) as WizardStep
     const canAdvance = wizardStep === 0
       ? (!!name.trim() && !!selectedAdapterId)
@@ -1541,6 +1554,10 @@ function JobFormBody({
         : true
 
     const handleWizardBack = () => {
+      if (mode === 'edit') {
+        onBack?.()
+        return
+      }
       if (wizardStep > 0) {
         setWizardStep((s) => (s - 1) as WizardStep)
       } else {
@@ -1560,39 +1577,55 @@ function JobFormBody({
         <div className="shrink-0 border-b border-border/70 px-4 py-4">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
             <div>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="-ml-2 w-fit"
-                onClick={handleWizardBack}
-              >
-                <ArrowLeft className="size-4" />
-                {wizardBackLabel}
-              </Button>
+              {mode !== 'edit' && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="-ml-2 w-fit"
+                  onClick={handleWizardBack}
+                >
+                  <ArrowLeft className="size-4" />
+                  {wizardBackLabel}
+                </Button>
+              )}
             </div>
             <div className="text-center">
               <p className="text-base font-semibold tracking-tight text-foreground">
                 {wizardStep === 1 && selectedAdapter
-                  ? selectedAdapter.name
+                  ? initialJob?.name ?? 'Untitled'
                   : WIZARD_STEPS[wizardStep]}
               </p>
-              <div className="mt-2 flex justify-center gap-1.5">
-                {WIZARD_STEPS.map((_, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'size-1.5 rounded-full transition-colors duration-200',
-                      i === wizardStep
-                        ? 'bg-primary'
-                        : i < wizardStep
-                          ? 'bg-primary/35'
-                          : 'bg-border',
-                    )}
-                  />
-                ))}
-              </div>
+              {mode !== 'edit' && (
+                <div className="mt-2 flex justify-center gap-1.5">
+                  {WIZARD_STEPS.map((_, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        'size-1.5 rounded-full transition-colors duration-200',
+                        i === wizardStep
+                          ? 'bg-primary'
+                          : i < wizardStep
+                            ? 'bg-primary/35'
+                            : 'bg-border',
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-            <div />
+            <div className="flex justify-end">
+              {mode === 'edit' && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="-mr-2 w-fit"
+                  onClick={onBack}
+                  title="Close"
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1647,7 +1680,15 @@ function JobFormBody({
 
             {/* Step 1: Booking Inputs */}
             {wizardStep === 1 && selectedAdapter && (
+              <>
+                <div className="flex items-center gap-2">
+                  <TentTree className="size-4 text-primary" />
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
+                    {selectedAdapter.name}
+                  </h3>
+                </div>
               <BookingInputsFields {...bookingInputsProps} />
+              </>
             )}
 
             {/* Step 2: Automation */}
@@ -1656,7 +1697,7 @@ function JobFormBody({
             )}
 
             {/* Navigation */}
-            {isLastStep ? (
+            {(isLastStep || mode === 'edit') ? (
               <>
                 {error && (
                   <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
@@ -1668,8 +1709,8 @@ function JobFormBody({
                   onClick={handleSubmit}
                   disabled={!name || !selectedAdapterId || pending}
                 >
-                  <Settings2 className="size-4" />
-                  {pending ? submitBusy : submitIdle}
+                  {mode === 'edit' ? <Pencil className="size-4" /> : <Settings2 className="size-4" />}
+                  {pending ? submitBusy : (mode === 'edit' ? 'Save and Close' : submitIdle)}
                 </Button>
               </>
             ) : (
@@ -1744,7 +1785,7 @@ function JobFormBody({
           </FormSection>
 
           {selectedAdapter && (
-            <FormSection>
+            <FormSection title={selectedAdapter.name ?? "not loaded"}>
               <BookingInputsFields {...bookingInputsProps} />
             </FormSection>
           )}
@@ -1767,7 +1808,7 @@ function JobFormBody({
               onClick={handleSubmit}
               disabled={!name || !selectedAdapterId || pending}
             >
-              <Settings2 className="size-4" />
+              {mode === 'edit' ? <Pencil className="size-4" /> : <Settings2 className="size-4" />}
               {pending ? submitBusy : submitIdle}
             </Button>
           </FormSection>
@@ -1797,7 +1838,7 @@ function JobFormPage({
   return (
     <section className="app-panel app-panel-frame flex-1">
       <JobFormBody
-        key={`${mode}:${initialJob?.id ?? 'new'}:page`}
+        key={`${mode}:${initialJob?.id ?? 'new'}:page:${initialStep ?? 'default'}`}
         mode={mode}
         initialJob={initialJob}
         onDone={onDone}
@@ -1818,26 +1859,38 @@ function JobFormDialog({
   mode,
   initialJob,
   onDone,
+  initialStep,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   mode: Mode
   initialJob?: WatchJob
   onDone?: (job: WatchJob) => void
+  initialStep?: WizardStep
 }) {
+  const presentation = mode === 'edit' ? 'page' : 'dialog'
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] sm:max-w-3xl overflow-y-auto">
+      <DialogContent
+        className={cn(
+          'max-h-[92vh] overflow-y-auto',
+          presentation === 'dialog' ? 'sm:max-w-3xl' : 'sm:max-w-lg p-0',
+        )}
+        showCloseButton={presentation === 'dialog'}
+      >
         <JobFormBody
           // Force a remount so each open gets fresh local form state.
-          key={`${mode}:${initialJob?.id ?? 'new'}`}
+          key={`${mode}:${initialJob?.id ?? 'new'}:${initialStep ?? 'default'}`}
           mode={mode}
           initialJob={initialJob}
           onDone={(job) => {
             onDone?.(job)
             onOpenChange(false)
           }}
-          presentation="dialog"
+          onBack={() => onOpenChange(false)}
+          presentation={presentation}
+          initialStep={initialStep}
         />
       </DialogContent>
     </Dialog>
@@ -1895,10 +1948,12 @@ export function EditJobDialog({
   open,
   onOpenChange,
   job,
+  step,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   job: WatchJob
+  step?: number
 }) {
   return (
     <JobFormDialog
@@ -1906,6 +1961,7 @@ export function EditJobDialog({
       onOpenChange={onOpenChange}
       mode="edit"
       initialJob={job}
+      initialStep={step as WizardStep}
     />
   )
 }
@@ -1915,11 +1971,13 @@ export function EditJobPage({
   onDone,
   onBack,
   backLabel,
+  step,
 }: {
   job: WatchJob
   onDone: (job: WatchJob) => void
   onBack?: () => void
   backLabel?: string
+  step?: number
 }) {
   return (
     <JobFormPage
@@ -1928,7 +1986,7 @@ export function EditJobPage({
       onDone={onDone}
       onBack={onBack}
       backLabel={backLabel}
-      initialStep={1}
+      initialStep={step !== undefined ? step as WizardStep : 1}
     />
   )
 }

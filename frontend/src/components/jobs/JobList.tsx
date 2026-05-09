@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ChevronDown, Clock3 } from 'lucide-react'
-import { adaptersApi, occupantsApi, type WatchJob } from '@/lib/api'
+import { adaptersApi, jobsApi, occupantsApi, type WatchJob } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { type DisplayStatus, getDisplayStatus } from '@/lib/availability'
 import { Badge } from '../ui/Badge'
@@ -145,16 +145,10 @@ function JobIdentity({
 }
 
 function AutoBookBadge({ job }: { job: WatchJob }) {
-  if (!job.credentials_configured) {
-    return (
-      <Badge className="bg-amber-500 text-white hover:bg-amber-500">
-        No sign-in
-      </Badge>
-    )
-  }
+  const isAutoBook = job.auto_book && job.credentials_configured
   return (
-    <Badge variant={job.auto_book ? 'default' : 'outline'}>
-      {job.auto_book ? 'Auto-book' : 'Notify only'}
+    <Badge variant={isAutoBook ? 'default' : 'outline'}>
+      {isAutoBook ? 'Auto-book' : 'Notify only'}
     </Badge>
   )
 }
@@ -168,11 +162,14 @@ function JobStatusMeta({
   displayStatus: DisplayStatus
   showStatusBadge: boolean
 }) {
-  const isComplete = displayStatus === 'booking_complete'
-  const checkedLabel = isComplete
+  const isFinished =
+    displayStatus === 'booking_complete' ||
+    displayStatus === 'cancelled' ||
+    displayStatus === 'expired'
+  const checkedLabel = isFinished
     ? formatDateTime(job.last_checked_at)
     : formatTimeAgo(job.last_checked_at)
-  const checkedPrefix = isComplete ? '' : 'Last checked'
+  const checkedPrefix = isFinished ? '' : 'Last checked'
 
   return (
     <div className="space-y-2">
@@ -200,7 +197,11 @@ function JobAutomationMeta({
   job: WatchJob
   displayStatus: DisplayStatus
 }) {
-  if (displayStatus === 'booking_complete') {
+  if (
+    displayStatus === 'booking_complete' ||
+    displayStatus === 'cancelled' ||
+    displayStatus === 'expired'
+  ) {
     return null
   }
 
@@ -342,6 +343,27 @@ export function JobList({
     onJobSelect?.(jobId)
   }
 
+  const qc = useQueryClient()
+  const pauseJob = useMutation({
+    mutationFn: (id: string) => jobsApi.update(id, { enable_monitoring: false }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+  })
+
+  useEffect(() => {
+    if (pauseJob.isPending) return
+
+    for (const job of jobs) {
+      if (!job.enable_monitoring) continue
+      if (job.status === 'booking_complete' || job.status === 'cancelled' || job.status === 'expired') continue
+
+      const adapter = adapterById.get(job.adapter_id)
+      if (adapter && jobHasOutdatedOccupantSnapshots(job, occupants, adapter)) {
+        pauseJob.mutate(job.id)
+        break
+      }
+    }
+  }, [jobs, occupants, adapterById, pauseJob])
+
   const setJobRef = (
     jobId: string,
     node: HTMLDivElement | HTMLTableRowElement | null,
@@ -463,7 +485,11 @@ export function JobList({
                     const showStatusBadge = displayStatus !== 'checking'
                     const adapter = adapterById.get(job.adapter_id)
                     const hasOutdatedCampers = Boolean(
-                      adapter && jobHasOutdatedOccupantSnapshots(job, occupants, adapter),
+                      job.status !== 'booking_complete' &&
+                        job.status !== 'cancelled' &&
+                        job.status !== 'expired' &&
+                        adapter &&
+                        jobHasOutdatedOccupantSnapshots(job, occupants, adapter),
                     )
 
                     return (
@@ -495,12 +521,14 @@ export function JobList({
                               adapterTrackFieldKeyById={adapterTrackFieldKeyById}
                               hasOutdatedCampers={hasOutdatedCampers}
                             />
-                            {displayStatus !== 'booking_complete' && (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <AutoBookBadge job={job} />
-                                <MonitoringBadge job={job} displayStatus={displayStatus} />
-                              </div>
-                            )}
+                            {displayStatus !== 'booking_complete' &&
+                              displayStatus !== 'cancelled' &&
+                              displayStatus !== 'expired' && (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <AutoBookBadge job={job} />
+                                  <MonitoringBadge job={job} displayStatus={displayStatus} />
+                                </div>
+                              )}
                           </div>
 
                           <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5 text-right">
@@ -538,7 +566,11 @@ export function JobList({
                         const showStatusBadge = displayStatus !== 'checking'
                         const adapter = adapterById.get(job.adapter_id)
                         const hasOutdatedCampers = Boolean(
-                          adapter && jobHasOutdatedOccupantSnapshots(job, occupants, adapter),
+                          job.status !== 'booking_complete' &&
+                            job.status !== 'cancelled' &&
+                            job.status !== 'expired' &&
+                            adapter &&
+                            jobHasOutdatedOccupantSnapshots(job, occupants, adapter),
                         )
 
                         return (

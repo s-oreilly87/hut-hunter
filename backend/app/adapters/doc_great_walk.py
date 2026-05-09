@@ -116,7 +116,7 @@ def parse_month_header(text: str) -> dict:
 
 class DocGreatWalkAdapter(BaseDOCAdapter):
     adapter_id = "doc_great_walk"
-    name = "DOC Great Walk"
+    name = "NZ DOC Great Walk"
     base_url = "https://bookings.doc.govt.nz/Web/Default.aspx#!greatwalk-result"
 
     @classmethod

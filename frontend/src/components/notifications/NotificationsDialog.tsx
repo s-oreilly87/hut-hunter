@@ -207,9 +207,7 @@ function GotifySettingsCard({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="notification-gotify-token">
-            {settings.gotify_has_token ? 'Token (leave blank to keep current)' : 'Token'}
-          </Label>
+          <Label htmlFor="notification-gotify-token">Token</Label>
           <Input
             id="notification-gotify-token"
             type="password"
@@ -289,7 +287,7 @@ export function NotificationsDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-4 text-sm text-muted-foreground">
+          <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-4 text-xs text-muted-foreground">
             Delivery targets are encrypted at rest and only decrypted when a hunt sends an alert.
           </div>
 

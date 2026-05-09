@@ -5,9 +5,9 @@ import { cn } from '@/lib/utils'
 
 export type { DashboardStat }
 
-function OccupantsTile({ onOpen }: { onOpen: () => void }) {
+function OccupantsTile({ onOpen, className }: { onOpen: () => void; className?: string }) {
   return (
-    <article className="app-panel flex min-h-28 flex-col px-5 py-3.5">
+    <article className={cn('app-panel flex min-h-28 flex-col px-5 py-3.5', className)}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
@@ -27,7 +27,7 @@ function OccupantsTile({ onOpen }: { onOpen: () => void }) {
         </button>
       </div>
       <p className="mt-2.5 text-xs leading-4 text-pretty text-muted-foreground">
-        Add camper details to enable automated booking. Hut Hunter needs passenger info to complete checkout.
+        Add camper details to enable automated booking. Hut Hunter needs this info to complete checkout.
       </p>
     </article>
   )
@@ -36,12 +36,14 @@ function OccupantsTile({ onOpen }: { onOpen: () => void }) {
 function CredentialsTile({
   onOpen,
   missingCount,
+  className,
 }: {
   onOpen: () => void
   missingCount: number
+  className?: string
 }) {
   return (
-    <article className="app-panel flex min-h-28 flex-col px-5 py-3.5">
+    <article className={cn('app-panel flex min-h-28 flex-col px-5 py-3.5', className)}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-700">
@@ -61,16 +63,16 @@ function CredentialsTile({
         </button>
       </div>
       <p className="mt-2.5 text-xs leading-4 text-pretty text-muted-foreground">
-        Save your DOC login so Hut Hunter can continue from checks into booking.
+        Save your booking site logins so Hut Hunter can seamlessly move from availability checks into the booking flow.
         {missingCount > 1 ? ` ${missingCount} sites still need a sign-in.` : ''}
       </p>
     </article>
   )
 }
 
-function NoJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
+function NoJobsTile({ onCreateJob, className }: { onCreateJob: () => void; className?: string }) {
   return (
-    <article className="flex min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4">
+    <article className={cn('flex min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4', className)}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -98,9 +100,9 @@ function NoJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
   )
 }
 
-function CreateMoreJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
+function CreateMoreJobsTile({ onCreateJob, className }: { onCreateJob: () => void; className?: string }) {
   return (
-    <article className="flex w-full min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4 sm:w-64">
+    <article className={cn('flex w-full min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4', className)}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm font-semibold tracking-tight text-foreground">
@@ -152,11 +154,21 @@ export function StatsGrid({
   const showNoJobsTile = totalJobs === 0 && showNewHuntTile
 
   return (
-    <section className="flex flex-wrap items-start justify-center xl:justify-start gap-3">
+    <section className="flex flex-wrap items-stretch justify-center xl:justify-start gap-3">
+      {showOccupantsTile && (
+        <OccupantsTile onOpen={onOpenOccupants} className="w-full sm:w-64" />
+      )}
+
+      {showCredentialsTile && (
+        <CredentialsTile
+          onOpen={onOpenCredentials}
+          missingCount={missingCredentialCount}
+          className="w-full sm:w-64"
+        />
+      )}
+
       {showNoJobsTile ? (
-        <div className="w-full sm:w-80">
-          <NoJobsTile onCreateJob={onCreateJob} />
-        </div>
+        <NoJobsTile onCreateJob={onCreateJob} className="w-full sm:w-64" />
       ) : (
         <>
           {visibleStats.map((stat) => {
@@ -198,23 +210,9 @@ export function StatsGrid({
           })}
 
           {showNewHuntTile && (
-            <div className="w-full sm:w-64">
-              <CreateMoreJobsTile onCreateJob={onCreateJob} />
-            </div>
+            <CreateMoreJobsTile onCreateJob={onCreateJob} className="w-full sm:w-64" />
           )}
         </>
-      )}
-
-      {showOccupantsTile && (
-        <div className="w-full sm:w-80">
-          <OccupantsTile onOpen={onOpenOccupants} />
-        </div>
-      )}
-
-      {showCredentialsTile && (
-        <div className="w-full sm:w-80">
-          <CredentialsTile onOpen={onOpenCredentials} missingCount={missingCredentialCount} />
-        </div>
       )}
     </section>
   )
