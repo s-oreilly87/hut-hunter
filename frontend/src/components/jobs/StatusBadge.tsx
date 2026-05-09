@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '../ui/Badge'
 import { JOB_STATUS_LABEL } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
 import { formatCountdown } from '@/lib/time'
@@ -28,15 +28,15 @@ const STATUS_CLASS: Record<string, string | undefined> = {
   booking:              'bg-blue-600 hover:bg-blue-600 text-white',
   attempting_hold:      'bg-amber-500 hover:bg-amber-500 text-white',
   hold_expired:         'bg-zinc-500 hover:bg-zinc-500 text-white',
-  waiting:              'bg-slate-500 hover:bg-slate-500 text-white',
-  hold_placed:          'bg-amber-500 hover:bg-amber-600 text-white',
-  booking_complete:     'bg-emerald-600 hover:bg-emerald-600 text-white',
+  waiting:              'bg-zinc-500 hover:bg-zinc-500 text-white',
+  hold_placed:          'bg-amber-500 hover:bg-amber-500 text-white',
+  booking_complete:     'bg-emerald-700 hover:bg-emerald-700 text-white',
   cancelled:            undefined,
-  expired:              'bg-zinc-400 hover:bg-zinc-400 text-white',
-  result_available:     'bg-emerald-600 hover:bg-emerald-600 text-white',
+  expired:              'bg-zinc-500 hover:bg-zinc-500 text-white',
+  result_available:     'bg-emerald-500 hover:bg-emerald-500 text-white',
   result_partial:       'bg-amber-500 hover:bg-amber-500 text-white',
   result_unavailable:   'bg-rose-500 hover:bg-rose-500 text-white',
-  result_hold_failed:   'bg-rose-600 hover:bg-rose-600 text-white',
+  result_hold_failed:   'bg-rose-500 hover:bg-rose-500 text-white',
 }
 
 const SPINNER_STATUSES = new Set(['booking', 'attempting_hold'])

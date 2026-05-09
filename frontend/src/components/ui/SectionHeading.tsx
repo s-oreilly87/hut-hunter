@@ -5,7 +5,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from './Tooltip'
 import { cn } from '@/lib/utils'
 
 export function InfoTooltip({

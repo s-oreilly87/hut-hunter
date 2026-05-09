@@ -10,60 +10,57 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
+  Calendar,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  LockKeyhole,
   Plus,
+  Pencil,
   Settings2,
+  Users,
+  X, TentTree,
 } from 'lucide-react'
 import {
   jobsApi, adaptersApi, credentialsApi, occupantsApi,
   type AdapterInfo, type ParamField, type WatchJob, type Occupant,
 } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
+import { Label } from '../ui/Label'
+import { Switch } from '../ui/Switch'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
+} from '../ui/Dialog'
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import { InfoTooltip, SectionHeading } from '@/components/ui/section-heading'
+} from '../ui/Select'
+import { InfoTooltip, SectionHeading } from '../ui/SectionHeading'
 import { getJobParamIcon } from '@/components/jobs/jobParamDisplay'
+import {
+  formatDateForDisplay,
+  formatDateForInput,
+  isDateValidInTz,
+  isSameCalendarDay,
+  parseInputDateValue,
+  toAdapterDateValue,
+  toInputDateValue,
+} from '@/lib/jobDate'
 import { cn } from '@/lib/utils'
+
+// ─── Wizard step definitions ─────────────────────────────────────────────────
+
+const WIZARD_STEPS = ['Hunt Setup', 'Booking Inputs', 'Automation'] as const
+type WizardStep = 0 | 1 | 2
+
+// ─── Utility helpers ─────────────────────────────────────────────────────────
 
 const FACILITY_OPTION_DISPLAY_RE = /^(.+?)\s*\(\d+\/\d+\)(?:\s*—\s*.+)?$/
 
 function facilityDisplayName(opt: string): string {
   const m = FACILITY_OPTION_DISPLAY_RE.exec(opt.trim())
   return m ? m[1].trim() : opt
-}
-
-function isIsoDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value.trim())
-}
-
-function isDayFirstDate(value: string): boolean {
-  return /^\d{2}\/\d{2}\/\d{4}$/.test(value.trim())
-}
-
-function toInputDateValue(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-  if (isIsoDate(trimmed)) return trimmed
-  const [day, month, year] = trimmed.split('/')
-  if (!day || !month || !year) return ''
-  return `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-}
-
-function toAdapterDateValue(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-  if (isDayFirstDate(trimmed)) return trimmed
-  const [year, month, day] = trimmed.split('-')
-  if (!year || !month || !day) return ''
-  return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year.padStart(4, '0')}`
 }
 
 type SearchableOptionGroup = {
@@ -77,7 +74,6 @@ function SearchableSelectInput({
   groups,
   placeholder,
   disabled = false,
-  required = false,
   displayValue,
 }: {
   value: string
@@ -85,21 +81,19 @@ function SearchableSelectInput({
   groups: SearchableOptionGroup[]
   placeholder: string
   disabled?: boolean
-  required?: boolean
   displayValue?: (value: string) => string
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const renderValue = displayValue ?? ((option: string) => option)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const renderValue = useMemo(
+    () => displayValue ?? ((option: string) => option),
+    [displayValue],
+  )
   const selectedLabel = value ? renderValue(value) : ''
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState(selectedLabel)
-  const deferredQuery = useDeferredValue(query)
-
-  useEffect(() => {
-    if (!open) {
-      setQuery(selectedLabel)
-    }
-  }, [selectedLabel, open])
+  const [query, setQuery] = useState('')
+  const visibleQuery = open ? query : selectedLabel
+  const deferredQuery = useDeferredValue(visibleQuery)
 
   useEffect(() => {
     if (!open) return
@@ -117,6 +111,14 @@ function SearchableSelectInput({
   const totalOptions = groups.reduce((count, group) => count + group.options.length, 0)
   const normalizedQuery = deferredQuery.trim().toLowerCase()
   const showTruncatedHint = !normalizedQuery && totalOptions > 24
+  const canClear = !disabled && (Boolean(value) || Boolean(visibleQuery))
+
+  const clearSelection = () => {
+    if (value) onChange('')
+    setQuery('')
+    setOpen(true)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
 
   const filteredGroups = useMemo(() => {
     if (!normalizedQuery) {
@@ -145,16 +147,31 @@ function SearchableSelectInput({
     <div ref={ref} className="relative">
       <div className="relative">
         <Input
-          value={query}
+          ref={inputRef}
+          value={visibleQuery}
           placeholder={placeholder}
           disabled={disabled}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setQuery(selectedLabel)
+            setOpen(true)
+          }}
           onChange={(event) => {
             setOpen(true)
             setQuery(event.target.value)
           }}
-          className="pr-9"
+          className={cn(canClear ? 'pr-16' : 'pr-9')}
         />
+        {canClear && (
+          <button
+            type="button"
+            aria-label="Clear selection"
+            className="absolute inset-y-1 right-8 flex w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={clearSelection}
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
         <button
           type="button"
           tabIndex={-1}
@@ -169,16 +186,12 @@ function SearchableSelectInput({
 
       {open && (
         <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-lg ring-1 ring-black/5">
-          {!required && value && (
+          {value && (
             <button
               type="button"
               className="mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                onChange('')
-                setQuery('')
-                setOpen(false)
-              }}
+              onClick={clearSelection}
             >
               Clear selection
             </button>
@@ -226,6 +239,261 @@ function SearchableSelectInput({
               Showing the first 24 options. Start typing to narrow the list.
             </p>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DatePickerInput({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const selectedDate = parseInputDateValue(value)
+  const today = new Date()
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const base = selectedDate ?? today
+    return new Date(base.getFullYear(), base.getMonth(), 1)
+  })
+  const visibleDraft = open ? draft : formatDateForDisplay(value)
+
+  useEffect(() => {
+    if (!open) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [open])
+
+  const monthLabel = new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    year: 'numeric',
+  }).format(visibleMonth)
+  const firstWeekday = new Date(
+    visibleMonth.getFullYear(),
+    visibleMonth.getMonth(),
+    1,
+  ).getDay()
+  const daysInMonth = new Date(
+    visibleMonth.getFullYear(),
+    visibleMonth.getMonth() + 1,
+    0,
+  ).getDate()
+  const cells: Array<Date | null> = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => (
+      new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), index + 1)
+    )),
+  ]
+
+  const shiftMonth = (amount: number) => {
+    setVisibleMonth((current) => (
+      new Date(current.getFullYear(), current.getMonth() + amount, 1)
+    ))
+  }
+
+  const chooseDate = (date: Date) => {
+    onChange(formatDateForInput(date))
+    setDraft(formatDateForDisplay(formatDateForInput(date)))
+    setOpen(false)
+  }
+
+  const chooseToday = () => {
+    chooseDate(today)
+    setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1))
+  }
+
+  const commitDraft = () => {
+    const trimmed = draft.trim()
+    if (!trimmed) {
+      onChange('')
+      return
+    }
+
+    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed)
+    if (!match) {
+      setDraft(formatDateForDisplay(value))
+      return
+    }
+
+    const [, monthRaw, dayRaw, yearRaw] = match
+    const month = Number(monthRaw)
+    const day = Number(dayRaw)
+    const year = Number(yearRaw)
+    const date = new Date(year, month - 1, day)
+    if (
+      date.getFullYear() !== year
+      || date.getMonth() !== month - 1
+      || date.getDate() !== day
+    ) {
+      setDraft(formatDateForDisplay(value))
+      return
+    }
+
+    onChange(formatDateForInput(date))
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        className={cn(
+          'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-2.5 py-1 text-left text-base shadow-xs transition-[color,box-shadow] outline-none focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:text-sm',
+          open && 'border-ring ring-3 ring-ring/50',
+          disabled && 'pointer-events-none cursor-not-allowed opacity-50',
+        )}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          disabled={disabled}
+          className={cn(
+            'min-w-0 flex-1 bg-transparent text-left outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed',
+          )}
+          placeholder="mm/dd/yyyy"
+          value={visibleDraft}
+          onChange={(event) => setDraft(event.target.value)}
+          onFocus={() => {
+            setDraft(formatDateForDisplay(value))
+            if (selectedDate) {
+              setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
+            }
+            setOpen(true)
+          }}
+          onBlur={commitDraft}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              commitDraft()
+              inputRef.current?.blur()
+            }
+            if (event.key === 'Escape') {
+              setDraft(formatDateForDisplay(value))
+              setOpen(false)
+              inputRef.current?.blur()
+            }
+          }}
+        />
+        <span className="flex items-center gap-1 text-muted-foreground">
+          {value && !disabled && (
+            <button
+              type="button"
+              aria-label="Clear date"
+              className="flex size-6 items-center justify-center rounded-md hover:bg-secondary hover:text-foreground"
+              onClick={() => {
+                onChange('')
+                setDraft('')
+                inputRef.current?.focus()
+              }}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label="Open calendar"
+            className="flex size-6 items-center justify-center rounded-md hover:bg-secondary hover:text-foreground disabled:pointer-events-none"
+            onClick={() => {
+              setDraft(formatDateForDisplay(value))
+              if (selectedDate) {
+                setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
+              }
+              setOpen((current) => !current)
+            }}
+          >
+            <Calendar className="size-4" />
+          </button>
+        </span>
+      </div>
+
+      {open && (
+        <div className="absolute left-0 top-full z-40 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-2xl border border-border/80 bg-popover p-3 text-popover-foreground shadow-xl ring-1 ring-black/5">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              aria-label="Previous month"
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onClick={() => shiftMonth(-1)}
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <p className="text-sm font-semibold tracking-tight text-foreground">
+              {monthLabel}
+            </p>
+            <button
+              type="button"
+              aria-label="Next month"
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onClick={() => shiftMonth(1)}
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+
+          <div className="mt-3 grid grid-cols-7 gap-1 text-center">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+              <div
+                key={`${day}-${index}`}
+                className="flex h-7 items-center justify-center text-[11px] font-semibold text-muted-foreground"
+              >
+                {day}
+              </div>
+            ))}
+            {cells.map((date, index) => {
+              const selected = date ? isSameCalendarDay(selectedDate, date) : false
+              const isToday = date ? isSameCalendarDay(today, date) : false
+              return date ? (
+                <button
+                  key={date.toISOString()}
+                  type="button"
+                  className={cn(
+                    'flex h-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-secondary',
+                    selected && 'bg-primary text-primary-foreground hover:bg-primary',
+                    !selected && isToday && 'border border-primary/30 text-primary',
+                  )}
+                  onClick={() => chooseDate(date)}
+                >
+                  {date.getDate()}
+                </button>
+              ) : (
+                <div key={`blank-${index}`} className="h-8" />
+              )
+            })}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3">
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onClick={() => {
+                onChange('')
+                setOpen(false)
+              }}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+              onClick={chooseToday}
+            >
+              Today
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -289,11 +557,23 @@ function ParamFieldInput({
             )
           })}
         </div>
-        <p className={`text-xs ${selected.length === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-          {selected.length === 0
-            ? 'Select at least one site to watch'
-            : `${selected.length} of ${opts.length} selected`}
-        </p>
+        <div className="flex min-h-7 items-center justify-between gap-2">
+          <p className={`text-xs ${selected.length === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+            {selected.length === 0
+              ? 'Select at least one site to watch'
+              : `${selected.length} of ${opts.length} selected`}
+          </p>
+          {selected.length > 0 && !disabled && (
+            <button
+              type="button"
+              aria-label="Clear selected sites"
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onClick={() => onChange([])}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     )
   }
@@ -314,7 +594,6 @@ function ParamFieldInput({
         groups={groups}
         placeholder={`Select ${field.label}`}
         disabled={disabled}
-        required={field.required}
         displayValue={isFacility ? facilityDisplayName : undefined}
       />
     )
@@ -324,6 +603,8 @@ function ParamFieldInput({
     return (
       <Input
         type="number"
+        min={field.key === 'people' ? 1 : undefined}
+        max={field.key === 'people' ? 25 : undefined}
         value={String(value ?? '')}
         onChange={e => onChange(e.target.value)}
         disabled={disabled}
@@ -333,10 +614,9 @@ function ParamFieldInput({
 
   if (field.type === 'date') {
     return (
-      <Input
-        type="date"
+      <DatePickerInput
         value={toInputDateValue(String(value ?? ''))}
-        onChange={e => onChange(e.target.value)}
+        onChange={onChange}
         disabled={disabled}
       />
     )
@@ -416,6 +696,7 @@ function OccupantSelector({
   onChange,
   peopleCount,
   loading = false,
+  onOpenOccupants,
 }: {
   roster: Occupant[]
   adapter?: AdapterInfo
@@ -423,6 +704,7 @@ function OccupantSelector({
   onChange: (ids: string[]) => void
   peopleCount: number
   loading?: boolean
+  onOpenOccupants?: () => void
 }) {
   const toggle = (id: string) => {
     onChange(
@@ -442,11 +724,23 @@ function OccupantSelector({
 
   if (roster.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">
-        No saved campers. Add some via the{' '}
-        <span className="font-medium">Campers</span>{' '}
-        menu in the header first.
-      </p>
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          No saved campers yet. Add campers to enable booking.
+        </p>
+        {onOpenOccupants && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={onOpenOccupants}
+          >
+            <Users className="size-3.5" />
+            Manage Campers
+          </Button>
+        )}
+      </div>
     )
   }
 
@@ -497,30 +791,20 @@ function OccupantSelector({
           {adapter.name} also needs camper details: {adapter.occupant_fields.map(field => field.label).join(', ')}.
         </p>
       )}
+      {onOpenOccupants && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={onOpenOccupants}
+        >
+          <Users className="size-3.5" />
+          Manage Campers
+        </Button>
+      )}
     </div>
   )
-}
-
-function isDateValidInTz(dateStr: string, timezone: string): boolean {
-  const parts = dateStr.split('/')
-  if (parts.length !== 3) return false
-  const [dd, mm, yyyy] = parts
-  if (!dd || !mm || !yyyy || yyyy.length !== 4) return false
-
-  const tzParts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date())
-  const tzY = Number(tzParts.find(p => p.type === 'year')?.value)
-  const tzM = Number(tzParts.find(p => p.type === 'month')?.value)
-  const tzD = Number(tzParts.find(p => p.type === 'day')?.value)
-
-  const jobY = Number(yyyy), jobM = Number(mm), jobD = Number(dd)
-  if ([jobY, jobM, jobD, tzY, tzM, tzD].some(isNaN)) return false
-
-  const tzInt = tzY * 10000 + tzM * 100 + tzD
-  const jobInt = jobY * 10000 + jobM * 100 + jobD
-  return jobInt >= tzInt
 }
 
 function normalizeDateParamValue(field: ParamField, value: unknown): unknown {
@@ -534,23 +818,35 @@ function buildDefaultParams(fields: ParamField[]): Record<string, unknown> {
   )
 }
 
-function buildParamsFromJob(
-  job: WatchJob,
-  fields: ParamField[],
-): Record<string, unknown> {
-  const fieldsByKey = new Map(fields.map((field) => [field.key, field]))
+function buildInitialParamsFromJob(job: WatchJob): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(job.params)) {
     if (k === 'occupants') continue
     if (k === 'sites' && typeof v === 'string') {
-      // Keep legacy string payloads editable after the multiselect migration.
       out[k] = v.split(',').map(s => s.trim()).filter(Boolean)
     } else {
-      const field = fieldsByKey.get(k)
-      out[k] = field ? normalizeDateParamValue(field, v ?? '') : (v ?? '')
+      out[k] = v ?? ''
     }
   }
   return out
+}
+
+function shouldHideBookingInputField(
+  field: ParamField,
+  params: Record<string, unknown>,
+  options: string[] | null,
+): boolean {
+  if (field.filter_by && !params[field.filter_by]) {
+    return true
+  }
+
+  return (
+    field.type === 'select'
+    && Boolean(field.filter_by)
+    && !field.required
+    && (!options || options.length === 0)
+    && Boolean(params[field.filter_by ?? ''])
+  )
 }
 
 function FormSection({
@@ -558,40 +854,22 @@ function FormSection({
   tooltip,
   children,
 }: {
-  title: string
+  title?: string
   tooltip?: string
   children: ReactNode
 }) {
   return (
     <section className="rounded-[1.5rem] border border-border/70 bg-secondary/35 p-4 sm:p-5">
-      <div className="mb-4">
-        <SectionHeading title={title} tooltip={tooltip} />
-      </div>
+      {title && (
+        <div className="mb-4">
+          <SectionHeading title={title} tooltip={tooltip} />
+        </div>
+      )}
       <div className="space-y-4">{children}</div>
     </section>
   )
 }
 
-function SettingRow({
-  title,
-  tooltip,
-  children,
-}: {
-  title: string
-  tooltip?: string
-  children: ReactNode
-}) {
-  return (
-    <div className="rounded-2xl border border-border/70 bg-background/70 px-4 py-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <SectionHeading title={title} tooltip={tooltip} tone="body" />
-        </div>
-        <div className="sm:pt-1">{children}</div>
-      </div>
-    </div>
-  )
-}
 
 function ParamLabel({
   fieldKey,
@@ -615,50 +893,242 @@ function ParamLabel({
 
 type Mode = 'create' | 'edit'
 
-function JobFormDialog({
-  open,
-  onOpenChange,
-  mode,
-  initialJob,
-  onDone,
+// ─── Booking Inputs step content (shared between wizard and dialog) ───────────
+
+function BookingInputsFields({
+  selectedAdapter,
+  params,
+  roster,
+  occupantsLoading,
+  selectedOccupantIds,
+  setSelectedOccupantIds,
+  effectivePeopleCount,
+  selectedOccupantCount,
+  selectedOccupantsPresent,
+  resolveOptions,
+  handleParamChange,
+  onOpenOccupants,
 }: {
-  open: boolean
-  onOpenChange: (o: boolean) => void
-  mode: Mode
-  initialJob?: WatchJob
-  onDone?: (job: WatchJob) => void
+  selectedAdapter: AdapterInfo
+  params: Record<string, unknown>
+  roster: Occupant[]
+  occupantsLoading: boolean
+  selectedOccupantIds: string[]
+  setSelectedOccupantIds: (ids: string[]) => void
+  effectivePeopleCount: number
+  selectedOccupantCount: number
+  selectedOccupantsPresent: boolean
+  resolveOptions: (field: ParamField, params: Record<string, unknown>) => string[] | null
+  handleParamChange: (key: string, value: unknown) => void
+  onOpenOccupants?: () => void
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] sm:max-w-3xl overflow-y-auto">
-        <JobFormBody
-          // Force a remount so each open gets fresh local form state.
-          key={`${mode}:${initialJob?.id ?? 'new'}`}
-          mode={mode}
-          initialJob={initialJob}
-          onDone={(job) => {
-            onDone?.(job)
-            onOpenChange(false)
-          }}
-          presentation="dialog"
-        />
-      </DialogContent>
-    </Dialog>
+    <>
+      {selectedAdapter.param_fields.map(field => {
+        if (field.key === 'occupants') {
+          return (
+            <div key={field.key} className="space-y-1.5">
+              <ParamLabel fieldKey={field.key}>
+                Campers
+              </ParamLabel>
+              <OccupantSelector
+                roster={roster}
+                adapter={selectedAdapter}
+                selectedIds={selectedOccupantIds}
+                onChange={setSelectedOccupantIds}
+                peopleCount={effectivePeopleCount}
+                loading={occupantsLoading}
+                onOpenOccupants={onOpenOccupants}
+              />
+            </div>
+          )
+        }
+
+        const opts = resolveOptions(field, params)
+
+        if (shouldHideBookingInputField(field, params, opts)) {
+          return null
+        }
+
+        return (
+          <div key={field.key} className="space-y-1.5">
+            <ParamLabel fieldKey={field.key} required={field.required}>
+              {field.label}
+            </ParamLabel>
+            <ParamFieldInput
+              field={field}
+              value={
+                field.key === 'people' && selectedOccupantsPresent
+                  ? String(selectedOccupantCount)
+                  : params[field.key]
+              }
+              onChange={val => handleParamChange(field.key, val)}
+              options={opts}
+              disabled={field.key === 'people' && selectedOccupantsPresent}
+            />
+            {field.key === 'people' && (
+              <p className="text-xs text-muted-foreground">
+                {selectedOccupantsPresent
+                  ? `Party size is being inferred from ${selectedOccupantCount} selected camper${selectedOccupantCount === 1 ? '' : 's'}.`
+                  : 'Used for availability checks when no campers are selected.'}
+              </p>
+            )}
+          </div>
+        )
+      })}
+    </>
   )
 }
+
+// ─── Automation step content (shared between wizard and dialog) ───────────────
+
+function AutomationFields({
+  selectedAdapter,
+  autoBook,
+  setAutoBook,
+  enableMonitoring,
+  setEnableMonitoring,
+  intervalMinutes,
+  setIntervalMinutes,
+  selectedOccupantsPresent,
+  hasCredentialsForSelectedAdapter,
+  selectedOccupantDetailsComplete,
+  onOpenCredentials,
+}: {
+  selectedAdapter: AdapterInfo | undefined
+  autoBook: boolean
+  setAutoBook: (v: boolean) => void
+  enableMonitoring: boolean
+  setEnableMonitoring: (v: boolean) => void
+  intervalMinutes: string
+  setIntervalMinutes: (v: string) => void
+  selectedOccupantsPresent: boolean
+  hasCredentialsForSelectedAdapter: boolean
+  selectedOccupantDetailsComplete: boolean
+  onOpenCredentials?: () => void
+}) {
+  if (!selectedAdapter) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 px-4 py-4">
+        <p className="text-sm text-muted-foreground">
+          Select a booking site first to reveal its inputs and automation settings.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {/* Auto-book */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="auto-book">Auto-book when available</Label>
+            <InfoTooltip content="Lets Hut Hunter continue directly into the booking flow instead of stopping after availability is found." />
+          </div>
+          <Switch
+            checked={autoBook}
+            onCheckedChange={setAutoBook}
+            id="auto-book"
+            disabled={
+              !selectedOccupantsPresent
+              || !hasCredentialsForSelectedAdapter
+              || !selectedOccupantDetailsComplete
+            }
+          />
+        </div>
+        {!selectedOccupantsPresent && (
+          <p className="text-xs text-muted-foreground">
+            Select campers to enable auto-book.
+          </p>
+        )}
+        {selectedOccupantsPresent && !selectedOccupantDetailsComplete && (
+          <p className="text-xs text-muted-foreground">
+            Fill the required camper details for {selectedAdapter.name} before enabling auto-book.
+          </p>
+        )}
+        {selectedOccupantsPresent && !hasCredentialsForSelectedAdapter && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              A saved sign-in for this booking site is required before enabling auto-book.
+            </p>
+            {onOpenCredentials && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={onOpenCredentials}
+              >
+                <LockKeyhole className="size-3.5" />
+                Manage Sign-ins
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Enable monitoring */}
+      <div className="flex items-center justify-between gap-4">
+        <Label htmlFor="enable-monitoring">Enable monitoring</Label>
+        <Switch
+          checked={enableMonitoring}
+          onCheckedChange={setEnableMonitoring}
+          id="enable-monitoring"
+        />
+      </div>
+
+      {/* Check interval */}
+      <div className="space-y-1.5">
+        <Label
+          htmlFor="interval-minutes"
+          className={enableMonitoring ? '' : 'text-muted-foreground'}
+        >
+          Check interval
+        </Label>
+        <div className="flex items-center gap-3">
+          <Input
+            id="interval-minutes"
+            type="number"
+            min={1}
+            max={120}
+            value={intervalMinutes}
+            onChange={e => setIntervalMinutes(e.target.value)}
+            disabled={!enableMonitoring}
+            className="w-24"
+          />
+          <span className={`text-sm ${enableMonitoring ? 'text-foreground' : 'text-muted-foreground'}`}>
+            minutes
+          </span>
+        </div>
+      </div>
+
+    </>
+  )
+}
+
+// ─── Core form body ───────────────────────────────────────────────────────────
 
 function JobFormBody({
   mode,
   initialJob,
   onDone,
   presentation,
-  showPageHeading = true,
+  onBack,
+  backLabel = 'Back',
+  initialStep,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   mode: Mode
   initialJob?: WatchJob
   onDone: (job: WatchJob) => void
   presentation: 'dialog' | 'page'
-  showPageHeading?: boolean
+  onBack?: () => void
+  backLabel?: string
+  initialStep?: WizardStep
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
   const qc = useQueryClient()
   const [name, setName] = useState(
@@ -667,7 +1137,9 @@ function JobFormBody({
   const [selectedAdapterId, setSelectedAdapterId] = useState(
     mode === 'edit' && initialJob ? initialJob.adapter_id : '',
   )
-  const [params, setParams] = useState<Record<string, unknown>>({})
+  const [params, setParams] = useState<Record<string, unknown>>(
+    mode === 'edit' && initialJob ? buildInitialParamsFromJob(initialJob) : {},
+  )
   const [autoBook, setAutoBook] = useState(
     mode === 'edit' && initialJob ? initialJob.auto_book : false,
   )
@@ -691,15 +1163,32 @@ function JobFormBody({
     return []
   })
 
+  // Wizard step state (page presentation only)
+  const [wizardStep, setWizardStep] = useState<WizardStep>(
+    initialStep ?? (mode === 'edit' ? 1 : 0),
+  )
+
   const { data: adapters = [] } = useQuery({
     queryKey: ['adapters'],
     queryFn: adaptersApi.list,
   })
 
-  const { data: roster = [], isLoading: occupantsLoading } = useQuery({
+  const { data: roster = [], isLoading: occupantsLoading, isError: occupantsError } = useQuery({
     queryKey: ['occupants'],
     queryFn: occupantsApi.list,
   })
+
+  // Sync selectedOccupantIds with roster (remove deleted occupants)
+  useEffect(() => {
+    if (!occupantsLoading && !occupantsError && selectedOccupantIds.length > 0) {
+      const validIds = selectedOccupantIds.filter(id =>
+        roster.some(o => o.id === id)
+      )
+      if (validIds.length !== selectedOccupantIds.length) {
+        setSelectedOccupantIds(validIds)
+      }
+    }
+  }, [roster, occupantsLoading, occupantsError, selectedOccupantIds])
   const { data: credentials = [] } = useQuery({
     queryKey: ['credentials'],
     queryFn: credentialsApi.list,
@@ -732,34 +1221,12 @@ function JobFormBody({
   const effectivePeopleCount = selectedOccupantsPresent
     ? selectedOccupantCount
     : enteredPeopleCount
-
-  useEffect(() => {
-    if (
-      mode !== 'edit'
-      || !initialJob
-      || !selectedAdapter
-      || Object.keys(params).length > 0
-    ) {
-      return
-    }
-    setParams(buildParamsFromJob(initialJob, selectedAdapter.param_fields))
-  }, [initialJob, mode, params, selectedAdapter])
-
-  useEffect(() => {
-    if (
-      (!selectedOccupantsPresent
-        || !hasCredentialsForSelectedAdapter
-        || !selectedOccupantDetailsComplete)
-      && autoBook
-    ) {
-      setAutoBook(false)
-    }
-  }, [
-    selectedOccupantsPresent,
-    hasCredentialsForSelectedAdapter,
-    selectedOccupantDetailsComplete,
-    autoBook,
-  ])
+  const canAutoBook = (
+    selectedOccupantsPresent
+    && hasCredentialsForSelectedAdapter
+    && selectedOccupantDetailsComplete
+  )
+  const effectiveAutoBook = autoBook && canAutoBook
 
   const resolveOptions = (
     field: ParamField,
@@ -817,12 +1284,22 @@ function JobFormBody({
             const dirs = dirField.options_by[String(value ?? '')] ?? []
             next['direction'] = dirs.length > 0 ? dirs[0] : ''
           }
+          // Reset nights when track changes — will be re-synced when sites are picked
+          next['nights'] = '1'
         }
 
         if (key === 'direction') {
           const sitesField = selectedAdapter.param_fields.find(f => f.key === 'sites')
           if (sitesField?.type === 'multiselect') {
             next['sites'] = []
+          }
+        }
+
+        // Sync nights to the number of selected sites for Great Walk bookings
+        if (key === 'sites') {
+          const siteList = Array.isArray(value) ? (value as string[]) : []
+          if (siteList.length > 0) {
+            next['nights'] = String(siteList.length)
           }
         }
       }
@@ -866,6 +1343,9 @@ function JobFormBody({
 
   const pending = mode === 'create' ? create.isPending : update.isPending
 
+  const submitIdle = mode === 'create' ? 'Create Hunt' : 'Save Changes'
+  const submitBusy = mode === 'create' ? 'Creating...' : 'Saving...'
+
   const handleSubmit = () => {
     setError(null)
     if (!selectedAdapter) {
@@ -891,11 +1371,11 @@ function JobFormBody({
 
     parsedParams.people = String(effectivePeopleCount)
 
-    if (autoBook && !selectedOccupantsPresent) {
+    if (effectiveAutoBook && !selectedOccupantsPresent) {
       setError('Select campers before enabling auto-book')
       return
     }
-    if (autoBook && !hasCredentialsForSelectedAdapter) {
+    if (effectiveAutoBook && !hasCredentialsForSelectedAdapter) {
       setError('Save a sign-in for this booking site before enabling auto-book')
       return
     }
@@ -965,7 +1445,7 @@ function JobFormBody({
         name,
         adapter_id: selectedAdapterId,
         params: parsedParams,
-        auto_book: autoBook,
+        auto_book: effectiveAutoBook,
         enable_monitoring: enableMonitoring,
         interval_minutes: safeInterval,
       })
@@ -975,7 +1455,7 @@ function JobFormBody({
         patch: {
           name,
           params: parsedParams,
-          auto_book: autoBook,
+          auto_book: effectiveAutoBook,
           enable_monitoring: enableMonitoring,
           interval_minutes: safeInterval,
         },
@@ -983,24 +1463,260 @@ function JobFormBody({
     }
   }
 
+  // ── Shared booking inputs props ─────────────────────────────────────────────
+
+  const bookingInputsProps = {
+    selectedAdapter: selectedAdapter!,
+    params,
+    roster,
+    occupantsLoading,
+    selectedOccupantIds,
+    setSelectedOccupantIds,
+    effectivePeopleCount,
+    selectedOccupantCount,
+    selectedOccupantsPresent,
+    resolveOptions,
+    handleParamChange,
+    onOpenOccupants,
+  }
+
+  const automationProps = {
+    selectedAdapter,
+    autoBook: effectiveAutoBook,
+    setAutoBook,
+    enableMonitoring,
+    setEnableMonitoring,
+    intervalMinutes,
+    setIntervalMinutes,
+    selectedOccupantsPresent,
+    hasCredentialsForSelectedAdapter,
+    selectedOccupantDetailsComplete,
+    onOpenCredentials,
+  }
+
+  // ── Page presentation: multistep wizard ────────────────────────────────────
+
+  if (presentation === 'page') {
+    const bookingInputsComplete = selectedAdapter
+      ? selectedAdapter.param_fields.every((field) => {
+          if (field.key === 'occupants') return true
+
+          const opts = resolveOptions(field, params)
+          if (shouldHideBookingInputField(field, params, opts)) return true
+
+          if (field.key === 'people' && selectedOccupantsPresent) {
+            return selectedOccupantCount > 0
+          }
+
+          if (field.type === 'multiselect') {
+            const hasChoices = opts ? opts.length > 0 : true
+            if (!field.required && !hasChoices) return true
+            const value = params[field.key]
+            return Array.isArray(value) && value.length > 0
+          }
+
+          return !field.required || !isBlankValue(params[field.key])
+        })
+      : false
+    const stepBackLabels = [backLabel, WIZARD_STEPS[0], 'Details']
+    const wizardBackLabel = mode === 'edit' ? backLabel : (stepBackLabels[wizardStep] ?? backLabel)
+    const isLastStep = wizardStep === (WIZARD_STEPS.length - 1) as WizardStep
+    const canAdvance = wizardStep === 0
+      ? (!!name.trim() && !!selectedAdapterId)
+      : wizardStep === 1
+        ? bookingInputsComplete
+        : true
+
+    const handleWizardBack = () => {
+      if (mode === 'edit') {
+        onBack?.()
+        return
+      }
+      if (wizardStep > 0) {
+        setWizardStep((s) => (s - 1) as WizardStep)
+      } else {
+        onBack?.()
+      }
+    }
+
+    const handleWizardNext = () => {
+      if (!isLastStep) {
+        setWizardStep((s) => (s + 1) as WizardStep)
+      }
+    }
+
+    return (
+      <>
+        {/* Step header */}
+        <div className="shrink-0 border-b border-border/70 px-4 py-4">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <div>
+              {mode !== 'edit' && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="-ml-2 w-fit"
+                  onClick={handleWizardBack}
+                >
+                  <ArrowLeft className="size-4" />
+                  {wizardBackLabel}
+                </Button>
+              )}
+            </div>
+            <div className="text-center">
+              <p className="text-base font-semibold tracking-tight text-foreground">
+                {wizardStep === 1 && selectedAdapter
+                  ? initialJob?.name ?? 'Untitled'
+                  : WIZARD_STEPS[wizardStep]}
+              </p>
+              {mode !== 'edit' && (
+                <div className="mt-2 flex justify-center gap-1.5">
+                  {WIZARD_STEPS.map((_, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        'size-1.5 rounded-full transition-colors duration-200',
+                        i === wizardStep
+                          ? 'bg-primary'
+                          : i < wizardStep
+                            ? 'bg-primary/35'
+                            : 'bg-border',
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end">
+              {mode === 'edit' && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="-mr-2 w-fit"
+                  onClick={onBack}
+                  title="Close"
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Step content */}
+        <div className="app-panel-body-scroll px-4 sm:px-5">
+          <div className="space-y-5 pt-6 pb-8">
+
+            {/* Step 0: Hunt Setup */}
+            {wizardStep === 0 && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Hunt Name</Label>
+                  <Input
+                    autoFocus
+                    placeholder="e.g. Routeburn Falls Hut – Apr 2026"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Label>Booking Site</Label>
+                    {mode === 'edit' && (
+                      <InfoTooltip content="Booking site is locked on existing hunts because each site has its own input schema." />
+                    )}
+                  </div>
+                  <Select
+                    value={selectedAdapterId}
+                    onValueChange={handleAdapterChange}
+                    disabled={mode === 'edit'}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select booking site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {adapters.map(a => (
+                        <SelectItem key={a.adapter_id} value={a.adapter_id}>
+                          {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedAdapter?.requires_credentials && !hasCredentialsForSelectedAdapter && (
+                    <p className="text-xs text-amber-700">
+                      No sign-in saved for this booking site. Booking actions will stay disabled.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Step 1: Booking Inputs */}
+            {wizardStep === 1 && selectedAdapter && (
+              <>
+                <div className="flex items-center gap-2">
+                  <TentTree className="size-4 text-primary" />
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
+                    {selectedAdapter.name}
+                  </h3>
+                </div>
+              <BookingInputsFields {...bookingInputsProps} />
+              </>
+            )}
+
+            {/* Step 2: Automation */}
+            {wizardStep === 2 && (
+              <AutomationFields {...automationProps} />
+            )}
+
+            {/* Navigation */}
+            {(isLastStep || mode === 'edit') ? (
+              <>
+                {error && (
+                  <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+                <Button
+                  className="w-full"
+                  onClick={handleSubmit}
+                  disabled={!name || !selectedAdapterId || pending}
+                >
+                  {mode === 'edit' ? <Pencil className="size-4" /> : <Settings2 className="size-4" />}
+                  {pending ? submitBusy : (mode === 'edit' ? 'Save and Close' : submitIdle)}
+                </Button>
+              </>
+            ) : (
+              <Button
+                className="w-full"
+                onClick={handleWizardNext}
+                disabled={!canAdvance}
+              >
+                Next
+                <ChevronRight className="size-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // ── Dialog presentation: all sections visible ───────────────────────────────
+
   const title = mode === 'create' ? 'Create Hunt' : 'Edit Hunt'
-  const submitIdle = mode === 'create' ? 'Create Hunt' : 'Save Changes'
-  const submitBusy = mode === 'create' ? 'Creating...' : 'Saving...'
 
   return (
     <>
-      {presentation === 'dialog' ? (
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-      ) : showPageHeading ? (
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+      <DialogHeader>
+        <DialogTitle className="pl-2 text-2xl tracking-tight sm:pl-3">
           {title}
-        </h1>
-      ) : null}
+        </DialogTitle>
+      </DialogHeader>
       <div className="grid gap-4 py-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
         <div className="space-y-4">
-          <FormSection title="Hunt Setup">
+          <FormSection>
             <div className="space-y-1.5">
               <Label>Hunt Name</Label>
               <Input
@@ -1043,150 +1759,18 @@ function JobFormBody({
           </FormSection>
 
           {selectedAdapter && (
-            <FormSection title="Booking Inputs">
-              {selectedAdapter.param_fields.map(field => {
-                if (field.key === 'occupants') {
-                  return (
-                    <div key={field.key} className="space-y-1.5">
-                      <ParamLabel fieldKey={field.key}>
-                        Campers
-                      </ParamLabel>
-                      <OccupantSelector
-                        roster={roster}
-                        adapter={selectedAdapter}
-                        selectedIds={selectedOccupantIds}
-                        onChange={setSelectedOccupantIds}
-                        peopleCount={effectivePeopleCount}
-                        loading={occupantsLoading}
-                      />
-                    </div>
-                  )
-                }
-
-                const opts = resolveOptions(field, params)
-                if (
-                  field.type === 'select'
-                  && field.filter_by
-                  && !field.required
-                  && (!opts || opts.length === 0)
-                  && params[field.filter_by]
-                ) {
-                  return null
-                }
-
-                return (
-                  <div key={field.key} className="space-y-1.5">
-                    <ParamLabel fieldKey={field.key} required={field.required}>
-                      {field.label}
-                    </ParamLabel>
-                    <ParamFieldInput
-                      field={field}
-                      value={
-                        field.key === 'people' && selectedOccupantsPresent
-                          ? String(selectedOccupantCount)
-                          : params[field.key]
-                      }
-                      onChange={val => handleParamChange(field.key, val)}
-                      options={opts}
-                      disabled={field.key === 'people' && selectedOccupantsPresent}
-                    />
-                    {field.key === 'people' && (
-                      <p className="text-xs text-muted-foreground">
-                        {selectedOccupantsPresent
-                          ? `Party size is being inferred from ${selectedOccupantCount} selected camper${selectedOccupantCount === 1 ? '' : 's'}.`
-                          : 'Used for availability checks when no campers are selected.'}
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
+            <FormSection title={selectedAdapter.name ?? "not loaded"}>
+              <BookingInputsFields {...bookingInputsProps} />
             </FormSection>
           )}
         </div>
 
         <div className="space-y-4">
-          <FormSection title="Automation">
-            {selectedAdapter ? (
-              <>
-                <SettingRow
-                  title="Auto-book when available"
-                  tooltip="Lets Hut Hunter continue directly into the booking flow instead of stopping after availability is found."
-                >
-                  <div className="space-y-2 text-right">
-                    <Switch
-                      checked={autoBook}
-                      onCheckedChange={setAutoBook}
-                      id="auto-book"
-                      disabled={
-                        !selectedOccupantsPresent
-                        || !hasCredentialsForSelectedAdapter
-                        || !selectedOccupantDetailsComplete
-                      }
-                    />
-                    {!selectedOccupantsPresent && (
-                      <p className="max-w-56 text-xs text-muted-foreground">
-                        Select campers to enable auto-book.
-                      </p>
-                    )}
-                    {selectedOccupantsPresent && !selectedOccupantDetailsComplete && (
-                      <p className="max-w-56 text-xs text-muted-foreground">
-                        Fill the required camper details for {selectedAdapter.name} before enabling auto-book.
-                      </p>
-                    )}
-                    {selectedOccupantsPresent && !hasCredentialsForSelectedAdapter && (
-                      <p className="max-w-56 text-xs text-muted-foreground">
-                        Save a sign-in for this booking site in the header before enabling auto-book.
-                      </p>
-                    )}
-                  </div>
-                </SettingRow>
-
-                <SettingRow
-                  title="Enable monitoring"
-                >
-                  <Switch
-                    checked={enableMonitoring}
-                    onCheckedChange={setEnableMonitoring}
-                    id="enable-monitoring"
-                  />
-                </SettingRow>
-
-                <div className="rounded-2xl border border-border/70 bg-background/70 px-4 py-4">
-                  <Label
-                    htmlFor="interval-minutes"
-                    className={enableMonitoring ? '' : 'text-muted-foreground'}
-                  >
-                    Check interval
-                  </Label>
-                  <div className="mt-3 flex items-center gap-3">
-                    <Input
-                      id="interval-minutes"
-                      type="number"
-                      min={1}
-                      max={120}
-                      value={intervalMinutes}
-                      onChange={e => setIntervalMinutes(e.target.value)}
-                      disabled={!enableMonitoring}
-                      className="w-24"
-                    />
-                    <span
-                      className={`text-sm ${enableMonitoring ? 'text-foreground' : 'text-muted-foreground'}`}
-                    >
-                      minutes
-                    </span>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 px-4 py-4">
-                <p className="text-sm text-muted-foreground">
-                  Select a booking site first to reveal its inputs and automation settings.
-                </p>
-              </div>
-            )}
+          <FormSection>
+            <AutomationFields {...automationProps} />
           </FormSection>
 
-          <FormSection title="Submit">
+          <FormSection>
             {error && (
               <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
                 {error}
@@ -1198,7 +1782,7 @@ function JobFormBody({
               onClick={handleSubmit}
               disabled={!name || !selectedAdapterId || pending}
             >
-              <Settings2 className="size-4" />
+              {mode === 'edit' ? <Pencil className="size-4" /> : <Settings2 className="size-4" />}
               {pending ? submitBusy : submitIdle}
             </Button>
           </FormSection>
@@ -1208,65 +1792,113 @@ function JobFormBody({
   )
 }
 
+// ─── Page shell ───────────────────────────────────────────────────────────────
+
 function JobFormPage({
   mode,
   initialJob,
   onDone,
   onBack,
   backLabel = 'Back',
+  initialStep,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   mode: Mode
   initialJob?: WatchJob
   onDone: (job: WatchJob) => void
   onBack?: () => void
   backLabel?: string
+  initialStep?: WizardStep
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
-  const title = mode === 'create' ? 'Create Hunt' : 'Edit Hunt'
-
   return (
     <section className="app-panel app-panel-frame flex-1">
-      <div className="shrink-0 border-b border-border/70 px-4 py-4 sm:px-6">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <div className="min-w-0">
-            {onBack && (
-              <Button size="sm" variant="ghost" className="-ml-2 w-fit" onClick={onBack}>
-                <ArrowLeft className="size-4" />
-                {backLabel}
-              </Button>
-            )}
-          </div>
-          <h1 className="text-center text-lg font-semibold tracking-tight text-foreground sm:text-xl">
-            {title}
-          </h1>
-          <div />
-        </div>
-      </div>
-      <div className="app-panel-body-scroll px-4 sm:px-6">
-        <div className="pt-6 pb-6">
-          <JobFormBody
-            key={`${mode}:${initialJob?.id ?? 'new'}:page`}
-            mode={mode}
-            initialJob={initialJob}
-            onDone={onDone}
-            presentation="page"
-            showPageHeading={false}
-          />
-        </div>
-      </div>
+      <JobFormBody
+        key={`${mode}:${initialJob?.id ?? 'new'}:page:${initialStep ?? 'default'}`}
+        mode={mode}
+        initialJob={initialJob}
+        onDone={onDone}
+        presentation="page"
+        onBack={onBack}
+        backLabel={backLabel}
+        initialStep={initialStep}
+        onOpenOccupants={onOpenOccupants}
+        onOpenCredentials={onOpenCredentials}
+      />
     </section>
   )
 }
+
+// ─── Dialog shell ─────────────────────────────────────────────────────────────
+
+function JobFormDialog({
+  open,
+  onOpenChange,
+  mode,
+  initialJob,
+  onDone,
+  initialStep,
+  onOpenOccupants,
+  onOpenCredentials,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  mode: Mode
+  initialJob?: WatchJob
+  onDone?: (job: WatchJob) => void
+  initialStep?: WizardStep
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
+}) {
+  const presentation = mode === 'edit' ? 'page' : 'dialog'
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={cn(
+          'max-h-[92vh] overflow-y-auto',
+          presentation === 'dialog' ? 'sm:max-w-3xl' : 'sm:max-w-lg p-0',
+        )}
+        showCloseButton={presentation === 'dialog'}
+      >
+        <JobFormBody
+          // Force a remount so each open gets fresh local form state.
+          key={`${mode}:${initialJob?.id ?? 'new'}:${initialStep ?? 'default'}`}
+          mode={mode}
+          initialJob={initialJob}
+          onDone={(job) => {
+            onDone?.(job)
+            onOpenChange(false)
+          }}
+          onBack={() => onOpenChange(false)}
+          presentation={presentation}
+          initialStep={initialStep}
+          onOpenOccupants={onOpenOccupants}
+          onOpenCredentials={onOpenCredentials}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Public exports ───────────────────────────────────────────────────────────
 
 export function CreateJobDialog({
   open: controlledOpen,
   onOpenChange,
   onDone,
   hideTrigger = false,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onDone?: (job: WatchJob) => void
   hideTrigger?: boolean
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 } = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const open = controlledOpen ?? uncontrolledOpen
@@ -1285,7 +1917,7 @@ export function CreateJobDialog({
           New Hunt
         </Button>
       )}
-      <JobFormDialog open={open} onOpenChange={handleOpenChange} mode="create" onDone={onDone} />
+      <JobFormDialog open={open} onOpenChange={handleOpenChange} mode="create" onDone={onDone} onOpenOccupants={onOpenOccupants} onOpenCredentials={onOpenCredentials} />
     </>
   )
 }
@@ -1294,22 +1926,32 @@ export function CreateJobPage({
   onDone,
   onBack,
   backLabel,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   onDone: (job: WatchJob) => void
   onBack?: () => void
   backLabel?: string
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
-  return <JobFormPage mode="create" onDone={onDone} onBack={onBack} backLabel={backLabel} />
+  return <JobFormPage mode="create" onDone={onDone} onBack={onBack} backLabel={backLabel} onOpenOccupants={onOpenOccupants} onOpenCredentials={onOpenCredentials} />
 }
 
 export function EditJobDialog({
   open,
   onOpenChange,
   job,
+  step,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   job: WatchJob
+  step?: number
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
   return (
     <JobFormDialog
@@ -1317,6 +1959,9 @@ export function EditJobDialog({
       onOpenChange={onOpenChange}
       mode="edit"
       initialJob={job}
+      initialStep={step as WizardStep}
+      onOpenOccupants={onOpenOccupants}
+      onOpenCredentials={onOpenCredentials}
     />
   )
 }
@@ -1326,11 +1971,17 @@ export function EditJobPage({
   onDone,
   onBack,
   backLabel,
+  step,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   job: WatchJob
   onDone: (job: WatchJob) => void
   onBack?: () => void
   backLabel?: string
+  step?: number
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
   return (
     <JobFormPage
@@ -1339,6 +1990,9 @@ export function EditJobPage({
       onDone={onDone}
       onBack={onBack}
       backLabel={backLabel}
+      initialStep={step !== undefined ? step as WizardStep : 1}
+      onOpenOccupants={onOpenOccupants}
+      onOpenCredentials={onOpenCredentials}
     />
   )
 }

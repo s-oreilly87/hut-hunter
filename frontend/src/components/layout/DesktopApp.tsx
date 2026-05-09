@@ -8,7 +8,7 @@ import { CreateJobDialog, EditJobDialog } from '@/components/jobs/CreateJobDialo
 import { OccupantsDialog } from '@/components/occupants/OccupantsDialog'
 import { NotificationsDialog } from '@/components/notifications/NotificationsDialog'
 import { CredentialsDialog } from '@/components/credentials/CredentialsDialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/Button'
 import type { AppViewProps } from '@/components/layout/types'
 
 export function DesktopApp({
@@ -43,9 +43,10 @@ export function DesktopApp({
         onOpenCredentials={() => setCredentialsOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
+        onGoToDashboard={() => navigate({ name: 'dashboard' })}
       />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-400 flex-1 min-h-0 flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8">
         <div className="dashboard-enter">
           <StatsGrid
             stats={stats}
@@ -92,7 +93,8 @@ export function DesktopApp({
           <aside className="min-h-0">
             <JobCard
               className="h-full"
-              onRequestEdit={(job) => navigate({ name: 'edit-job', jobId: job.id })}
+              onRequestEdit={(job, step) => navigate({ name: 'edit-job', jobId: job.id, step })}
+              onOpenOccupants={() => setOccupantsOpen(true)}
             />
           </aside>
         </main>
@@ -112,6 +114,8 @@ export function DesktopApp({
           if (!open) navigate({ name: 'dashboard' }, { replace: true })
         }}
         hideTrigger
+        onOpenOccupants={() => setOccupantsOpen(true)}
+        onOpenCredentials={() => setCredentialsOpen(true)}
       />
       {selectedJob && (
         <EditJobDialog
@@ -120,6 +124,9 @@ export function DesktopApp({
             if (!open) navigate({ name: 'job-detail', jobId: selectedJob.id }, { replace: true })
           }}
           job={selectedJob}
+          step={route.name === 'edit-job' ? route.step : undefined}
+          onOpenOccupants={() => setOccupantsOpen(true)}
+          onOpenCredentials={() => setCredentialsOpen(true)}
         />
       )}
     </div>

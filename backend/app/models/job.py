@@ -6,6 +6,7 @@ import uuid
 import json
 from sqlalchemy import Column
 from sqlalchemy import DateTime
+from app.core.config import settings
 
 def utcnow() -> datetime:
     """Timezone-aware UTC now — use this everywhere instead of datetime.utcnow()."""
@@ -27,6 +28,39 @@ def as_utc(value: datetime) -> datetime:
 
 def as_optional_utc(value: Optional[datetime]) -> Optional[datetime]:
     return as_utc(value) if value is not None else None
+
+
+def _artifact_should_include_html(value: str) -> bool:
+    debug_terms = (
+        "error",
+        "failed",
+        "failure",
+        "timeout",
+        "not_found",
+        "did_not_open",
+        "did_not_update",
+        "validation",
+    )
+    normalized = value.lower()
+    return any(term in normalized for term in debug_terms)
+
+
+def artifact_urls(base: str, *, label: str | None = None) -> tuple[str, str | None]:
+    html_source = label or base
+    if base.startswith("artifacts/"):
+        base = base[len("artifacts/"):]
+
+    artifact_base = settings.artifacts_dir / base
+    image_ext = ".png" if artifact_base.with_suffix(".png").exists() else ".jpg"
+    html_url = (
+        f"/artifacts/{base}.html"
+        if (
+            _artifact_should_include_html(html_source)
+            and artifact_base.with_suffix(".html").exists()
+        )
+        else None
+    )
+    return f"/artifacts/{base}{image_ext}", html_url
 
 
 class JobStatus(str, Enum):
@@ -186,18 +220,15 @@ class WatchJobRead(SQLModel):
         else:
             last_result = None
 
-        # Build the PNG/HTML URLs from the stored base path. The base is e.g.
+        # Build the image/HTML URLs from the stored base path. The base is e.g.
         # "artifacts/20260418_123045_doc_great_walk_hold_error". StaticFiles is
         # mounted at /artifacts/<filename>, so strip the "artifacts/" prefix
-        # and prepend the URL root.
+        # and prepend the URL root. HTML is only returned for debug/error
+        # snapshots, where the file exists.
         png_url: Optional[str] = None
         html_url: Optional[str] = None
         if job.last_artifact:
-            base = job.last_artifact
-            if base.startswith("artifacts/"):
-                base = base[len("artifacts/"):]
-            png_url = f"/artifacts/{base}.png"
-            html_url = f"/artifacts/{base}.html"
+            png_url, html_url = artifact_urls(job.last_artifact)
 
         artifact_history = None
         if job.artifact_history:
@@ -215,12 +246,14 @@ class WatchJobRead(SQLModel):
                     label = entry.get("label")
                     if not isinstance(base, str) or not base:
                         continue
-                    if base.startswith("artifacts/"):
-                        base = base[len("artifacts/"):]
+                    artifact_png_url, artifact_html_url = artifact_urls(
+                        base,
+                        label=label if isinstance(label, str) else None,
+                    )
                     artifact_history.append({
                         "label": label if isinstance(label, str) else "artifact",
-                        "png_url": f"/artifacts/{base}.png",
-                        "html_url": f"/artifacts/{base}.html",
+                        "png_url": artifact_png_url,
+                        "html_url": artifact_html_url,
                     })
 
                 if not artifact_history:

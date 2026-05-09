@@ -1,6 +1,5 @@
 import { Plus } from 'lucide-react'
 import { AppHeader } from '@/components/layout/AppHeader'
-import { MobilePrimaryNav } from '@/components/layout/MobilePrimaryNav'
 import { StatsGrid } from '@/components/dashboard/StatsGrid'
 import { FilterDropdown } from '@/components/jobs/FilterDropdown'
 import { JobList } from '@/components/jobs/JobList'
@@ -9,7 +8,7 @@ import { CreateJobPage, EditJobPage } from '@/components/jobs/CreateJobDialog'
 import { OccupantsDialog } from '@/components/occupants/OccupantsDialog'
 import { NotificationsDialog } from '@/components/notifications/NotificationsDialog'
 import { CredentialsDialog } from '@/components/credentials/CredentialsDialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/Button'
 import type { AppViewProps } from '@/components/layout/types'
 
 export function MobileApp({
@@ -34,8 +33,6 @@ export function MobileApp({
   hasOccupants,
   missingCredentialCount,
 }: AppViewProps) {
-  const mobileNavPadding = 'calc(var(--app-mobile-nav-height, 0px) + 1rem)'
-
   return (
     <div className="app-shell flex h-dvh flex-col overflow-y-auto">
       <AppHeader
@@ -46,11 +43,11 @@ export function MobileApp({
         onOpenCredentials={() => setCredentialsOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
+        onGoToDashboard={() => navigate({ name: 'dashboard' })}
       />
 
       <div
-        className="mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pt-4"
-        style={{ paddingBottom: mobileNavPadding }}
+        className="mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pb-4 pt-4"
       >
         {route.name === 'dashboard' && (
           <StatsGrid
@@ -90,7 +87,6 @@ export function MobileApp({
             <div className="app-panel-body-scroll px-4 sm:px-5">
               <div className="pt-6 pb-6">
                 <JobList
-                  collapseGroupsByDefault
                   statusFilters={statusFilters}
                   onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
                 />
@@ -104,7 +100,8 @@ export function MobileApp({
             className="flex-1"
             backLabel="Hunts"
             onBack={() => navigate({ name: 'jobs' })}
-            onRequestEdit={(job) => navigate({ name: 'edit-job', jobId: job.id })}
+            onRequestEdit={(job, step) => navigate({ name: 'edit-job', jobId: job.id, step })}
+            onOpenOccupants={() => setOccupantsOpen(true)}
             onDeleted={() => navigate({ name: 'jobs' }, { replace: true })}
           />
         )}
@@ -117,6 +114,8 @@ export function MobileApp({
               setSelectedJobId(job.id)
               navigate({ name: 'jobs' }, { replace: true })
             }}
+            onOpenOccupants={() => setOccupantsOpen(true)}
+            onOpenCredentials={() => setCredentialsOpen(true)}
           />
         )}
 
@@ -126,6 +125,9 @@ export function MobileApp({
             backLabel="Hunt"
             onBack={() => navigate({ name: 'job-detail', jobId: selectedJob.id })}
             onDone={(job) => navigate({ name: 'job-detail', jobId: job.id }, { replace: true })}
+            step={route.step}
+            onOpenOccupants={() => setOccupantsOpen(true)}
+            onOpenCredentials={() => setCredentialsOpen(true)}
           />
         )}
       </div>
@@ -133,7 +135,6 @@ export function MobileApp({
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
       <NotificationsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} />
       <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} />
-      <MobilePrimaryNav route={route} navigate={navigate} />
     </div>
   )
 }

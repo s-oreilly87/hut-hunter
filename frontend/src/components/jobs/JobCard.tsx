@@ -1,40 +1,44 @@
-import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
   AlertTriangle,
+  BadgeInfo,
   ArrowLeft,
-  CheckCircle2,
-  CircleHelp,
   FileCode2,
   ImageIcon,
   LayoutDashboard,
   Loader2,
   Pause,
+  Pencil,
   Play,
   Search,
   Settings2,
   Stamp,
   Trash2,
+  Users,
   XCircle,
 } from 'lucide-react'
 import {
   type ArtifactRecord,
+  adaptersApi,
   jobsApi,
+  occupantsApi,
   type AvailabilityResult,
   type LastResultEntry,
   type WatchJob,
 } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '../ui/Badge'
+import { Button } from '../ui/Button'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
+} from '../ui/Card'
 import { EditJobDialog } from '@/components/jobs/CreateJobDialog'
 import {
   BookButton,
@@ -54,13 +58,21 @@ import {
 } from '@/lib/time'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import { getHeaderFields } from '@/components/jobs/jobParamDisplay'
+import { isJobOutdatedOnCampers } from '@/lib/occupantSnapshots'
+import {
+  formatArtifactLabel,
+  formatResultValue,
+  getAvailabilityCopy,
+  getAvailabilityVisual,
+  getCompletedBookingArtifacts,
+  getHoldFlowArtifacts,
+  getReceiptArtifact,
+  getUnavailableArtifact,
+  isAvailabilityResult,
+  isHoldFailedEntry,
+  titleize,
+} from '@/lib/availabilityResults'
 import { cn } from '@/lib/utils'
-
-function titleize(key: string): string {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
 
 function formatRelativeTime(value: string | null): string {
   return formatRelativeTimeFromNow(value, {
@@ -68,133 +80,6 @@ function formatRelativeTime(value: string | null): string {
     justNowLabel: 'just now',
     prefix: 'Checked',
   })
-}
-
-function parseAvailabilityEvidence(evidence: string): {
-  totalAvailable: number | null
-  peopleWanted: number | null
-} {
-  const totalMatch = evidence.match(/total=([0-9]+|None|null)/i)
-  const peopleMatch = evidence.match(/peopleWanted=([0-9]+)/i)
-
-  const totalAvailable = totalMatch
-    ? (/none|null/i.test(totalMatch[1]) ? null : Number(totalMatch[1]))
-    : null
-  const peopleWanted = peopleMatch ? Number(peopleMatch[1]) : null
-
-  return {
-    totalAvailable: Number.isFinite(totalAvailable) ? totalAvailable : null,
-    peopleWanted: Number.isFinite(peopleWanted) ? peopleWanted : null,
-  }
-}
-
-function getAvailabilityVisual(status: AvailabilityResult['status']) {
-  switch (status) {
-    case 'available':
-      return {
-        icon: CheckCircle2,
-        tileClass: 'border-emerald-500/25 bg-emerald-500/8',
-        iconClass: 'bg-emerald-500/12 text-emerald-700',
-        badgeClass: 'bg-emerald-600 text-white hover:bg-emerald-600',
-      }
-    case 'partially_available':
-      return {
-        icon: AlertTriangle,
-        tileClass: 'border-amber-500/25 bg-amber-500/10',
-        iconClass: 'bg-amber-500/12 text-amber-700',
-        badgeClass: 'bg-amber-500 text-white hover:bg-amber-500',
-      }
-    case 'unavailable':
-      return {
-        icon: XCircle,
-        tileClass: 'border-rose-500/25 bg-rose-500/8',
-        iconClass: 'bg-rose-500/12 text-rose-700',
-        badgeClass: 'bg-rose-600 text-white hover:bg-rose-600',
-      }
-    default:
-      return {
-        icon: CircleHelp,
-        tileClass: 'border-border/70 bg-background/80',
-        iconClass: 'bg-secondary text-muted-foreground',
-        badgeClass: '',
-      }
-  }
-}
-
-function getAvailabilityCopy(entry: AvailabilityResult): {
-  summary: string
-  details: string[]
-} {
-  const parsed = parseAvailabilityEvidence(entry.evidence)
-  const totalAvailable = entry.total_available ?? parsed.totalAvailable
-  const peopleWanted = parsed.peopleWanted
-
-  // Only include spot count when the summary text doesn't already state it
-  // (people count is always in the summary, so never add it as a redundant detail)
-  switch (entry.status) {
-    case 'available':
-      return {
-        summary:
-          totalAvailable != null && peopleWanted != null
-            ? `${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} cover the requested party of ${peopleWanted}.`
-            : 'Availability is open for this site.',
-        // Spot count is already in the summary when both values present; show when only total known
-        details: totalAvailable != null && peopleWanted == null
-          ? [`${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} found`]
-          : [],
-      }
-    case 'partially_available':
-      return {
-        summary:
-          totalAvailable != null && peopleWanted != null
-            ? `${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} available — fewer than the requested ${peopleWanted}.`
-            : 'Some capacity exists, but not enough for the full party.',
-        details: totalAvailable != null && peopleWanted == null
-          ? [`${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} found`]
-          : [],
-      }
-    case 'unavailable':
-      return {
-        summary:
-          peopleWanted != null
-            ? `Unavailable for a party of ${peopleWanted}.`
-            : 'No availability was found for this site.',
-        details: [],
-      }
-    default:
-      if (entry.evidence.includes('not found in results table')) {
-        return {
-          summary: 'This site did not appear in the returned results.',
-          details: ['The latest search did not include this stop.'],
-        }
-      }
-      if (entry.evidence.includes('No cell found')) {
-        return {
-          summary: 'The availability table was missing the expected date cell.',
-          details: ['The returned page shape did not match the requested site and date.'],
-        }
-      }
-      return {
-        summary: 'Availability could not be classified from the latest check.',
-        details: ['Check the underlying artifact if you need the raw page state.'],
-      }
-  }
-}
-
-function formatResultValue(value: unknown): string {
-  if (value == null) return 'Not provided'
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
-  if (typeof value === 'number') return String(value)
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    return trimmed || 'Not provided'
-  }
-
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
 }
 
 function ArtifactLinkButton({
@@ -312,24 +197,6 @@ function GenericResultView({
   )
 }
 
-function isAvailabilityResult(entry: LastResultEntry): entry is AvailabilityResult {
-  return (
-    typeof entry === 'object'
-    && entry !== null
-    && 'site' in entry
-    && 'status' in entry
-  )
-}
-
-function isHoldFailedEntry(entry: LastResultEntry): entry is Record<string, unknown> & { type: 'hold_failed' } {
-  return (
-    typeof entry === 'object'
-    && entry !== null
-    && 'type' in entry
-    && (entry as Record<string, unknown>).type === 'hold_failed'
-  )
-}
-
 function HoldFailedView({
   entry,
   artifactPng,
@@ -359,7 +226,7 @@ function HoldFailedView({
                 {errorMsg}
               </p>
             </div>
-            <Badge className="bg-rose-600 text-white hover:bg-rose-600">
+            <Badge className="bg-rose-500 text-white hover:bg-rose-500">
               Hold Failed
             </Badge>
           </div>
@@ -375,70 +242,158 @@ function HoldFailedView({
   )
 }
 
+function AvailabilityResultTile({
+  entry,
+}: {
+  entry: AvailabilityResult
+}) {
+  const visual = getAvailabilityVisual(entry.status)
+  const copy = getAvailabilityCopy(entry)
+  const Icon = visual.icon
+
+  return (
+    <div className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}>
+      <div className="flex items-start gap-3">
+        <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
+          <Icon className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium tracking-tight text-foreground">
+                {entry.site}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-foreground/85">
+                {copy.summary}
+              </p>
+            </div>
+            <Badge
+              variant={entry.status === 'unknown' ? 'outline' : 'default'}
+              className={`shrink-0 ${visual.badgeClass}`}
+            >
+              {titleize(entry.status)}
+            </Badge>
+          </div>
+
+          {copy.details.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {copy.details.map((detail) => (
+                <span
+                  key={detail}
+                  className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
+                >
+                  {detail}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UnavailableResultTile({
+  entries,
+  unavailableArtifact,
+}: {
+  entries: AvailabilityResult[]
+  unavailableArtifact?: ArtifactRecord | null
+}) {
+  const visual = getAvailabilityVisual('unavailable')
+  const Icon = visual.icon
+  const siteCount = entries.length
+  const firstCopy = entries[0] ? getAvailabilityCopy(entries[0]) : null
+  const summary = siteCount === 1
+    ? (firstCopy?.summary ?? 'No availability was found for this site.')
+    : `No availability was found for ${siteCount} selected sites.`
+
+  return (
+    <div className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}>
+      <div className="flex items-start gap-3">
+        <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
+          <Icon className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium tracking-tight text-foreground">
+                {siteCount === 1 ? entries[0]?.site : 'Selected Sites'}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-foreground/85">
+                {summary}
+              </p>
+            </div>
+            <Badge className={`shrink-0 ${visual.badgeClass}`}>
+              Unavailable
+            </Badge>
+          </div>
+
+          {siteCount > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {entries.map((entry) => (
+                <span
+                  key={entry.site}
+                  className="rounded-full border border-rose-500/20 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
+                >
+                  {entry.site}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {unavailableArtifact && (
+            <ArtifactGallery artifacts={[unavailableArtifact]} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function LastResultView({
   result,
   artifactPng,
   artifactHtml,
+  unavailableArtifact,
 }: {
   result: LastResultEntry[]
   artifactPng?: string | null
   artifactHtml?: string | null
+  unavailableArtifact?: ArtifactRecord | null
 }) {
   if (!result.length) {
     return <p className="text-sm text-muted-foreground">No results captured yet.</p>
   }
 
+  const unavailableResults = result.filter(
+    (entry): entry is AvailabilityResult =>
+      isAvailabilityResult(entry) && entry.status === 'unavailable',
+  )
+  const hasUnavailableResults = unavailableResults.length > 0
+  let unavailableRendered = false
+
   return (
     <div className="space-y-3">
       {result.map((entry, index) => {
         if (isAvailabilityResult(entry)) {
-          const visual = getAvailabilityVisual(entry.status)
-          const copy = getAvailabilityCopy(entry)
-          const Icon = visual.icon
+          if (entry.status === 'unavailable') {
+            if (unavailableRendered) return null
+            unavailableRendered = true
+            return (
+              <UnavailableResultTile
+                key="unavailable-results"
+                entries={unavailableResults}
+                unavailableArtifact={unavailableArtifact}
+              />
+            )
+          }
 
-          return (
-            <div
-              key={index}
-              className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}
-            >
-              <div className="flex items-start gap-3">
-                <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
-                  <Icon className="size-5" />
-                </div>
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium tracking-tight text-foreground">
-                        {entry.site}
-                      </p>
-                      <p className="mt-1 text-sm leading-5 text-foreground/85">
-                        {copy.summary}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={entry.status === 'unknown' ? 'outline' : 'default'}
-                      className={`shrink-0 ${visual.badgeClass}`}
-                    >
-                      {titleize(entry.status)}
-                    </Badge>
-                  </div>
+          if (hasUnavailableResults) {
+            return <AvailabilityResultTile key={index} entry={entry} />
+          }
 
-                  {copy.details.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {copy.details.map((detail) => (
-                        <span
-                          key={detail}
-                          className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
-                        >
-                          {detail}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
+          return <AvailabilityResultTile key={index} entry={entry} />
         }
 
         if (isHoldFailedEntry(entry)) {
@@ -465,32 +420,34 @@ function LastResultView({
   )
 }
 
-const ARTIFACT_LABELS: Record<string, string> = {
-  reservation_details: 'Reservation Details',
-  shopping_cart: 'Shopping Cart',
-  payment_page_success: 'Payment Page',
-  booking_complete: 'Receipt',
-  book_great_walk_timeout: 'Book Great Walk Timeout',
-  shopping_cart_timeout: 'Shopping Cart Timeout',
-  payment_page_timeout: 'Payment Page Timeout',
-}
-
-function formatArtifactLabel(label: string): string {
-  return ARTIFACT_LABELS[label] ?? titleize(label)
-}
-
 function HeaderParamSummary({
   params,
+  onEdit,
+  centered = false,
 }: {
   params: Record<string, unknown>
+  onEdit?: () => void
+  centered?: boolean
 }) {
   const fields = getHeaderFields(params)
 
   if (!fields.length) {
     return (
-      <span className="text-sm text-muted-foreground">
-        No booking parameters stored.
-      </span>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">
+          No booking parameters stored.
+        </span>
+        {onEdit && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8 shrink-0 text-muted-foreground/50"
+            onClick={onEdit}
+          >
+            <Pencil className="size-4" />
+          </Button>
+        )}
+      </div>
     )
   }
 
@@ -503,80 +460,64 @@ function HeaderParamSummary({
   const rows = [facilityFields, primaryFields, secondaryFields, tertiaryFields].filter((row) => row.length > 0)
 
   return (
-    <div className="space-y-1.5">
-      {rows.map((row, rowIndex) => (
-        <div
-          key={rowIndex}
-          className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm leading-5 text-muted-foreground"
-        >
-          {row.map((field) => {
-            const Icon = field.icon
-            const textClass = field.isSubtitle ? 'text-xs text-muted-foreground/70' : ''
+    <div className="flex items-center gap-2">
+      {centered && onEdit && <span className="size-8 shrink-0" aria-hidden="true" />}
+      <div className="space-y-1.5">
+        {rows.map((row, rowIndex) => (
+          <div
+            key={rowIndex}
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm leading-5 text-muted-foreground"
+          >
+            {row.map((field) => {
+              const Icon = field.icon
+              const textClass = field.isSubtitle ? 'text-xs text-muted-foreground/70' : ''
 
-            return (
-              <span key={field.key} className={`inline-flex items-start gap-2 ${textClass}`}>
-                <Icon className={`mt-0.5 shrink-0 ${field.isSubtitle ? 'size-3 text-foreground/45' : 'size-3.5 text-foreground/65'}`} />
-                <span className="sr-only">{field.label}: </span>
-                {field.tags ? (
-                  <span className="flex flex-wrap gap-1">
-                    {field.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground/75"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </span>
-                ) : field.href ? (
-                  <a
-                    href={field.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="hover:underline underline-offset-2 decoration-muted-foreground/40 hover:text-foreground"
-                  >
-                    {field.value}
-                  </a>
-                ) : (
-                  <span>{field.value}</span>
-                )}
-              </span>
-            )
-          })}
-        </div>
-      ))}
+              return (
+                <span key={field.key} className={`inline-flex items-start gap-2 ${textClass}`}>
+                  <Icon className={`mt-0.5 shrink-0 ${field.isSubtitle ? 'size-3 text-foreground/45' : 'size-3.5 text-foreground/65'}`} />
+                  <span className="sr-only">{field.label}: </span>
+                  {field.tags ? (
+                    <span className="flex flex-wrap gap-1">
+                      {field.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground/75"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </span>
+                  ) : field.href ? (
+                    <a
+                      href={field.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:underline underline-offset-2 decoration-muted-foreground/40 hover:text-foreground"
+                    >
+                      {field.value}
+                    </a>
+                  ) : (
+                    <span>{field.value}</span>
+                  )}
+                </span>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      {onEdit && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-8 shrink-0 text-muted-foreground/50"
+          onClick={onEdit}
+        >
+          <Pencil className="size-4" />
+        </Button>
+      )}
     </div>
   )
-}
-
-function getReceiptArtifact(artifacts: ArtifactRecord[] | null | undefined): ArtifactRecord | null {
-  if (!artifacts?.length) return null
-  return [...artifacts].reverse().find((artifact) => artifact.label === 'booking_complete') ?? null
-}
-
-function getHoldFlowArtifacts(artifacts: ArtifactRecord[] | null | undefined): ArtifactRecord[] {
-  if (!artifacts?.length) return []
-
-  const orderedLabels = [
-    'reservation_details',
-    'shopping_cart',
-  ]
-
-  const relevant = artifacts.filter((artifact) => orderedLabels.includes(artifact.label))
-  if (!relevant.length) return []
-
-  return orderedLabels.flatMap((label) =>
-    relevant.filter((artifact) => artifact.label === label),
-  )
-}
-
-function getCompletedBookingArtifacts(
-  holdArtifacts: ArtifactRecord[],
-  receiptArtifact: ArtifactRecord | null,
-): ArtifactRecord[] {
-  if (!receiptArtifact) return holdArtifacts
-  return [...holdArtifacts, receiptArtifact]
 }
 
 function ArtifactGallery({
@@ -609,24 +550,19 @@ function ArtifactGallery({
               <img
                 src={artifact.png_url}
                 alt={formatArtifactLabel(artifact.label)}
-                className="aspect-[4/3] w-full object-cover"
+                className="aspect-4/3 w-full object-cover"
                 loading="lazy"
               />
             </a>
           )}
 
-          <div className="flex flex-wrap gap-1.5 px-3.5 py-2.5">
-            {artifact.png_url && (
-              <ArtifactLinkButton href={artifact.png_url} icon={ImageIcon}>
-                Screenshot
-              </ArtifactLinkButton>
-            )}
-            {artifact.html_url && (
+          {artifact.html_url && (
+            <div className="flex flex-wrap gap-1.5 px-3.5 py-2.5">
               <ArtifactLinkButton href={artifact.html_url} icon={FileCode2}>
                 HTML
               </ArtifactLinkButton>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -639,12 +575,16 @@ function MonitoringSection({
   onTrigger,
   triggerQueued,
   hideTrigger,
+  hasOutdatedCampers,
+  onEdit,
 }: {
   job: WatchJob
   displayStatus: DisplayStatus
   onTrigger: () => void
   triggerQueued: boolean
   hideTrigger: boolean
+  hasOutdatedCampers: boolean
+  onEdit?: () => void
 }) {
   const qc = useQueryClient()
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -659,7 +599,20 @@ function MonitoringSection({
     onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
   })
 
-  if (displayStatus === 'booking_complete') return null
+  const isOn = job.enable_monitoring
+
+  useEffect(() => {
+    if (hasOutdatedCampers && isOn && !mutation.isPending) {
+      mutation.mutate(false)
+    }
+  }, [hasOutdatedCampers, isOn, mutation])
+
+  if (
+    displayStatus === 'booking_complete' ||
+    displayStatus === 'cancelled' ||
+    displayStatus === 'expired'
+  )
+    return null
 
   const isTerminal = (
     displayStatus === 'cancelled'
@@ -672,15 +625,13 @@ function MonitoringSection({
     || displayStatus === 'booking'
   )
   const showToggle = !isTerminal && !isTransient
-
-  const isOn = job.enable_monitoring
   const countdownSeconds = isOn && job.next_check_at
     ? (new Date(job.next_check_at).getTime() - nowMs) / 1000
     : null
   const holdPausesMonitoring =
     displayStatus === 'hold_placed'
     || displayStatus === 'attempting_hold'
-  const disableTrigger = holdPausesMonitoring || displayStatus === 'checking'
+  const disableTrigger = holdPausesMonitoring || displayStatus === 'checking' || hasOutdatedCampers
 
   return (
     <section>
@@ -692,28 +643,43 @@ function MonitoringSection({
               Monitoring
             </h3>
             {!job.credentials_configured ? (
-              <Badge className="bg-amber-500 text-white hover:bg-amber-500">
-                No sign-in
-              </Badge>
+              <>
+                <Badge variant="outline">Notify only</Badge>
+                <Badge className="bg-amber-500 text-white hover:bg-amber-500">
+                  No sign-in
+                </Badge>
+              </>
             ) : (
               <Badge variant={job.auto_book ? 'default' : 'outline'}>
                 {job.auto_book ? 'Auto-book' : 'Notify only'}
               </Badge>
             )}
           </div>
-          {showToggle && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={mutation.isPending}
-              onClick={() => mutation.mutate(!isOn)}
-            >
-              {isOn
-                ? <><Pause className="size-3.5" /> Pause</>
-                : <><Play className="size-3.5" /> Resume</>
-              }
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {showToggle && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={mutation.isPending || (hasOutdatedCampers && !isOn)}
+                onClick={() => mutation.mutate(!isOn)}
+              >
+                {isOn
+                  ? <><Pause className="size-3.5" /> Pause</>
+                  : <><Play className="size-3.5" /> Resume</>
+                }
+              </Button>
+            )}
+            {onEdit && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8 shrink-0 text-muted-foreground/50"
+                onClick={onEdit}
+              >
+                <Pencil className="size-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
@@ -785,14 +751,64 @@ function HoldExpiryCountdown({ cartExpiresAt }: { cartExpiresAt: string | null }
   )
 }
 
+function OutdatedCampersNotice({
+  onEditJob,
+  onEditCampers,
+}: {
+  onEditJob: () => void
+  onEditCampers: () => void
+}) {
+  return (
+    <section>
+      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
+            <AlertTriangle className="size-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-base font-medium tracking-tight text-foreground">
+              Camper Details Changed
+            </p>
+            <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
+              Campers attached to this hunt have been edited since this job was created. To use the current campers and ensure all required fields are still filled out, save this job again to update the camper details.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-amber-500/10 border-amber-500/30 text-amber-800 hover:bg-amber-500/20"
+                onClick={onEditJob}
+              >
+                <Settings2 className="mr-1.5 size-3.5" />
+                Edit Hunt
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-amber-500/10 border-amber-500/30 text-amber-800 hover:bg-amber-500/20"
+                onClick={onEditCampers}
+              >
+                <Users className="mr-1.5 size-3.5" />
+                Edit Campers
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export function JobCard({
   onRequestEdit,
+  onOpenOccupants,
   onDeleted,
   onBack,
   backLabel = 'Back',
   className,
 }: {
-  onRequestEdit?: (job: WatchJob) => void
+  onRequestEdit?: (job: WatchJob, step?: number) => void
+  onOpenOccupants?: () => void
   onDeleted?: () => void
   onBack?: () => void
   backLabel?: string
@@ -808,11 +824,28 @@ export function JobCard({
     pendingBookings,
   } = useJobsStore()
   const [editOpen, setEditOpen] = useState(false)
+  const [editStep, setEditStep] = useState<number | undefined>(undefined)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   const { data: job, isLoading } = useJobsQuery({
     select: (jobs) => jobs.find((candidate) => candidate.id === selectedJobId),
     enabled: !!selectedJobId,
   })
+
+  const { data: adapters = [] } = useQuery({
+    queryKey: ['adapters'],
+    queryFn: adaptersApi.list,
+  })
+
+  const { data: occupants = [] } = useQuery({
+    queryKey: ['occupants'],
+    queryFn: occupantsApi.list,
+  })
+
+  const adapterById = useMemo(
+    () => new Map(adapters.map((adapter) => [adapter.adapter_id, adapter])),
+    [adapters],
+  )
 
   const trigger = useMutation({
     mutationFn: jobsApi.trigger,
@@ -827,21 +860,14 @@ export function JobCard({
     mutationFn: jobsApi.remove,
     onSuccess: (_, id) => {
       if (selectedJobId === id) setSelectedJobId(null)
+      setDeleteTarget(null)
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
       onDeleted?.()
     },
   })
 
   const handleDelete = (id: string, name: string) => {
-    if (
-      !window.confirm(
-        `Delete "${name}"?\n\nThis removes the hunt and its booking state. You can't undo this.`,
-      )
-    ) {
-      return
-    }
-
-    remove.mutate(id)
+    setDeleteTarget({ id, name })
   }
 
   if (!selectedJobId) {
@@ -892,19 +918,30 @@ export function JobCard({
 
   if (!job) return null
 
-  const handleEdit = () => {
+  const handleEdit = (step?: number) => {
     if (onRequestEdit) {
-      onRequestEdit(job)
+      onRequestEdit(job, step)
       return
     }
 
+    setEditStep(step)
     setEditOpen(true)
   }
 
   const displayStatus = getDisplayStatus(job, pendingBookings)
+  const adapter = adapterById.get(job.adapter_id)
+  const hasOutdatedCampers = isJobOutdatedOnCampers(job, occupants, adapter)
   const holdExpired = hasHoldExpired(job)
-  const missingOccupants = !jobHasOccupants(job)
-  const missingCredentials = !job.credentials_configured
+  const missingOccupants =
+    !jobHasOccupants(job) &&
+    job.status !== 'booking_complete' &&
+    job.status !== 'cancelled' &&
+    job.status !== 'expired'
+  const missingCredentials =
+    !job.credentials_configured &&
+    job.status !== 'booking_complete' &&
+    job.status !== 'cancelled' &&
+    job.status !== 'expired'
   const hideTrigger =
     job.status === 'booking_complete'
     || job.status === 'expired'
@@ -924,25 +961,18 @@ export function JobCard({
   )
   const holdArtifacts = getHoldFlowArtifacts(job.artifact_history)
   const completedArtifacts = getCompletedBookingArtifacts(holdArtifacts, receiptArtifact)
+  const unavailableArtifact = getUnavailableArtifact(job.artifact_history)
   const actions = (
     <>
       <Button
-        size="sm"
-        variant="outline"
-        disabled={isLocked}
-        onClick={handleEdit}
-      >
-        <Settings2 className="size-4" />
-        Edit
-      </Button>
-      <Button
-        size="sm"
+        size="icon"
         variant="destructive"
+        className="size-8"
         disabled={deleting}
         onClick={() => handleDelete(job.id, job.name)}
+        title="Delete Hunt"
       >
         <Trash2 className="size-4" />
-        {deleting ? 'Deleting...' : 'Delete'}
       </Button>
     </>
   )
@@ -960,25 +990,55 @@ export function JobCard({
                     {backLabel}
                   </Button>
                 </div>
-                <div className="min-w-0 pt-1 text-center">
+                <div className="flex min-w-0 items-center justify-center gap-1 pt-1">
+                  {!isLocked && <span className="size-8 shrink-0" aria-hidden="true" />}
                   <CardTitle className="truncate text-lg tracking-tight sm:text-xl">
                     {job.name}
                   </CardTitle>
+                  {!isLocked && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 shrink-0 text-muted-foreground/50"
+                      onClick={() => handleEdit(0)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                  )}
                 </div>
                 <div className="flex min-w-0 flex-wrap justify-end gap-2">
                   {actions}
                 </div>
               </div>
               <CardDescription className="text-center text-sm leading-5">
-                <HeaderParamSummary params={job.params} />
+                <HeaderParamSummary
+                  params={job.params}
+                  onEdit={!isLocked ? () => handleEdit(1) : undefined}
+                  centered
+                />
               </CardDescription>
             </>
           ) : (
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <CardTitle className="text-xl tracking-tight">{job.name}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-xl tracking-tight">{job.name}</CardTitle>
+                  {!isLocked && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 shrink-0 text-muted-foreground/50"
+                      onClick={() => handleEdit(0)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                  )}
+                </div>
                 <CardDescription className="mt-2 max-w-3xl text-sm leading-5">
-                  <HeaderParamSummary params={job.params} />
+                  <HeaderParamSummary
+                    params={job.params}
+                    onEdit={!isLocked ? () => handleEdit(1) : undefined}
+                  />
                 </CardDescription>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
@@ -990,12 +1050,37 @@ export function JobCard({
 
         <CardContent className="app-panel-body-scroll px-6">
           <div className="space-y-6 pt-6 pb-6">
+            {hasOutdatedCampers && (
+              <OutdatedCampersNotice
+                onEditJob={handleEdit}
+                onEditCampers={() => onOpenOccupants?.()}
+              />
+            )}
+            {missingOccupants && (
+              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+                <p className="text-sm text-muted-foreground">
+                  <BadgeInfo className="inline-block size-5 mr-2 text-gray-400" />
+                  Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
+                </p>
+              </div>
+            )}
+            {missingCredentials && (
+              <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
+                <p className="text-sm text-muted-foreground flex items-center">
+                  <BadgeInfo className="inline-block size-5 mr-2 h-full text-gray-400" />
+                  A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
+                </p>
+              </div>
+            )}
+
             <MonitoringSection
               job={job}
               displayStatus={displayStatus}
               onTrigger={() => trigger.mutate(job.id)}
               triggerQueued={queued}
               hideTrigger={hideTrigger}
+              hasOutdatedCampers={hasOutdatedCampers}
+              onEdit={!isLocked ? () => handleEdit(2) : undefined}
             />
 
             {job.status === 'booking_complete' && (
@@ -1110,6 +1195,7 @@ export function JobCard({
                       result={job.last_result}
                       artifactPng={job.last_artifact_png}
                       artifactHtml={job.last_artifact_html}
+                      unavailableArtifact={unavailableArtifact}
                     />
                     {jobHasPartialAvailability(job) && (
                       <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
@@ -1123,6 +1209,7 @@ export function JobCard({
 
             {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
               && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
+              && displayStatus !== 'checking'
               && job.last_result && (
               <section className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1143,21 +1230,8 @@ export function JobCard({
                   result={job.last_result}
                   artifactPng={job.last_artifact_png}
                   artifactHtml={job.last_artifact_html}
+                  unavailableArtifact={unavailableArtifact}
                 />
-                {missingOccupants && (
-                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-                    <p className="text-sm text-muted-foreground">
-                      Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
-                    </p>
-                  </div>
-                )}
-                {missingCredentials && (
-                  <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
-                    <p className="text-sm text-muted-foreground">
-                      A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
-                    </p>
-                  </div>
-                )}
                 {jobHasPartialAvailability(job) && (
                   <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
                     <PartialAvailabilityHelp />
@@ -1168,6 +1242,7 @@ export function JobCard({
 
             {job.status !== 'booking_complete' && !holdExpired && job.status !== 'hold_placed'
               && displayStatus !== 'booking' && displayStatus !== 'attempting_hold'
+              && displayStatus !== 'checking'
               && !job.last_result && (
               <section className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1189,20 +1264,6 @@ export function JobCard({
                     No automation result has been stored for this hunt yet.
                   </p>
                 </div>
-                {missingOccupants && (
-                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-                    <p className="text-sm text-muted-foreground">
-                      Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
-                    </p>
-                  </div>
-                )}
-                {missingCredentials && (
-                  <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
-                    <p className="text-sm text-muted-foreground">
-                      A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
-                    </p>
-                  </div>
-                )}
               </section>
             )}
           </div>
@@ -1210,8 +1271,33 @@ export function JobCard({
       </Card>
 
       {!onRequestEdit && (
-        <EditJobDialog open={editOpen} onOpenChange={setEditOpen} job={job} />
+        <EditJobDialog
+          open={editOpen}
+          onOpenChange={(open) => {
+            setEditOpen(open)
+            if (!open) setEditStep(undefined)
+          }}
+          job={job}
+          step={editStep}
+        />
       )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDeleteTarget(null)
+        }}
+        title="Delete Hunt"
+        description={
+          deleteTarget
+            ? `Delete "${deleteTarget.name}"? This removes the hunt, booking state, and saved artifacts. You can't undo this.`
+            : ''
+        }
+        confirmLabel="Delete Hunt"
+        confirming={remove.isPending}
+        onConfirm={() => {
+          if (deleteTarget) remove.mutate(deleteTarget.id)
+        }}
+      />
     </>
   )
 }
