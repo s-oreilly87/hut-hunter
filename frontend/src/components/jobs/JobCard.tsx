@@ -1261,7 +1261,7 @@ export function JobCard({
             )}
             {missingCredentials && (
               <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground flex items-center">
                   <BadgeInfo className="inline-block size-5 mr-2 h-full text-gray-400" />
                   A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
                 </p>
