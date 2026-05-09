@@ -156,17 +156,92 @@ class BaseAdapter(ABC):
         except Exception:
             return False
 
-    async def snapshot(self, page: Page, label: str) -> str:
-        """Save screenshot + HTML for debugging."""
+    @staticmethod
+    def _snapshot_should_include_html(label: str) -> bool:
+        debug_terms = (
+            "error",
+            "failed",
+            "failure",
+            "timeout",
+            "not_found",
+            "did_not_open",
+            "did_not_update",
+            "validation",
+        )
+        normalized = label.lower()
+        return any(term in normalized for term in debug_terms)
+
+    async def _hide_snapshot_overlays(self, page: Page) -> None:
+        """Temporarily hide fixed bottom action bars that obscure full-page screenshots."""
+        await page.evaluate(
+            """() => {
+              const controls = Array.from(document.querySelectorAll('button, a, input, [role="button"]'));
+              const reserveControls = controls.filter((el) => {
+                const text = (el.innerText || el.textContent || el.value || '').trim();
+                return /^reserve$/i.test(text);
+              });
+
+              for (const control of reserveControls) {
+                let node = control;
+                for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
+                  const style = window.getComputedStyle(node);
+                  const rect = node.getBoundingClientRect();
+                  const fixedLike = style.position === 'fixed' || style.position === 'sticky';
+                  const nearViewportBottom = rect.bottom >= window.innerHeight - 160;
+                  const overlaySized = rect.height <= Math.max(180, window.innerHeight * 0.35);
+                  if (fixedLike && nearViewportBottom && overlaySized) {
+                    if (!node.dataset.hutHunterSnapshotHidden) {
+                      node.dataset.hutHunterSnapshotHidden = 'true';
+                      node.dataset.hutHunterSnapshotVisibility = node.style.visibility || '';
+                      node.style.visibility = 'hidden';
+                    }
+                    break;
+                  }
+                }
+              }
+            }"""
+        )
+
+    async def _restore_snapshot_overlays(self, page: Page) -> None:
+        await page.evaluate(
+            """() => {
+              for (const node of document.querySelectorAll('[data-hut-hunter-snapshot-hidden="true"]')) {
+                node.style.visibility = node.dataset.hutHunterSnapshotVisibility || '';
+                delete node.dataset.hutHunterSnapshotHidden;
+                delete node.dataset.hutHunterSnapshotVisibility;
+              }
+            }"""
+        )
+
+    async def snapshot(self, page: Page, label: str, *, include_html: bool | None = None) -> str:
+        """Save a compressed screenshot and optional HTML for debugging."""
         out_dir = settings.artifacts_dir
         out_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{ts}_{self.adapter_id}_{label}"
         absolute_base = out_dir / filename
         relative_base = Path("artifacts") / filename
-        await page.screenshot(path=str(absolute_base.with_suffix(".png")), full_page=True)
-        with open(absolute_base.with_suffix(".html"), "w") as f:
-            f.write(await page.content())
+        try:
+            await self._hide_snapshot_overlays(page)
+            await page.screenshot(
+                path=str(absolute_base.with_suffix(".jpg")),
+                type="jpeg",
+                quality=65,
+                full_page=True,
+            )
+        finally:
+            try:
+                await self._restore_snapshot_overlays(page)
+            except Exception:
+                pass
+        should_include_html = (
+            include_html
+            if include_html is not None
+            else self._snapshot_should_include_html(label)
+        )
+        if should_include_html:
+            with open(absolute_base.with_suffix(".html"), "w") as f:
+                f.write(await page.content())
         base = str(relative_base)
         self._artifact_log.append(ArtifactSnapshot(label=label, base=base))
         return base

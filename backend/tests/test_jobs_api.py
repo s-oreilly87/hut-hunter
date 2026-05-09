@@ -3,7 +3,9 @@ from datetime import timedelta, timezone
 import pytest
 
 from app.api.routes import MAX_INTERVAL_MINUTES
+from app.core.config import settings
 from app.models.job import JobStatus, utcnow
+from app.workers.tasks import _clear_unavailable_snapshot, scheduler_tick
 
 pytestmark = pytest.mark.asyncio
 
@@ -166,20 +168,60 @@ async def test_get_job_surfaces_expiry_and_artifact_urls(client, seed_job, seed_
     assert payload["last_result"] == [
         {"site": "Lake Mackenzie Hut", "status": "unavailable", "evidence": "sold out"}
     ]
-    assert payload["last_artifact_png"] == "/artifacts/latest-check.png"
-    assert payload["last_artifact_html"] == "/artifacts/latest-check.html"
+    assert payload["last_artifact_png"] == "/artifacts/latest-check.jpg"
+    assert payload["last_artifact_html"] is None
     assert payload["artifact_history"] == [
         {
             "label": "reservation",
-            "png_url": "/artifacts/reservation-step.png",
-            "html_url": "/artifacts/reservation-step.html",
+            "png_url": "/artifacts/reservation-step.jpg",
+            "html_url": None,
         },
         {
             "label": "cart",
-            "png_url": "/artifacts/cart-step.png",
-            "html_url": "/artifacts/cart-step.html",
+            "png_url": "/artifacts/cart-step.jpg",
+            "html_url": None,
         },
     ]
+
+
+async def test_clear_unavailable_snapshot_removes_only_previous_unavailable_artifact(
+    seed_job,
+    session_factory,
+    monkeypatch,
+):
+    import app.workers.tasks as worker_tasks
+
+    monkeypatch.setattr(worker_tasks, "AsyncSessionLocal", session_factory)
+    base = "artifacts/test-unavailable-snapshot"
+    keep_base = "artifacts/test-reservation-snapshot"
+    artifact_dir = settings.artifacts_dir
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in (".png", ".html"):
+        (artifact_dir / f"test-unavailable-snapshot{suffix}").write_text("old")
+        (artifact_dir / f"test-reservation-snapshot{suffix}").write_text("keep")
+
+    job = await seed_job(
+        last_artifact=base,
+        artifact_history=[
+            {"label": "reservation_details", "base": keep_base},
+            {"label": "unavailable", "base": base},
+        ],
+    )
+
+    await _clear_unavailable_snapshot(job.id)
+
+    async with session_factory() as session:
+        refreshed = await session.get(type(job), job.id)
+        assert refreshed is not None
+        assert refreshed.last_artifact is None
+        assert refreshed.artifact_history == (
+            '[{"label": "reservation_details", "base": "artifacts/test-reservation-snapshot"}]'
+        )
+
+    for suffix in (".png", ".html"):
+        assert not (artifact_dir / f"test-unavailable-snapshot{suffix}").exists()
+        assert (artifact_dir / f"test-reservation-snapshot{suffix}").exists()
+        (artifact_dir / f"test-reservation-snapshot{suffix}").unlink(missing_ok=True)
 
 
 async def test_update_job_enabling_monitoring_clamps_interval_and_dispatches(
@@ -327,6 +369,36 @@ async def test_delete_job_removes_cart_sessions_and_enqueues_browser_close(
             "kwargs": {"_queue_name": "arq:holds"},
         }
     ]
+
+
+async def test_delete_job_removes_artifact_files(
+    client,
+    seed_job,
+    fetch_job,
+):
+    last_base = "artifacts/test-delete-last"
+    history_base = "artifacts/test-delete-history"
+    artifact_dir = settings.artifacts_dir
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    for stem in ("test-delete-last", "test-delete-history"):
+        for suffix in (".jpg", ".png", ".html"):
+            (artifact_dir / f"{stem}{suffix}").write_text("artifact")
+
+    job = await seed_job(
+        last_artifact=last_base,
+        artifact_history=[
+            {"label": "unavailable", "base": last_base},
+            {"label": "hold_error_RuntimeError", "base": history_base},
+        ],
+    )
+
+    response = await client.delete(f"/api/v1/jobs/{job.id}")
+
+    assert response.status_code == 204
+    assert await fetch_job(job.id) is None
+    for stem in ("test-delete-last", "test-delete-history"):
+        for suffix in (".jpg", ".png", ".html"):
+            assert not (artifact_dir / f"{stem}{suffix}").exists()
 
 
 async def test_trigger_job_rejects_expired_jobs(client, seed_job, make_job_params):
@@ -548,6 +620,61 @@ async def test_book_job_allows_retry_after_hold_expired(
         },
         {
             "job_name": "attempt_hold_task",
+            "args": [job.id],
+            "kwargs": {"_queue_name": "arq:holds"},
+        }
+    ]
+
+
+async def test_scheduler_cleans_hold_artifacts_when_hold_expires(
+    fake_redis,
+    seed_job,
+    seed_cart,
+    session_factory,
+    monkeypatch,
+):
+    import app.workers.tasks as worker_tasks
+
+    monkeypatch.setattr(worker_tasks, "AsyncSessionLocal", session_factory)
+    reservation_base = "artifacts/test-expired-reservation"
+    cart_base = "artifacts/test-expired-cart"
+    receipt_base = "artifacts/test-kept-receipt"
+    artifact_dir = settings.artifacts_dir
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    for stem in ("test-expired-reservation", "test-expired-cart", "test-kept-receipt"):
+        (artifact_dir / f"{stem}.jpg").write_text("image")
+
+    job = await seed_job(
+        status=JobStatus.HOLD_PLACED.value,
+        enable_monitoring=False,
+        last_artifact=cart_base,
+        artifact_history=[
+            {"label": "reservation_details", "base": reservation_base},
+            {"label": "shopping_cart", "base": cart_base},
+            {"label": "booking_complete", "base": receipt_base},
+        ],
+    )
+    await seed_cart(job.id, expires_at=utcnow() - timedelta(minutes=1))
+
+    result = await scheduler_tick({"redis": fake_redis})
+
+    assert result["resumed_from_hold"] == 0
+    async with session_factory() as session:
+        refreshed = await session.get(type(job), job.id)
+        assert refreshed is not None
+        assert refreshed.status == JobStatus.HOLD_PLACED.value
+        assert refreshed.last_artifact is None
+        assert refreshed.artifact_history == (
+            '[{"label": "booking_complete", "base": "artifacts/test-kept-receipt"}]'
+        )
+
+    assert not (artifact_dir / "test-expired-reservation.jpg").exists()
+    assert not (artifact_dir / "test-expired-cart.jpg").exists()
+    assert (artifact_dir / "test-kept-receipt.jpg").exists()
+    (artifact_dir / "test-kept-receipt.jpg").unlink(missing_ok=True)
+    assert fake_redis.calls == [
+        {
+            "job_name": "close_browser_task",
             "args": [job.id],
             "kwargs": {"_queue_name": "arq:holds"},
         }

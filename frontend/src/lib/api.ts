@@ -44,7 +44,7 @@ export interface AvailabilityResult {
 export interface ArtifactRecord {
   label: string
   png_url: string
-  html_url: string
+  html_url: string | null
 }
 
 // last_result is either a list of AvailabilityResult or, on error, a list

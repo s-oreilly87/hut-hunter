@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BellRing, Loader2, Mail, Smartphone } from 'lucide-react'
 
@@ -7,17 +7,17 @@ import {
   type NotificationSettings,
   type UpdateNotificationSettingsDto,
 } from '@/lib/api'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/Button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+} from '../ui/Dialog'
+import { Input } from '../ui/Input'
+import { Label } from '../ui/Label'
+import { Switch } from '../ui/Switch'
 
 function getErrorMessage(error: Error) {
   return error.message || 'Unable to save notification settings.'
@@ -32,12 +32,6 @@ function EmailSettingsCard({
   const [emailAddress, setEmailAddress] = useState(settings.email_address ?? '')
   const [enabled, setEnabled] = useState(settings.email_enabled)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setEmailAddress(settings.email_address ?? '')
-    setEnabled(settings.email_enabled)
-    setError(null)
-  }, [settings.email_address, settings.email_enabled])
 
   const save = useMutation({
     mutationFn: () => {
@@ -147,13 +141,6 @@ function GotifySettingsCard({
   const [enabled, setEnabled] = useState(settings.gotify_enabled)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    setGotifyUrl(settings.gotify_url ?? '')
-    setGotifyToken('')
-    setEnabled(settings.gotify_enabled)
-    setError(null)
-  }, [settings.gotify_enabled, settings.gotify_url])
-
   const save = useMutation({
     mutationFn: () => {
       const payload: UpdateNotificationSettingsDto = {
@@ -220,9 +207,7 @@ function GotifySettingsCard({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="notification-gotify-token">
-            {settings.gotify_has_token ? 'Token (leave blank to keep current)' : 'Token'}
-          </Label>
+          <Label htmlFor="notification-gotify-token">Token</Label>
           <Input
             id="notification-gotify-token"
             type="password"
@@ -302,7 +287,7 @@ export function NotificationsDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-4 text-sm text-muted-foreground">
+          <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-4 text-xs text-muted-foreground">
             Delivery targets are encrypted at rest and only decrypted when a hunt sends an alert.
           </div>
 
@@ -312,8 +297,14 @@ export function NotificationsDialog({
             </div>
           ) : (
             <>
-              <EmailSettingsCard settings={settings} />
-              <GotifySettingsCard settings={settings} />
+              <EmailSettingsCard
+                key={`${settings.email_address ?? ''}:${settings.email_enabled}`}
+                settings={settings}
+              />
+              <GotifySettingsCard
+                key={`${settings.gotify_url ?? ''}:${settings.gotify_enabled}:${settings.gotify_has_token}`}
+                settings={settings}
+              />
             </>
           )}
         </div>

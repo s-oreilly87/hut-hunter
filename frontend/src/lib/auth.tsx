@@ -1,38 +1,28 @@
 import {
-  createContext,
-  useContext,
   useMemo,
   type ReactNode,
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { authApi, type AuthCredentials, type AuthUser } from '@/lib/api'
-
-const AUTH_QUERY_KEY = ['auth', 'me'] as const
-
-type AuthContextValue = {
-  user: AuthUser | null
-  status: 'loading' | 'authenticated' | 'unauthenticated'
-  login: (credentials: AuthCredentials) => Promise<AuthUser>
-  register: (credentials: AuthCredentials) => Promise<AuthUser>
-  logout: () => Promise<void>
-  loginPending: boolean
-  registerPending: boolean
-  logoutPending: boolean
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
-
-function deriveStatus(
-  isPending: boolean,
-  user: AuthUser | null | undefined,
-): AuthContextValue['status'] {
-  if (isPending) return 'loading'
-  return user ? 'authenticated' : 'unauthenticated'
-}
+import { authApi } from '@/lib/api'
+import { formatAppRoute } from '@/lib/navigation'
+import {
+  AUTH_QUERY_KEY,
+  AuthContext,
+  deriveStatus,
+  type AuthContextValue,
+} from '@/lib/auth-context'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
+
+  const landOnDashboard = () => {
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${window.location.search}${formatAppRoute({ name: 'dashboard' })}`,
+    )
+  }
 
   const meQuery = useQuery({
     queryKey: AUTH_QUERY_KEY,
@@ -43,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (user) => {
+      landOnDashboard()
       queryClient.setQueryData(AUTH_QUERY_KEY, user)
       void queryClient.invalidateQueries({ queryKey: ['jobs'] })
       void queryClient.invalidateQueries({ queryKey: ['occupants'] })
@@ -52,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: authApi.register,
     onSuccess: (user) => {
+      landOnDashboard()
       queryClient.setQueryData(AUTH_QUERY_KEY, user)
       void queryClient.invalidateQueries({ queryKey: ['jobs'] })
       void queryClient.invalidateQueries({ queryKey: ['occupants'] })
@@ -87,12 +79,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === null) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
 }

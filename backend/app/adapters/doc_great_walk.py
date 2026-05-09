@@ -116,7 +116,7 @@ def parse_month_header(text: str) -> dict:
 
 class DocGreatWalkAdapter(BaseDOCAdapter):
     adapter_id = "doc_great_walk"
-    name = "DOC Great Walk"
+    name = "NZ DOC Great Walk"
     base_url = "https://bookings.doc.govt.nz/Web/Default.aspx#!greatwalk-result"
 
     @classmethod
@@ -128,31 +128,6 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 type="select",
                 options=GREAT_WALKS,
                 default="",
-            ),
-            ParamField(
-                key="date",
-                label="Start Date",
-                type="date",
-            ),
-            ParamField(
-                key="nights",
-                label="Nights",
-                type="number",
-                default=1,
-            ),
-            ParamField(
-                key="people",
-                label="People",
-                type="select",
-                options=PEOPLE_OPTIONS,
-                default="2",
-            ),
-            ParamField(
-                key="occupants",
-                label="Occupants",
-                type="text",
-                default='[{"first_name": "","last_name": "","category": "NZ Adult (18+)","country": "New Zealand","age": "","gender": "Male"}]',
-                required=True,
             ),
             ParamField(
                 key="direction",
@@ -173,6 +148,31 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 required=False,
                 filter_by="track",
                 options_by=_SITES_BY_TRACK,
+            ),
+            ParamField(
+                key="nights",
+                label="Nights",
+                type="number",
+                default=1,
+            ),
+            ParamField(
+                key="date",
+                label="Start Date",
+                type="date",
+            ),
+            ParamField(
+                key="occupants",
+                label="Occupants",
+                type="text",
+                default='[{"first_name": "","last_name": "","category": "NZ Adult (18+)","country": "New Zealand","age": "","gender": "Male"}]',
+                required=True,
+            ),
+            ParamField(
+                key="people",
+                label="People",
+                type="select",
+                options=PEOPLE_OPTIONS,
+                default="2",
             ),
         ]
 

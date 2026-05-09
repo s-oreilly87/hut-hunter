@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '../ui/Badge'
 import { jobsApi, type WatchJob } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
 import { formatCountdown } from '@/lib/time'
@@ -40,24 +40,16 @@ export function MonitoringBadge({ job, displayStatus }: Props) {
 
   if (displayStatus === 'hold_placed') {
     return (
-      <Badge variant="outline" className="border-amber-500 text-amber-600">
-        Paused (hold active)
-      </Badge>
-    )
-  }
-
-  if (displayStatus === 'hold_expired') {
-    return (
-      <Badge variant="outline" className="border-zinc-500 text-zinc-600">
-        Hold expired
+      <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
+        Hold placed
       </Badge>
     )
   }
 
   if (displayStatus === 'attempting_hold') {
     return (
-      <Badge variant="outline" className="border-amber-500 text-amber-600">
-        Paused (securing hold)
+      <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
+        Securing hold
       </Badge>
     )
   }

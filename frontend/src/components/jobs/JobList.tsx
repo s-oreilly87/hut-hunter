@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, Clock3, Stamp } from 'lucide-react'
-import { adaptersApi, type WatchJob } from '@/lib/api'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, ChevronDown, Clock3 } from 'lucide-react'
+import { adaptersApi, jobsApi, occupantsApi, type WatchJob } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { type DisplayStatus, getDisplayStatus } from '@/lib/availability'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '../ui/Badge'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui/Tooltip'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
+import { jobHasOutdatedOccupantSnapshots } from '@/lib/occupantSnapshots'
 import {
   type JobFilterKey,
   matchesJobFilters,
@@ -24,7 +31,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '../ui/Table'
 import { formatDateTime, formatRelativeTimeFromNow } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -98,20 +105,39 @@ function JobIdentity({
   job,
   adapterDateFieldKeyById,
   adapterTrackFieldKeyById,
+  hasOutdatedCampers,
 }: {
   job: WatchJob
   adapterDateFieldKeyById: Map<string, string>
   adapterTrackFieldKeyById: Map<string, string>
+  hasOutdatedCampers: boolean
 }) {
   return (
     <div className="space-y-0.5">
-      <p className="text-sm font-semibold tracking-tight text-foreground">
-        {getJobTitle(job)}
+      <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight text-foreground">
+        <span className="truncate">{getJobTitle(job)}</span>
+        {hasOutdatedCampers && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-500/12 text-amber-700"
+                onClick={(event) => event.stopPropagation()}
+                aria-label="Camper details changed"
+                tabIndex={0}
+              >
+                <AlertTriangle className="size-3.5" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Campers attached to this hunt have been edited since this job was created. Save this job again to update the camper details.
+            </TooltipContent>
+          </Tooltip>
+        )}
       </p>
-      <p className="font-mono text-[11px] tracking-tight text-muted-foreground/90">
+      <p className="text-xs tracking-tight text-muted-foreground/90">
         {getJobSubtitle(job, adapterDateFieldKeyById, adapterTrackFieldKeyById)}
       </p>
-      <p className="text-[11px] text-muted-foreground/70">
+      <p className="text-xs text-muted-foreground/60">
         {getJobMetaLine(job)}
       </p>
     </div>
@@ -119,48 +145,71 @@ function JobIdentity({
 }
 
 function AutoBookBadge({ job }: { job: WatchJob }) {
-  if (!job.credentials_configured) {
-    return (
-      <Badge className="bg-amber-500 text-white hover:bg-amber-500">
-        No sign-in
-      </Badge>
-    )
-  }
+  const isAutoBook = job.auto_book && job.credentials_configured
   return (
-    <Badge variant={job.auto_book ? 'default' : 'outline'}>
-      {job.auto_book ? 'Auto-book' : 'Notify only'}
+    <Badge variant={isAutoBook ? 'default' : 'outline'}>
+      {isAutoBook ? 'Auto-book' : 'Notify only'}
     </Badge>
   )
 }
 
-function JobActivityMeta({
+function JobStatusMeta({
+  job,
+  displayStatus,
+  showStatusBadge,
+}: {
+  job: WatchJob
+  displayStatus: DisplayStatus
+  showStatusBadge: boolean
+}) {
+  const isFinished =
+    displayStatus === 'booking_complete' ||
+    displayStatus === 'cancelled' ||
+    displayStatus === 'expired'
+  const checkedLabel = isFinished
+    ? formatDateTime(job.last_checked_at)
+    : formatTimeAgo(job.last_checked_at)
+  const checkedPrefix = isFinished ? '' : 'Last checked'
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {showStatusBadge && (
+          <StatusBadge
+            status={displayStatus}
+            jobId={job.id}
+            cartExpiresAt={job.cart_expires_at}
+            artifactUrl={job.last_artifact_png}
+          />
+        )}
+      </div>
+      <p className="text-xs leading-4 text-muted-foreground/75">
+        {checkedPrefix} {checkedLabel}
+      </p>
+    </div>
+  )
+}
+
+function JobAutomationMeta({
   job,
   displayStatus,
 }: {
   job: WatchJob
   displayStatus: DisplayStatus
 }) {
-  if (displayStatus === 'booking_complete') {
-    return (
-      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Stamp className="size-3.5 shrink-0" />
-        {formatDateTime(job.last_checked_at)}
-      </p>
-    )
+  if (
+    displayStatus === 'booking_complete' ||
+    displayStatus === 'cancelled' ||
+    displayStatus === 'expired'
+  ) {
+    return null
   }
 
   return (
-    <>
-      <p className="text-sm text-muted-foreground">
-        {formatTimeAgo(job.last_checked_at)}
-      </p>
-      <div>
-        <MonitoringBadge job={job} displayStatus={displayStatus} />
-      </div>
-      <div>
-        <AutoBookBadge job={job} />
-      </div>
-    </>
+    <div className="flex flex-col items-start gap-2">
+      <AutoBookBadge job={job} />
+      <MonitoringBadge job={job} displayStatus={displayStatus} />
+    </div>
   )
 }
 
@@ -191,8 +240,18 @@ export function JobList({
     queryFn: adaptersApi.list,
   })
 
+  const { data: occupants = [] } = useQuery({
+    queryKey: ['occupants'],
+    queryFn: occupantsApi.list,
+  })
+
   const adapterNameById = useMemo(
     () => new Map(adapters.map((adapter) => [adapter.adapter_id, adapter.name])),
+    [adapters],
+  )
+
+  const adapterById = useMemo(
+    () => new Map(adapters.map((adapter) => [adapter.adapter_id, adapter])),
     [adapters],
   )
 
@@ -284,6 +343,27 @@ export function JobList({
     onJobSelect?.(jobId)
   }
 
+  const qc = useQueryClient()
+  const pauseJob = useMutation({
+    mutationFn: (id: string) => jobsApi.update(id, { enable_monitoring: false }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+  })
+
+  useEffect(() => {
+    if (pauseJob.isPending) return
+
+    for (const job of jobs) {
+      if (!job.enable_monitoring) continue
+      if (job.status === 'booking_complete' || job.status === 'cancelled' || job.status === 'expired') continue
+
+      const adapter = adapterById.get(job.adapter_id)
+      if (adapter && jobHasOutdatedOccupantSnapshots(job, occupants, adapter)) {
+        pauseJob.mutate(job.id)
+        break
+      }
+    }
+  }, [jobs, occupants, adapterById, pauseJob])
+
   const setJobRef = (
     jobId: string,
     node: HTMLDivElement | HTMLTableRowElement | null,
@@ -365,7 +445,8 @@ export function JobList({
   }
 
   return (
-    <div className="space-y-3">
+    <TooltipProvider>
+      <div className="space-y-3">
       {groupedJobs.map((group) => {
         const isExpanded = effectiveExpandedAdapters.has(group.adapterId)
 
@@ -402,6 +483,14 @@ export function JobList({
                     const displayStatus = getDisplayStatus(job, pendingBookings)
                     const isSelected = selectedJobId === job.id
                     const showStatusBadge = displayStatus !== 'checking'
+                    const adapter = adapterById.get(job.adapter_id)
+                    const hasOutdatedCampers = Boolean(
+                      job.status !== 'booking_complete' &&
+                        job.status !== 'cancelled' &&
+                        job.status !== 'expired' &&
+                        adapter &&
+                        jobHasOutdatedOccupantSnapshots(job, occupants, adapter),
+                    )
 
                     return (
                       <div
@@ -411,7 +500,7 @@ export function JobList({
                         data-job-id={job.id}
                         ref={(node) => setJobRef(job.id, node)}
                         className={cn(
-                          'w-full cursor-pointer rounded-[1.35rem] border px-4 py-4 text-left',
+                          'w-full cursor-pointer rounded-[1.35rem] border px-4 py-4 text-left transition-colors',
                           isSelected
                             ? 'border-primary/45 bg-primary/8 ring-2 ring-primary/20 shadow-[0_22px_55px_-34px_rgba(22,53,40,0.7)]'
                             : 'border-border/80 bg-background/75 hover:border-primary/20 hover:bg-background',
@@ -424,39 +513,36 @@ export function JobList({
                           }
                         }}
                       >
-                        <div className="relative space-y-3">
-                          <div className="absolute right-0 top-0">
-                            <AutoBookBadge job={job} />
-                          </div>
-
-                          <div className="pr-16">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1 space-y-3">
                             <JobIdentity
                               job={job}
                               adapterDateFieldKeyById={adapterDateFieldKeyById}
                               adapterTrackFieldKeyById={adapterTrackFieldKeyById}
+                              hasOutdatedCampers={hasOutdatedCampers}
                             />
+                            {displayStatus !== 'booking_complete' &&
+                              displayStatus !== 'cancelled' &&
+                              displayStatus !== 'expired' && (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <AutoBookBadge job={job} />
+                                  <MonitoringBadge job={job} displayStatus={displayStatus} />
+                                </div>
+                              )}
                           </div>
 
-                          <div className="space-y-2.5">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {showStatusBadge && (
-                                <StatusBadge
-                                  status={displayStatus}
-                                  jobId={job.id}
-                                  cartExpiresAt={job.cart_expires_at}
-                                  artifactUrl={job.last_artifact_png}
-                                />
-                              )}
-                              <p className="text-[11px] font-medium text-muted-foreground/70">
-                                {formatTimeAgo(job.last_checked_at)}
-                              </p>
-                            </div>
-
-                            {displayStatus !== 'booking_complete' && (
-                              <div className="flex">
-                                <MonitoringBadge job={job} displayStatus={displayStatus} />
-                              </div>
+                          <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5 text-right">
+                            {showStatusBadge && (
+                              <StatusBadge
+                                status={displayStatus}
+                                jobId={job.id}
+                                cartExpiresAt={job.cart_expires_at}
+                                artifactUrl={job.last_artifact_png}
+                              />
                             )}
+                            <p className="text-xs leading-4 text-muted-foreground/70">
+                              {formatTimeAgo(job.last_checked_at)}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -468,9 +554,9 @@ export function JobList({
                   <Table>
                     <TableHeader className="bg-secondary/60">
                       <TableRow className="border-border/80 hover:bg-secondary/60">
-                        <TableHead className="w-[48%] pl-4">Hunt</TableHead>
-                        <TableHead className="w-[32%]">Status</TableHead>
-                        <TableHead className="pr-4">Last Checked</TableHead>
+                        <TableHead className="w-[56%] pl-4 text-muted-foreground">Hunt</TableHead>
+                        <TableHead className="w-[22%] text-muted-foreground">Automation</TableHead>
+                        <TableHead className="pr-5 text-muted-foreground">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -478,6 +564,14 @@ export function JobList({
                         const displayStatus = getDisplayStatus(job, pendingBookings)
                         const isSelected = selectedJobId === job.id
                         const showStatusBadge = displayStatus !== 'checking'
+                        const adapter = adapterById.get(job.adapter_id)
+                        const hasOutdatedCampers = Boolean(
+                          job.status !== 'booking_complete' &&
+                            job.status !== 'cancelled' &&
+                            job.status !== 'expired' &&
+                            adapter &&
+                            jobHasOutdatedOccupantSnapshots(job, occupants, adapter),
+                        )
 
                         return (
                           <TableRow
@@ -492,7 +586,7 @@ export function JobList({
                           >
                             <TableCell
                               className={cn(
-                                'relative w-[48%] whitespace-normal py-3.5 pl-4 align-top',
+                                'relative w-[56%] whitespace-normal py-4 pl-4 pr-6 align-middle',
                                 isSelected
                                   && 'pl-7 before:absolute before:top-3 before:bottom-3 before:left-2 before:w-1 before:rounded-full before:bg-primary',
                               )}
@@ -501,24 +595,18 @@ export function JobList({
                                 job={job}
                                 adapterDateFieldKeyById={adapterDateFieldKeyById}
                                 adapterTrackFieldKeyById={adapterTrackFieldKeyById}
+                                hasOutdatedCampers={hasOutdatedCampers}
                               />
                             </TableCell>
-                            <TableCell className="w-[32%] py-3.5">
-                              <div className="flex h-full items-center justify-center">
-                                {showStatusBadge && (
-                                  <StatusBadge
-                                    status={displayStatus}
-                                    jobId={job.id}
-                                    cartExpiresAt={job.cart_expires_at}
-                                    artifactUrl={job.last_artifact_png}
-                                  />
-                                )}
-                              </div>
+                            <TableCell className="w-[22%] py-4 pr-5 align-middle">
+                              <JobAutomationMeta job={job} displayStatus={displayStatus} />
                             </TableCell>
-                            <TableCell className="py-3.5 pr-4 align-middle">
-                              <div className="space-y-2">
-                                <JobActivityMeta job={job} displayStatus={displayStatus} />
-                              </div>
+                            <TableCell className="py-4 pr-5 align-middle">
+                              <JobStatusMeta
+                                job={job}
+                                displayStatus={displayStatus}
+                                showStatusBadge={showStatusBadge}
+                              />
                             </TableCell>
                           </TableRow>
                         )
@@ -531,6 +619,7 @@ export function JobList({
           </section>
         )
       })}
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }

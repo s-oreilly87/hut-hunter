@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, List
 from urllib.parse import urlsplit
 
@@ -76,6 +77,47 @@ def _check_job_arq_id(job_id: str) -> str:
     same `_job_id` while a job is pending or running — so this is our
     at-most-one-queued guarantee per watch job."""
     return f"check_availability:{job_id}"
+
+
+def _artifact_file_paths(base: str) -> list[Path]:
+    if base.startswith("artifacts/"):
+        base = base[len("artifacts/"):]
+    artifact_base = settings.artifacts_dir / base
+    return [
+        artifact_base.with_suffix(".jpg"),
+        artifact_base.with_suffix(".png"),
+        artifact_base.with_suffix(".html"),
+    ]
+
+
+def _job_artifact_bases(job: WatchJob) -> set[str]:
+    bases: set[str] = set()
+    if job.last_artifact:
+        bases.add(job.last_artifact)
+
+    try:
+        parsed = json.loads(job.artifact_history) if job.artifact_history else []
+    except Exception:
+        parsed = []
+
+    if isinstance(parsed, list):
+        for entry in parsed:
+            if not isinstance(entry, dict):
+                continue
+            base = entry.get("base")
+            if isinstance(base, str) and base:
+                bases.add(base)
+
+    return bases
+
+
+def _delete_job_artifacts(job: WatchJob) -> None:
+    for base in _job_artifact_bases(job):
+        for path in _artifact_file_paths(base):
+            try:
+                path.unlink(missing_ok=True)
+            except Exception:
+                logger.exception("Failed to delete artifact file %s", path)
 
 
 def _vnc_client_config() -> dict[str, str | int | None]:
@@ -700,6 +742,7 @@ async def delete_job(
     job = await _get_owned_job(session, current_user.id, job_id)
 
     had_live_hold = job.status == JobStatus.HOLD_PLACED.value
+    _delete_job_artifacts(job)
 
     # CartSession.job_id has no FK cascade, so prune by hand.
     carts = (await session.execute(

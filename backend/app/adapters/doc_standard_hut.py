@@ -236,7 +236,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
     """
 
     adapter_id = "doc_standard_hut"
-    name = "DOC Standard Hut/Campsite"
+    name = "NZ DOC Standard Hut/Campsite"
     base_url = "https://bookings.doc.govt.nz/Web/#!park/{park_id}/{facility_id}"
 
     # ---------------------------------------------------------------- #
@@ -250,16 +250,10 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         return [
             ParamField(
                 key="facility",
-                label="Hut",
+                label="Hut / Campsite",
                 type="select",
                 options_tree=options_tree,
                 default="",
-                required=True,
-            ),
-            ParamField(
-                key="date",
-                label="Start Date",
-                type="date",
                 required=True,
             ),
             ParamField(
@@ -269,11 +263,10 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 default=1,
             ),
             ParamField(
-                key="people",
-                label="People",
-                type="select",
-                options=PEOPLE_OPTIONS,
-                default="2",
+                key="date",
+                label="Start Date",
+                type="date",
+                required=True,
             ),
             ParamField(
                 key="occupants",
@@ -285,6 +278,13 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                     '"age": "","gender": "Male"}]'
                 ),
                 required=True,
+            ),
+            ParamField(
+                key="people",
+                label="People",
+                type="select",
+                options=PEOPLE_OPTIONS,
+                default="2",
             ),
         ]
 

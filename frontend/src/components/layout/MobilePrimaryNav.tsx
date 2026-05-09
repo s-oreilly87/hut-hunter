@@ -1,7 +1,7 @@
 import { LayoutDashboard, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useElementHeightCssVar } from '@/lib/hooks'
 import type { AppRoute } from '@/lib/navigation'
+import { cn } from '@/lib/utils'
 
 function getPrimarySection(route: AppRoute): 'dashboard' | 'jobs' {
   return route.name === 'dashboard' ? 'dashboard' : 'jobs'
@@ -20,23 +20,35 @@ export function MobilePrimaryNav({
   return (
     <nav
       ref={navRef}
-      className="fixed inset-x-0 bottom-0 border-t border-border/70 bg-background/96 px-4 py-3 backdrop-blur"
+      className="fixed inset-x-0 bottom-0 border-t border-border/50 bg-background/95 px-3 py-2 backdrop-blur-md"
     >
-      <div className="mx-auto grid max-w-md grid-cols-2 gap-2">
-        <Button
-          variant={activeSection === 'dashboard' ? 'default' : 'outline'}
+      <div className="mx-auto flex max-w-md gap-1 rounded-2xl bg-secondary/60 p-1">
+        <button
+          type="button"
+          className={cn(
+            'flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-150',
+            activeSection === 'dashboard'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
           onClick={() => navigate({ name: 'dashboard' })}
         >
-          <LayoutDashboard className="size-4" />
+          <LayoutDashboard className="size-4 shrink-0" />
           Dashboard
-        </Button>
-        <Button
-          variant={activeSection === 'jobs' ? 'default' : 'outline'}
+        </button>
+        <button
+          type="button"
+          className={cn(
+            'flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-150',
+            activeSection === 'jobs'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
           onClick={() => navigate({ name: 'jobs' })}
         >
-          <Search className="size-4" />
+          <Search className="size-4 shrink-0" />
           Hunts
-        </Button>
+        </button>
       </div>
     </nav>
   )

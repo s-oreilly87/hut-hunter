@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, LockKeyhole, Trash2 } from 'lucide-react'
 
@@ -7,10 +7,10 @@ import {
   credentialsApi,
   type AdapterCredential,
 } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '../ui/Button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/Dialog'
+import { Input } from '../ui/Input'
+import { Label } from '../ui/Label'
 
 type DraftState = {
   username: string
@@ -34,14 +34,6 @@ function CredentialCard({
     password: '',
   })
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setDraft({
-      username: credential?.username ?? '',
-      password: '',
-    })
-    setError(null)
-  }, [credential?.id, credential?.username])
 
   const save = useMutation({
     mutationFn: () => credentialsApi.upsert(adapterId, draft),
@@ -186,7 +178,7 @@ export function CredentialsDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-4 text-sm text-muted-foreground">
+          <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 p-3 text-xs text-muted-foreground">
             Sign-ins are encrypted at rest and only decrypted when Hut Hunter needs them for your account.
           </div>
 
@@ -201,7 +193,7 @@ export function CredentialsDialog({
           ) : (
             credentialAdapters.map((adapter) => (
               <CredentialCard
-                key={adapter.adapter_id}
+                key={`${adapter.adapter_id}:${byAdapterId.get(adapter.adapter_id)?.id ?? 'new'}:${byAdapterId.get(adapter.adapter_id)?.username ?? ''}`}
                 adapterId={adapter.adapter_id}
                 adapterName={adapter.name}
                 credential={byAdapterId.get(adapter.adapter_id)}

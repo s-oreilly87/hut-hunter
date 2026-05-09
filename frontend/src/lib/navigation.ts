@@ -5,7 +5,7 @@ export type AppRoute
   | { name: 'jobs' }
   | { name: 'create-job' }
   | { name: 'job-detail'; jobId: string }
-  | { name: 'edit-job'; jobId: string }
+  | { name: 'edit-job'; jobId: string; step?: number }
 
 function getHashPath(hash: string): string {
   const trimmed = hash.trim()
@@ -42,7 +42,8 @@ export function parseAppRoute(hash: string): AppRoute {
   if (!jobId) return { name: 'jobs' }
 
   if (segments[2] === 'edit') {
-    return { name: 'edit-job', jobId }
+    const step = segments[3] ? parseInt(segments[3], 10) : undefined
+    return { name: 'edit-job', jobId, step }
   }
 
   return { name: 'job-detail', jobId }
@@ -58,8 +59,10 @@ export function formatAppRoute(route: AppRoute): string {
       return '#/jobs/new'
     case 'job-detail':
       return `#/jobs/${encodeURIComponent(route.jobId)}`
-    case 'edit-job':
-      return `#/jobs/${encodeURIComponent(route.jobId)}/edit`
+    case 'edit-job': {
+      const stepPath = route.step !== undefined ? `/${route.step}` : ''
+      return `#/jobs/${encodeURIComponent(route.jobId)}/edit${stepPath}`
+    }
   }
 }
 
