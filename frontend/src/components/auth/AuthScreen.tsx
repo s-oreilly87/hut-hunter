@@ -5,7 +5,7 @@ import { LockKeyhole, TentTree, UserPlus } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Label } from '../ui/Label'
-import { useAuth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 
 type Mode = 'login' | 'register'
 

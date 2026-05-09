@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, LockKeyhole, Trash2 } from 'lucide-react'
 
@@ -34,14 +34,6 @@ function CredentialCard({
     password: '',
   })
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setDraft({
-      username: credential?.username ?? '',
-      password: '',
-    })
-    setError(null)
-  }, [credential?.id, credential?.username])
 
   const save = useMutation({
     mutationFn: () => credentialsApi.upsert(adapterId, draft),
@@ -201,7 +193,7 @@ export function CredentialsDialog({
           ) : (
             credentialAdapters.map((adapter) => (
               <CredentialCard
-                key={adapter.adapter_id}
+                key={`${adapter.adapter_id}:${byAdapterId.get(adapter.adapter_id)?.id ?? 'new'}:${byAdapterId.get(adapter.adapter_id)?.username ?? ''}`}
                 adapterId={adapter.adapter_id}
                 adapterName={adapter.name}
                 credential={byAdapterId.get(adapter.adapter_id)}

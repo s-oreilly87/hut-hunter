@@ -140,17 +140,15 @@ function SearchableSelectInput({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const renderValue = displayValue ?? ((option: string) => option)
+  const renderValue = useMemo(
+    () => displayValue ?? ((option: string) => option),
+    [displayValue],
+  )
   const selectedLabel = value ? renderValue(value) : ''
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState(selectedLabel)
-  const deferredQuery = useDeferredValue(query)
-
-  useEffect(() => {
-    if (!open) {
-      setQuery(selectedLabel)
-    }
-  }, [selectedLabel, open])
+  const [query, setQuery] = useState('')
+  const visibleQuery = open ? query : selectedLabel
+  const deferredQuery = useDeferredValue(visibleQuery)
 
   useEffect(() => {
     if (!open) return
@@ -168,7 +166,7 @@ function SearchableSelectInput({
   const totalOptions = groups.reduce((count, group) => count + group.options.length, 0)
   const normalizedQuery = deferredQuery.trim().toLowerCase()
   const showTruncatedHint = !normalizedQuery && totalOptions > 24
-  const canClear = !disabled && (Boolean(value) || Boolean(query))
+  const canClear = !disabled && (Boolean(value) || Boolean(visibleQuery))
 
   const clearSelection = () => {
     if (value) onChange('')
@@ -205,10 +203,13 @@ function SearchableSelectInput({
       <div className="relative">
         <Input
           ref={inputRef}
-          value={query}
+          value={visibleQuery}
           placeholder={placeholder}
           disabled={disabled}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setQuery(selectedLabel)
+            setOpen(true)
+          }}
           onChange={(event) => {
             setOpen(true)
             setQuery(event.target.value)
@@ -313,21 +314,12 @@ function DatePickerInput({
   const selectedDate = parseInputDateValue(value)
   const today = new Date()
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState(() => formatDateForDisplay(value))
+  const [draft, setDraft] = useState('')
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const base = selectedDate ?? today
     return new Date(base.getFullYear(), base.getMonth(), 1)
   })
-
-  useEffect(() => {
-    setDraft(formatDateForDisplay(value))
-  }, [value])
-
-  useEffect(() => {
-    if (selectedDate && !open) {
-      setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
-    }
-  }, [selectedDate, open])
+  const visibleDraft = open ? draft : formatDateForDisplay(value)
 
   useEffect(() => {
     if (!open) return
@@ -428,8 +420,15 @@ function DatePickerInput({
             'min-w-0 flex-1 bg-transparent text-left outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed',
           )}
           placeholder="mm/dd/yyyy"
-          value={draft}
+          value={visibleDraft}
           onChange={(event) => setDraft(event.target.value)}
+          onFocus={() => {
+            setDraft(formatDateForDisplay(value))
+            if (selectedDate) {
+              setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
+            }
+            setOpen(true)
+          }}
           onBlur={commitDraft}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -463,7 +462,13 @@ function DatePickerInput({
             disabled={disabled}
             aria-label="Open calendar"
             className="flex size-6 items-center justify-center rounded-md hover:bg-secondary hover:text-foreground disabled:pointer-events-none"
-            onClick={() => setOpen((current) => !current)}
+            onClick={() => {
+              setDraft(formatDateForDisplay(value))
+              if (selectedDate) {
+                setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
+              }
+              setOpen((current) => !current)
+            }}
           >
             <Calendar className="size-4" />
           </button>
@@ -864,20 +869,14 @@ function buildDefaultParams(fields: ParamField[]): Record<string, unknown> {
   )
 }
 
-function buildParamsFromJob(
-  job: WatchJob,
-  fields: ParamField[],
-): Record<string, unknown> {
-  const fieldsByKey = new Map(fields.map((field) => [field.key, field]))
+function buildInitialParamsFromJob(job: WatchJob): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(job.params)) {
     if (k === 'occupants') continue
     if (k === 'sites' && typeof v === 'string') {
-      // Keep legacy string payloads editable after the multiselect migration.
       out[k] = v.split(',').map(s => s.trim()).filter(Boolean)
     } else {
-      const field = fieldsByKey.get(k)
-      out[k] = field ? normalizeDateParamValue(field, v ?? '') : (v ?? '')
+      out[k] = v ?? ''
     }
   }
   return out
@@ -1165,7 +1164,9 @@ function JobFormBody({
   const [selectedAdapterId, setSelectedAdapterId] = useState(
     mode === 'edit' && initialJob ? initialJob.adapter_id : '',
   )
-  const [params, setParams] = useState<Record<string, unknown>>({})
+  const [params, setParams] = useState<Record<string, unknown>>(
+    mode === 'edit' && initialJob ? buildInitialParamsFromJob(initialJob) : {},
+  )
   const [autoBook, setAutoBook] = useState(
     mode === 'edit' && initialJob ? initialJob.auto_book : false,
   )
@@ -1235,34 +1236,12 @@ function JobFormBody({
   const effectivePeopleCount = selectedOccupantsPresent
     ? selectedOccupantCount
     : enteredPeopleCount
-
-  useEffect(() => {
-    if (
-      mode !== 'edit'
-      || !initialJob
-      || !selectedAdapter
-      || Object.keys(params).length > 0
-    ) {
-      return
-    }
-    setParams(buildParamsFromJob(initialJob, selectedAdapter.param_fields))
-  }, [initialJob, mode, params, selectedAdapter])
-
-  useEffect(() => {
-    if (
-      (!selectedOccupantsPresent
-        || !hasCredentialsForSelectedAdapter
-        || !selectedOccupantDetailsComplete)
-      && autoBook
-    ) {
-      setAutoBook(false)
-    }
-  }, [
-    selectedOccupantsPresent,
-    hasCredentialsForSelectedAdapter,
-    selectedOccupantDetailsComplete,
-    autoBook,
-  ])
+  const canAutoBook = (
+    selectedOccupantsPresent
+    && hasCredentialsForSelectedAdapter
+    && selectedOccupantDetailsComplete
+  )
+  const effectiveAutoBook = autoBook && canAutoBook
 
   const resolveOptions = (
     field: ParamField,
@@ -1407,11 +1386,11 @@ function JobFormBody({
 
     parsedParams.people = String(effectivePeopleCount)
 
-    if (autoBook && !selectedOccupantsPresent) {
+    if (effectiveAutoBook && !selectedOccupantsPresent) {
       setError('Select campers before enabling auto-book')
       return
     }
-    if (autoBook && !hasCredentialsForSelectedAdapter) {
+    if (effectiveAutoBook && !hasCredentialsForSelectedAdapter) {
       setError('Save a sign-in for this booking site before enabling auto-book')
       return
     }
@@ -1481,7 +1460,7 @@ function JobFormBody({
         name,
         adapter_id: selectedAdapterId,
         params: parsedParams,
-        auto_book: autoBook,
+        auto_book: effectiveAutoBook,
         enable_monitoring: enableMonitoring,
         interval_minutes: safeInterval,
       })
@@ -1491,7 +1470,7 @@ function JobFormBody({
         patch: {
           name,
           params: parsedParams,
-          auto_book: autoBook,
+          auto_book: effectiveAutoBook,
           enable_monitoring: enableMonitoring,
           interval_minutes: safeInterval,
         },
@@ -1517,7 +1496,7 @@ function JobFormBody({
 
   const automationProps = {
     selectedAdapter,
-    autoBook,
+    autoBook: effectiveAutoBook,
     setAutoBook,
     enableMonitoring,
     setEnableMonitoring,

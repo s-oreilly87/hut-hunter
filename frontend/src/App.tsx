@@ -13,7 +13,7 @@ import {
 } from '@/components/jobs/jobFilters'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import { adaptersApi, credentialsApi, occupantsApi } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth-context'
 import { useAppRoute, useIsMobile } from '@/lib/navigation'
 import { useJobsStore } from '@/store/jobs'
 import type { AppViewProps } from '@/components/layout/types'

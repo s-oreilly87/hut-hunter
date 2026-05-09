@@ -1,35 +1,16 @@
 import {
-  createContext,
-  useContext,
   useMemo,
   type ReactNode,
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { authApi, type AuthCredentials, type AuthUser } from '@/lib/api'
-
-const AUTH_QUERY_KEY = ['auth', 'me'] as const
-
-type AuthContextValue = {
-  user: AuthUser | null
-  status: 'loading' | 'authenticated' | 'unauthenticated'
-  login: (credentials: AuthCredentials) => Promise<AuthUser>
-  register: (credentials: AuthCredentials) => Promise<AuthUser>
-  logout: () => Promise<void>
-  loginPending: boolean
-  registerPending: boolean
-  logoutPending: boolean
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
-
-function deriveStatus(
-  isPending: boolean,
-  user: AuthUser | null | undefined,
-): AuthContextValue['status'] {
-  if (isPending) return 'loading'
-  return user ? 'authenticated' : 'unauthenticated'
-}
+import { authApi } from '@/lib/api'
+import {
+  AUTH_QUERY_KEY,
+  AuthContext,
+  deriveStatus,
+  type AuthContextValue,
+} from '@/lib/auth-context'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -87,12 +68,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === null) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
 }

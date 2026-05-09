@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BellRing, Loader2, Mail, Smartphone } from 'lucide-react'
 
@@ -32,12 +32,6 @@ function EmailSettingsCard({
   const [emailAddress, setEmailAddress] = useState(settings.email_address ?? '')
   const [enabled, setEnabled] = useState(settings.email_enabled)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setEmailAddress(settings.email_address ?? '')
-    setEnabled(settings.email_enabled)
-    setError(null)
-  }, [settings.email_address, settings.email_enabled])
 
   const save = useMutation({
     mutationFn: () => {
@@ -146,13 +140,6 @@ function GotifySettingsCard({
   const [gotifyToken, setGotifyToken] = useState('')
   const [enabled, setEnabled] = useState(settings.gotify_enabled)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setGotifyUrl(settings.gotify_url ?? '')
-    setGotifyToken('')
-    setEnabled(settings.gotify_enabled)
-    setError(null)
-  }, [settings.gotify_enabled, settings.gotify_url])
 
   const save = useMutation({
     mutationFn: () => {
@@ -312,8 +299,14 @@ export function NotificationsDialog({
             </div>
           ) : (
             <>
-              <EmailSettingsCard settings={settings} />
-              <GotifySettingsCard settings={settings} />
+              <EmailSettingsCard
+                key={`${settings.email_address ?? ''}:${settings.email_enabled}`}
+                settings={settings}
+              />
+              <GotifySettingsCard
+                key={`${settings.gotify_url ?? ''}:${settings.gotify_enabled}:${settings.gotify_has_token}`}
+                settings={settings}
+              />
             </>
           )}
         </div>
