@@ -3,16 +3,21 @@ import { BellRing, ChevronDown, LockKeyhole, LogOut, Plus, Users } from 'lucide-
 import { useElementHeightCssVar } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 
-function NavBrand() {
+function NavBrand({ onClick }: { onClick: () => void }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <button
+      type="button"
+      className="flex items-center gap-2.5 rounded-2xl text-left transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      onClick={onClick}
+      aria-label="Go to dashboard"
+    >
       <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/15">
         <img src="/favicon.svg" alt="" className="size-5" />
       </div>
       <span className="text-sm font-semibold tracking-tight text-foreground">
         Hut Hunter
       </span>
-    </div>
+    </button>
   )
 }
 
@@ -136,6 +141,7 @@ export function AppHeader({
   onOpenCredentials,
   onOpenNotifications,
   onCreateJob,
+  onGoToDashboard,
 }: {
   userEmail: string
   onLogout: () => void
@@ -144,6 +150,7 @@ export function AppHeader({
   onOpenCredentials: () => void
   onOpenNotifications: () => void
   onCreateJob: () => void
+  onGoToDashboard: () => void
 }) {
   const headerRef = useElementHeightCssVar<HTMLDivElement>('--app-header-height')
 
@@ -151,7 +158,7 @@ export function AppHeader({
     <div ref={headerRef} data-sticky-header="true" className="sticky top-0 z-50 isolate">
       <div className="border-b border-border/30 bg-background/94 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <NavBrand />
+          <NavBrand onClick={onGoToDashboard} />
           <AccountMenu
             userEmail={userEmail}
             logoutPending={logoutPending}

@@ -43,6 +43,7 @@ export function DesktopApp({
         onOpenCredentials={() => setCredentialsOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
+        onGoToDashboard={() => navigate({ name: 'dashboard' })}
       />
 
       <div className="mx-auto flex w-full max-w-400 flex-1 min-h-0 flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8">

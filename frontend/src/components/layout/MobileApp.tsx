@@ -1,6 +1,5 @@
 import { Plus } from 'lucide-react'
 import { AppHeader } from '@/components/layout/AppHeader'
-import { MobilePrimaryNav } from '@/components/layout/MobilePrimaryNav'
 import { StatsGrid } from '@/components/dashboard/StatsGrid'
 import { FilterDropdown } from '@/components/jobs/FilterDropdown'
 import { JobList } from '@/components/jobs/JobList'
@@ -34,8 +33,6 @@ export function MobileApp({
   hasOccupants,
   missingCredentialCount,
 }: AppViewProps) {
-  const mobileNavPadding = 'calc(var(--app-mobile-nav-height, 0px) + 1rem)'
-
   return (
     <div className="app-shell flex h-dvh flex-col overflow-y-auto">
       <AppHeader
@@ -46,11 +43,11 @@ export function MobileApp({
         onOpenCredentials={() => setCredentialsOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onCreateJob={() => navigate({ name: 'create-job' })}
+        onGoToDashboard={() => navigate({ name: 'dashboard' })}
       />
 
       <div
-        className="mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pt-4"
-        style={{ paddingBottom: mobileNavPadding }}
+        className="mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pb-4 pt-4"
       >
         {route.name === 'dashboard' && (
           <StatsGrid
@@ -134,7 +131,6 @@ export function MobileApp({
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
       <NotificationsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} />
       <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} />
-      <MobilePrimaryNav route={route} navigate={navigate} />
     </div>
   )
 }
