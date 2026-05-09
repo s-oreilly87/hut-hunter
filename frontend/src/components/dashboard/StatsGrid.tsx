@@ -100,7 +100,7 @@ function NoJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
 
 function CreateMoreJobsTile({ onCreateJob }: { onCreateJob: () => void }) {
   return (
-    <article className="flex min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4">
+    <article className="flex w-full min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4 sm:w-64">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm font-semibold tracking-tight text-foreground">
@@ -152,7 +152,7 @@ export function StatsGrid({
   const showNoJobsTile = totalJobs === 0 && showNewHuntTile
 
   return (
-    <section className="flex flex-wrap items-start gap-3">
+    <section className="flex flex-wrap items-start justify-center xl:justify-start gap-3">
       {showNoJobsTile ? (
         <div className="w-full sm:w-80">
           <NoJobsTile onCreateJob={onCreateJob} />
@@ -198,7 +198,7 @@ export function StatsGrid({
           })}
 
           {showNewHuntTile && (
-            <div className="w-full sm:w-80">
+            <div className="w-full sm:w-64">
               <CreateMoreJobsTile onCreateJob={onCreateJob} />
             </div>
           )}

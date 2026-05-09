@@ -9,7 +9,13 @@ import {
   jobHasOccupants,
 } from '@/lib/availability'
 import { useJobsStore } from '@/store/jobs'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/Button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui/Tooltip'
 
 const STALE_MS = 30 * 60 * 1000 // 30 minutes
 
@@ -125,9 +131,18 @@ export function BookButton({
   )
 
   return disabledReason ? (
-    <span title={disabledReason} className="cursor-not-allowed">
-      {bookBtn}
-    </span>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-not-allowed">
+            {bookBtn}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="center">
+          {disabledReason}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   ) : bookBtn
 }
 

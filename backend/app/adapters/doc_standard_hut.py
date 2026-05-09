@@ -257,23 +257,16 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 required=True,
             ),
             ParamField(
-                key="date",
-                label="Start Date",
-                type="date",
-                required=True,
-            ),
-            ParamField(
                 key="nights",
                 label="Nights",
                 type="number",
                 default=1,
             ),
             ParamField(
-                key="people",
-                label="People",
-                type="select",
-                options=PEOPLE_OPTIONS,
-                default="2",
+                key="date",
+                label="Start Date",
+                type="date",
+                required=True,
             ),
             ParamField(
                 key="occupants",
@@ -285,6 +278,13 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                     '"age": "","gender": "Male"}]'
                 ),
                 required=True,
+            ),
+            ParamField(
+                key="people",
+                label="People",
+                type="select",
+                options=PEOPLE_OPTIONS,
+                default="2",
             ),
         ]
 

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
   AlertTriangle,
@@ -20,21 +20,24 @@ import {
 } from 'lucide-react'
 import {
   type ArtifactRecord,
+  adaptersApi,
   jobsApi,
+  occupantsApi,
   type AvailabilityResult,
   type LastResultEntry,
   type WatchJob,
 } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '../ui/Badge'
+import { Button } from '../ui/Button'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
+} from '../ui/Card'
 import { EditJobDialog } from '@/components/jobs/CreateJobDialog'
 import {
   BookButton,
@@ -54,6 +57,7 @@ import {
 } from '@/lib/time'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
 import { getHeaderFields } from '@/components/jobs/jobParamDisplay'
+import { jobHasOutdatedOccupantSnapshots } from '@/lib/occupantSnapshots'
 import { cn } from '@/lib/utils'
 
 function titleize(key: string): string {
@@ -379,10 +383,12 @@ function LastResultView({
   result,
   artifactPng,
   artifactHtml,
+  unavailableArtifact,
 }: {
   result: LastResultEntry[]
   artifactPng?: string | null
   artifactHtml?: string | null
+  unavailableArtifact?: ArtifactRecord | null
 }) {
   if (!result.length) {
     return <p className="text-sm text-muted-foreground">No results captured yet.</p>
@@ -435,6 +441,10 @@ function LastResultView({
                       ))}
                     </div>
                   )}
+
+                  {entry.status === 'unavailable' && unavailableArtifact && (
+                    <ArtifactGallery artifacts={[unavailableArtifact]} />
+                  )}
                 </div>
               </div>
             </div>
@@ -466,6 +476,7 @@ function LastResultView({
 }
 
 const ARTIFACT_LABELS: Record<string, string> = {
+  unavailable: 'Unavailable Snapshot',
   reservation_details: 'Reservation Details',
   shopping_cart: 'Shopping Cart',
   payment_page_success: 'Payment Page',
@@ -555,6 +566,11 @@ function getReceiptArtifact(artifacts: ArtifactRecord[] | null | undefined): Art
   return [...artifacts].reverse().find((artifact) => artifact.label === 'booking_complete') ?? null
 }
 
+function getUnavailableArtifact(artifacts: ArtifactRecord[] | null | undefined): ArtifactRecord | null {
+  if (!artifacts?.length) return null
+  return [...artifacts].reverse().find((artifact) => artifact.label === 'unavailable') ?? null
+}
+
 function getHoldFlowArtifacts(artifacts: ArtifactRecord[] | null | undefined): ArtifactRecord[] {
   if (!artifacts?.length) return []
 
@@ -615,18 +631,13 @@ function ArtifactGallery({
             </a>
           )}
 
-          <div className="flex flex-wrap gap-1.5 px-3.5 py-2.5">
-            {artifact.png_url && (
-              <ArtifactLinkButton href={artifact.png_url} icon={ImageIcon}>
-                Screenshot
-              </ArtifactLinkButton>
-            )}
-            {artifact.html_url && (
+          {artifact.html_url && (
+            <div className="flex flex-wrap gap-1.5 px-3.5 py-2.5">
               <ArtifactLinkButton href={artifact.html_url} icon={FileCode2}>
                 HTML
               </ArtifactLinkButton>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -785,6 +796,28 @@ function HoldExpiryCountdown({ cartExpiresAt }: { cartExpiresAt: string | null }
   )
 }
 
+function OutdatedCampersNotice() {
+  return (
+    <section>
+      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
+            <AlertTriangle className="size-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-base font-medium tracking-tight text-foreground">
+              Camper Details Changed
+            </p>
+            <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
+              Campers attached to this hunt have been edited since this job was created. To use the current campers and ensure all required fields are still filled out, save this job again to update the camper details.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export function JobCard({
   onRequestEdit,
   onDeleted,
@@ -808,11 +841,27 @@ export function JobCard({
     pendingBookings,
   } = useJobsStore()
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   const { data: job, isLoading } = useJobsQuery({
     select: (jobs) => jobs.find((candidate) => candidate.id === selectedJobId),
     enabled: !!selectedJobId,
   })
+
+  const { data: adapters = [] } = useQuery({
+    queryKey: ['adapters'],
+    queryFn: adaptersApi.list,
+  })
+
+  const { data: occupants = [] } = useQuery({
+    queryKey: ['occupants'],
+    queryFn: occupantsApi.list,
+  })
+
+  const adapterById = useMemo(
+    () => new Map(adapters.map((adapter) => [adapter.adapter_id, adapter])),
+    [adapters],
+  )
 
   const trigger = useMutation({
     mutationFn: jobsApi.trigger,
@@ -827,21 +876,14 @@ export function JobCard({
     mutationFn: jobsApi.remove,
     onSuccess: (_, id) => {
       if (selectedJobId === id) setSelectedJobId(null)
+      setDeleteTarget(null)
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
       onDeleted?.()
     },
   })
 
   const handleDelete = (id: string, name: string) => {
-    if (
-      !window.confirm(
-        `Delete "${name}"?\n\nThis removes the hunt and its booking state. You can't undo this.`,
-      )
-    ) {
-      return
-    }
-
-    remove.mutate(id)
+    setDeleteTarget({ id, name })
   }
 
   if (!selectedJobId) {
@@ -902,6 +944,10 @@ export function JobCard({
   }
 
   const displayStatus = getDisplayStatus(job, pendingBookings)
+  const adapter = adapterById.get(job.adapter_id)
+  const hasOutdatedCampers = Boolean(
+    adapter && jobHasOutdatedOccupantSnapshots(job, occupants, adapter),
+  )
   const holdExpired = hasHoldExpired(job)
   const missingOccupants = !jobHasOccupants(job)
   const missingCredentials = !job.credentials_configured
@@ -924,6 +970,7 @@ export function JobCard({
   )
   const holdArtifacts = getHoldFlowArtifacts(job.artifact_history)
   const completedArtifacts = getCompletedBookingArtifacts(holdArtifacts, receiptArtifact)
+  const unavailableArtifact = getUnavailableArtifact(job.artifact_history)
   const actions = (
     <>
       <Button
@@ -990,6 +1037,8 @@ export function JobCard({
 
         <CardContent className="app-panel-body-scroll px-6">
           <div className="space-y-6 pt-6 pb-6">
+            {hasOutdatedCampers && <OutdatedCampersNotice />}
+
             <MonitoringSection
               job={job}
               displayStatus={displayStatus}
@@ -1110,6 +1159,7 @@ export function JobCard({
                       result={job.last_result}
                       artifactPng={job.last_artifact_png}
                       artifactHtml={job.last_artifact_html}
+                      unavailableArtifact={unavailableArtifact}
                     />
                     {jobHasPartialAvailability(job) && (
                       <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
@@ -1143,6 +1193,7 @@ export function JobCard({
                   result={job.last_result}
                   artifactPng={job.last_artifact_png}
                   artifactHtml={job.last_artifact_html}
+                  unavailableArtifact={unavailableArtifact}
                 />
                 {missingOccupants && (
                   <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
@@ -1212,6 +1263,23 @@ export function JobCard({
       {!onRequestEdit && (
         <EditJobDialog open={editOpen} onOpenChange={setEditOpen} job={job} />
       )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDeleteTarget(null)
+        }}
+        title="Delete Hunt"
+        description={
+          deleteTarget
+            ? `Delete "${deleteTarget.name}"? This removes the hunt, booking state, and saved artifacts. You can't undo this.`
+            : ''
+        }
+        confirmLabel="Delete Hunt"
+        confirming={remove.isPending}
+        onConfirm={() => {
+          if (deleteTarget) remove.mutate(deleteTarget.id)
+        }}
+      />
     </>
   )
 }

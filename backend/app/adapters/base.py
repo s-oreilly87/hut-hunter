@@ -156,17 +156,43 @@ class BaseAdapter(ABC):
         except Exception:
             return False
 
-    async def snapshot(self, page: Page, label: str) -> str:
-        """Save screenshot + HTML for debugging."""
+    @staticmethod
+    def _snapshot_should_include_html(label: str) -> bool:
+        debug_terms = (
+            "error",
+            "failed",
+            "failure",
+            "timeout",
+            "not_found",
+            "did_not_open",
+            "did_not_update",
+            "validation",
+        )
+        normalized = label.lower()
+        return any(term in normalized for term in debug_terms)
+
+    async def snapshot(self, page: Page, label: str, *, include_html: bool | None = None) -> str:
+        """Save a compressed screenshot and optional HTML for debugging."""
         out_dir = settings.artifacts_dir
         out_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{ts}_{self.adapter_id}_{label}"
         absolute_base = out_dir / filename
         relative_base = Path("artifacts") / filename
-        await page.screenshot(path=str(absolute_base.with_suffix(".png")), full_page=True)
-        with open(absolute_base.with_suffix(".html"), "w") as f:
-            f.write(await page.content())
+        await page.screenshot(
+            path=str(absolute_base.with_suffix(".jpg")),
+            type="jpeg",
+            quality=65,
+            full_page=True,
+        )
+        should_include_html = (
+            include_html
+            if include_html is not None
+            else self._snapshot_should_include_html(label)
+        )
+        if should_include_html:
+            with open(absolute_base.with_suffix(".html"), "w") as f:
+                f.write(await page.content())
         base = str(relative_base)
         self._artifact_log.append(ArtifactSnapshot(label=label, base=base))
         return base

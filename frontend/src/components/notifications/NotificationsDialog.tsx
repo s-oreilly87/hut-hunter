@@ -7,17 +7,17 @@ import {
   type NotificationSettings,
   type UpdateNotificationSettingsDto,
 } from '@/lib/api'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/Button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+} from '../ui/Dialog'
+import { Input } from '../ui/Input'
+import { Label } from '../ui/Label'
+import { Switch } from '../ui/Switch'
 
 function getErrorMessage(error: Error) {
   return error.message || 'Unable to save notification settings.'

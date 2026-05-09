@@ -9,17 +9,18 @@ import {
   type OccupantCreate,
   type ParamField,
 } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
+import { Label } from '../ui/Label'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { SectionHeading } from '@/components/ui/section-heading'
+} from '../ui/Dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/Select'
+import { SectionHeading } from '../ui/SectionHeading'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say']
 
@@ -320,6 +321,7 @@ export function OccupantsDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const [editing, setEditing] = useState<EditingState>({ mode: 'none' })
+  const [deleteTarget, setDeleteTarget] = useState<Occupant | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const qc = useQueryClient()
 
@@ -352,12 +354,14 @@ export function OccupantsDialog({
 
   const remove = useMutation({
     mutationFn: occupantsApi.remove,
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate()
+      setDeleteTarget(null)
+    },
   })
 
   const handleDelete = (o: Occupant) => {
-    if (!window.confirm(`Delete ${o.first_name} ${o.last_name}?`)) return
-    remove.mutate(o.id)
+    setDeleteTarget(o)
   }
 
   const startEdit = (o: Occupant) => {
@@ -464,6 +468,23 @@ export function OccupantsDialog({
           </div>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDeleteTarget(null)
+        }}
+        title="Delete Camper"
+        description={
+          deleteTarget
+            ? `Delete ${deleteTarget.first_name} ${deleteTarget.last_name} from the saved roster?`
+            : ''
+        }
+        confirmLabel="Delete Camper"
+        confirming={remove.isPending}
+        onConfirm={() => {
+          if (deleteTarget) remove.mutate(deleteTarget.id)
+        }}
+      />
     </>
   )
 }

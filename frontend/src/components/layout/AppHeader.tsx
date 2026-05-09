@@ -163,15 +163,13 @@ export function AppHeader({
           />
         </div>
       </div>
-      {/* Gradient fade extending below the header — softens content scrolling under it */}
+      {/* Gradient fade extending below the header — softens content scrolling under it (desktop only) */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-full h-14"
+        className="pointer-events-none absolute inset-x-0 top-full hidden h-14 sm:block"
         style={{
           background: 'linear-gradient(to bottom, var(--background), transparent)',
-          maskImage: 'linear-gradient(to right, transparent 0%, black 22%, black 78%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 22%, black 78%, transparent 100%)',
-          opacity: 0.88,
+          opacity: 0.8,
         }}
       />
     </div>

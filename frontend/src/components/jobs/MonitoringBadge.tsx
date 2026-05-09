@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '../ui/Badge'
 import { jobsApi, type WatchJob } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
 import { formatCountdown } from '@/lib/time'

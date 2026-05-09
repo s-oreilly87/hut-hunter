@@ -3,6 +3,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import timedelta
+from pathlib import Path
 from typing import cast
 
 from arq import cron
@@ -23,6 +24,8 @@ from app.models.session import CartSession
 from playwright.async_api import async_playwright, ViewportSize
 
 logger = logging.getLogger(__name__)
+
+UNAVAILABLE_SNAPSHOT_LABEL = "unavailable"
 
 
 # Stable ARQ job ID scheme for check_availability — used for dedup so we
@@ -271,6 +274,92 @@ async def _snapshot_safe(adapter, page, label: str) -> str | None:
         return None
 
 
+def _artifact_file_paths(base: str) -> list[Path]:
+    if base.startswith("artifacts/"):
+        base = base[len("artifacts/"):]
+    artifact_base = settings.artifacts_dir / base
+    return [
+        artifact_base.with_suffix(".jpg"),
+        artifact_base.with_suffix(".png"),
+        artifact_base.with_suffix(".html"),
+    ]
+
+
+def _delete_artifact_files(base: str) -> None:
+    for path in _artifact_file_paths(base):
+        try:
+            path.unlink(missing_ok=True)
+        except Exception as e:
+            logger.warning(f"Failed to delete artifact file {path}: {e}")
+
+
+async def _clear_unavailable_snapshot(job_id: str) -> None:
+    """Delete the previous unavailable snapshot for this job.
+
+    Unavailable snapshots are useful context for the latest miss, but they are
+    produced by every unavailable polling run. Keeping only one prevents
+    unattended monitoring from filling the artifact directory.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            job = cast(WatchJob | None, await session.get(WatchJob, job_id))
+            if job is None:
+                return
+
+            removed_bases = _remove_artifacts_from_job(
+                job,
+                {UNAVAILABLE_SNAPSHOT_LABEL},
+            )
+            if not removed_bases:
+                return
+
+            session.add(job)
+            await session.commit()
+    except Exception as e:
+        logger.error(
+            f"Failed to clear unavailable snapshot for job {job_id}: {e}",
+            exc_info=True,
+        )
+
+
+def _remove_artifacts_from_job(job: WatchJob, labels: set[str]) -> set[str]:
+    try:
+        parsed = json.loads(job.artifact_history) if job.artifact_history else []
+    except Exception:
+        parsed = []
+    history = parsed if isinstance(parsed, list) else []
+
+    kept_history: list[dict] = []
+    removed_bases: set[str] = set()
+    for entry in history:
+        if not isinstance(entry, dict):
+            continue
+        base = entry.get("base")
+        if (
+            entry.get("label") in labels
+            and isinstance(base, str)
+            and base
+        ):
+            removed_bases.add(base)
+            continue
+        kept_history.append(entry)
+
+    if not removed_bases:
+        return set()
+
+    for base in removed_bases:
+        _delete_artifact_files(base)
+
+    if job.last_artifact in removed_bases:
+        job.last_artifact = None
+    job.artifact_history = json.dumps(kept_history) if kept_history else None
+    return removed_bases
+
+
+def _remove_hold_artifacts_from_job(job: WatchJob) -> set[str]:
+    return _remove_artifacts_from_job(job, {"reservation_details", "shopping_cart"})
+
+
 async def _save_artifact(job_id: str, base: str | None) -> None:
     await _save_artifacts(job_id, [], last_base=base)
 
@@ -379,6 +468,7 @@ async def _resolve_lazy_expired_hold(session, job: WatchJob) -> None:
     active = await _get_active_cart(session, job.id)
     if active is None:
         logger.info(f"Lazy-expiring HOLD_PLACED for job {job.id} (no live cart)")
+        _remove_hold_artifacts_from_job(job)
         await _set_status(session, job, JobStatus.CHECKING)
 
 
@@ -655,6 +745,8 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
         # partial — not on every check while it stays partial).
         prev_last_result: str | None = job.last_result
 
+    await _clear_unavailable_snapshot(job_id)
+
     results = []
 
     # --- 2. Detect phase (headless) ---
@@ -666,6 +758,17 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                 await adapter.fill_form(page, params)
                 results = await adapter.detect_availability(page, params)
                 logger.info(f"Detect results for job {job_id}: {results}")
+                if results and all(
+                    r.status == AvailabilityStatus.UNAVAILABLE for r in results
+                ):
+                    base = await _snapshot_safe(
+                        adapter, page, UNAVAILABLE_SNAPSHOT_LABEL
+                    )
+                    await _save_artifacts(
+                        job_id,
+                        _consume_adapter_artifacts(adapter),
+                        last_base=base,
+                    )
             except Exception as e:
                 base = await _snapshot_safe(
                     adapter, page, f"detect_error_{type(e).__name__}"
@@ -1189,25 +1292,26 @@ async def scheduler_tick(ctx: dict) -> dict:
             select(WatchJob).where(WatchJob.status == JobStatus.HOLD_PLACED.value)
         )).scalars().all()
         for job in hold_jobs:
-            if not job.enable_monitoring:
-                continue
             active_cart = await _get_active_cart(session, job.id)
             if active_cart is not None:
                 continue  # hold still live — skip
-            # Cart expired (or never created): resume monitoring.
+            # Cart expired (or never created): discard transient hold
+            # snapshots. Only completed bookings keep their cart-stage record.
             logger.info(
-                f"scheduler_tick: hold expired for {job.id}, resuming monitoring"
+                f"scheduler_tick: hold expired for {job.id}, cleaning hold artifacts"
             )
-            job.status = JobStatus.WAITING.value
-            job.next_check_at = now
+            _remove_hold_artifacts_from_job(job)
+            if job.enable_monitoring:
+                job.status = JobStatus.WAITING.value
+                job.next_check_at = now
+                resumed_from_hold += 1
             session.add(job)
-            resumed_from_hold += 1
             await redis.enqueue_job(
                 "close_browser_task",
                 job.id,
                 _queue_name=HOLD_QUEUE_NAME,
             )
-        if resumed_from_hold:
+        if hold_jobs:
             await session.commit()
 
         # Pass 2 — dispatch due checks.

@@ -130,31 +130,6 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 default="",
             ),
             ParamField(
-                key="date",
-                label="Start Date",
-                type="date",
-            ),
-            ParamField(
-                key="nights",
-                label="Nights",
-                type="number",
-                default=1,
-            ),
-            ParamField(
-                key="people",
-                label="People",
-                type="select",
-                options=PEOPLE_OPTIONS,
-                default="2",
-            ),
-            ParamField(
-                key="occupants",
-                label="Occupants",
-                type="text",
-                default='[{"first_name": "","last_name": "","category": "NZ Adult (18+)","country": "New Zealand","age": "","gender": "Male"}]',
-                required=True,
-            ),
-            ParamField(
                 key="direction",
                 label="Direction",
                 type="select",
@@ -173,6 +148,31 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 required=False,
                 filter_by="track",
                 options_by=_SITES_BY_TRACK,
+            ),
+            ParamField(
+                key="nights",
+                label="Nights",
+                type="number",
+                default=1,
+            ),
+            ParamField(
+                key="date",
+                label="Start Date",
+                type="date",
+            ),
+            ParamField(
+                key="occupants",
+                label="Occupants",
+                type="text",
+                default='[{"first_name": "","last_name": "","category": "NZ Adult (18+)","country": "New Zealand","age": "","gender": "Male"}]',
+                required=True,
+            ),
+            ParamField(
+                key="people",
+                label="People",
+                type="select",
+                options=PEOPLE_OPTIONS,
+                default="2",
             ),
         ]
 

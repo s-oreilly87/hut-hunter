@@ -8,7 +8,7 @@ import { CreateJobDialog, EditJobDialog } from '@/components/jobs/CreateJobDialo
 import { OccupantsDialog } from '@/components/occupants/OccupantsDialog'
 import { NotificationsDialog } from '@/components/notifications/NotificationsDialog'
 import { CredentialsDialog } from '@/components/credentials/CredentialsDialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/Button'
 import type { AppViewProps } from '@/components/layout/types'
 
 export function DesktopApp({

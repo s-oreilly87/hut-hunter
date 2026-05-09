@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '../ui/Badge'
 import { JOB_STATUS_LABEL } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
 import { formatCountdown } from '@/lib/time'

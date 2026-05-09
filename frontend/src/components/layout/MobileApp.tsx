@@ -9,7 +9,7 @@ import { CreateJobPage, EditJobPage } from '@/components/jobs/CreateJobDialog'
 import { OccupantsDialog } from '@/components/occupants/OccupantsDialog'
 import { NotificationsDialog } from '@/components/notifications/NotificationsDialog'
 import { CredentialsDialog } from '@/components/credentials/CredentialsDialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/Button'
 import type { AppViewProps } from '@/components/layout/types'
 
 export function MobileApp({
@@ -90,7 +90,6 @@ export function MobileApp({
             <div className="app-panel-body-scroll px-4 sm:px-5">
               <div className="pt-6 pb-6">
                 <JobList
-                  collapseGroupsByDefault
                   statusFilters={statusFilters}
                   onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}
                 />

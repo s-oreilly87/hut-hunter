@@ -7,10 +7,10 @@ import {
   credentialsApi,
   type AdapterCredential,
 } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '../ui/Button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/Dialog'
+import { Input } from '../ui/Input'
+import { Label } from '../ui/Label'
 
 type DraftState = {
   username: string
