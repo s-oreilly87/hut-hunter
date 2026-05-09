@@ -578,9 +578,11 @@ function formatArtifactLabel(label: string): string {
 function HeaderParamSummary({
   params,
   onEdit,
+  centered = false,
 }: {
   params: Record<string, unknown>
   onEdit?: () => void
+  centered?: boolean
 }) {
   const fields = getHeaderFields(params)
 
@@ -614,6 +616,7 @@ function HeaderParamSummary({
 
   return (
     <div className="flex items-center gap-2">
+      {centered && onEdit && <span className="size-8 shrink-0" aria-hidden="true" />}
       <div className="space-y-1.5">
         {rows.map((row, rowIndex) => (
           <div
@@ -1182,7 +1185,8 @@ export function JobCard({
                     {backLabel}
                   </Button>
                 </div>
-                <div className="flex min-w-0 items-center justify-center gap-1 pt-1 text-center">
+                <div className="flex min-w-0 items-center justify-center gap-1 pt-1">
+                  {!isLocked && <span className="size-8 shrink-0" aria-hidden="true" />}
                   <CardTitle className="truncate text-lg tracking-tight sm:text-xl">
                     {job.name}
                   </CardTitle>
@@ -1205,6 +1209,7 @@ export function JobCard({
                 <HeaderParamSummary
                   params={job.params}
                   onEdit={!isLocked ? () => handleEdit(1) : undefined}
+                  centered
                 />
               </CardDescription>
             </>

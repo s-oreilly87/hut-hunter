@@ -14,9 +14,11 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  LockKeyhole,
   Plus,
   Pencil,
   Settings2,
+  Users,
   X, TentTree,
 } from 'lucide-react'
 import {
@@ -752,6 +754,7 @@ function OccupantSelector({
   onChange,
   peopleCount,
   loading = false,
+  onOpenOccupants,
 }: {
   roster: Occupant[]
   adapter?: AdapterInfo
@@ -759,6 +762,7 @@ function OccupantSelector({
   onChange: (ids: string[]) => void
   peopleCount: number
   loading?: boolean
+  onOpenOccupants?: () => void
 }) {
   const toggle = (id: string) => {
     onChange(
@@ -778,11 +782,23 @@ function OccupantSelector({
 
   if (roster.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">
-        No saved campers. Add some via the{' '}
-        <span className="font-medium">Campers</span>{' '}
-        menu in the header first.
-      </p>
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          No saved campers yet. Add campers to enable booking.
+        </p>
+        {onOpenOccupants && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={onOpenOccupants}
+          >
+            <Users className="size-3.5" />
+            Manage Campers
+          </Button>
+        )}
+      </div>
     )
   }
 
@@ -832,6 +848,18 @@ function OccupantSelector({
         <p className="text-xs text-muted-foreground">
           {adapter.name} also needs camper details: {adapter.occupant_fields.map(field => field.label).join(', ')}.
         </p>
+      )}
+      {onOpenOccupants && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={onOpenOccupants}
+        >
+          <Users className="size-3.5" />
+          Manage Campers
+        </Button>
       )}
     </div>
   )
@@ -959,6 +987,7 @@ function BookingInputsFields({
   selectedOccupantsPresent,
   resolveOptions,
   handleParamChange,
+  onOpenOccupants,
 }: {
   selectedAdapter: AdapterInfo
   params: Record<string, unknown>
@@ -971,6 +1000,7 @@ function BookingInputsFields({
   selectedOccupantsPresent: boolean
   resolveOptions: (field: ParamField, params: Record<string, unknown>) => string[] | null
   handleParamChange: (key: string, value: unknown) => void
+  onOpenOccupants?: () => void
 }) {
   return (
     <>
@@ -988,6 +1018,7 @@ function BookingInputsFields({
                 onChange={setSelectedOccupantIds}
                 peopleCount={effectivePeopleCount}
                 loading={occupantsLoading}
+                onOpenOccupants={onOpenOccupants}
               />
             </div>
           )
@@ -1042,6 +1073,7 @@ function AutomationFields({
   selectedOccupantsPresent,
   hasCredentialsForSelectedAdapter,
   selectedOccupantDetailsComplete,
+  onOpenCredentials,
 }: {
   selectedAdapter: AdapterInfo | undefined
   autoBook: boolean
@@ -1053,6 +1085,7 @@ function AutomationFields({
   selectedOccupantsPresent: boolean
   hasCredentialsForSelectedAdapter: boolean
   selectedOccupantDetailsComplete: boolean
+  onOpenCredentials?: () => void
 }) {
   if (!selectedAdapter) {
     return (
@@ -1095,9 +1128,23 @@ function AutomationFields({
           </p>
         )}
         {selectedOccupantsPresent && !hasCredentialsForSelectedAdapter && (
-          <p className="text-xs text-muted-foreground">
-            Save a sign-in for this booking site in the header before enabling auto-book.
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              A saved sign-in for this booking site is required before enabling auto-book.
+            </p>
+            {onOpenCredentials && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={onOpenCredentials}
+              >
+                <LockKeyhole className="size-3.5" />
+                Manage Sign-ins
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -1135,6 +1182,7 @@ function AutomationFields({
           </span>
         </div>
       </div>
+
     </>
   )
 }
@@ -1149,6 +1197,8 @@ function JobFormBody({
   onBack,
   backLabel = 'Back',
   initialStep,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   mode: Mode
   initialJob?: WatchJob
@@ -1157,6 +1207,8 @@ function JobFormBody({
   onBack?: () => void
   backLabel?: string
   initialStep?: WizardStep
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
   const qc = useQueryClient()
   const [name, setName] = useState(
@@ -1505,6 +1557,7 @@ function JobFormBody({
     selectedOccupantsPresent,
     resolveOptions,
     handleParamChange,
+    onOpenOccupants,
   }
 
   const automationProps = {
@@ -1518,6 +1571,7 @@ function JobFormBody({
     selectedOccupantsPresent,
     hasCredentialsForSelectedAdapter,
     selectedOccupantDetailsComplete,
+    onOpenCredentials,
   }
 
   // ── Page presentation: multistep wizard ────────────────────────────────────
@@ -1827,6 +1881,8 @@ function JobFormPage({
   onBack,
   backLabel = 'Back',
   initialStep,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   mode: Mode
   initialJob?: WatchJob
@@ -1834,6 +1890,8 @@ function JobFormPage({
   onBack?: () => void
   backLabel?: string
   initialStep?: WizardStep
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
   return (
     <section className="app-panel app-panel-frame flex-1">
@@ -1846,6 +1904,8 @@ function JobFormPage({
         onBack={onBack}
         backLabel={backLabel}
         initialStep={initialStep}
+        onOpenOccupants={onOpenOccupants}
+        onOpenCredentials={onOpenCredentials}
       />
     </section>
   )
@@ -1860,6 +1920,8 @@ function JobFormDialog({
   initialJob,
   onDone,
   initialStep,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
@@ -1867,6 +1929,8 @@ function JobFormDialog({
   initialJob?: WatchJob
   onDone?: (job: WatchJob) => void
   initialStep?: WizardStep
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
   const presentation = mode === 'edit' ? 'page' : 'dialog'
 
@@ -1891,6 +1955,8 @@ function JobFormDialog({
           onBack={() => onOpenChange(false)}
           presentation={presentation}
           initialStep={initialStep}
+          onOpenOccupants={onOpenOccupants}
+          onOpenCredentials={onOpenCredentials}
         />
       </DialogContent>
     </Dialog>
@@ -1904,11 +1970,15 @@ export function CreateJobDialog({
   onOpenChange,
   onDone,
   hideTrigger = false,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onDone?: (job: WatchJob) => void
   hideTrigger?: boolean
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 } = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const open = controlledOpen ?? uncontrolledOpen
@@ -1927,7 +1997,7 @@ export function CreateJobDialog({
           New Hunt
         </Button>
       )}
-      <JobFormDialog open={open} onOpenChange={handleOpenChange} mode="create" onDone={onDone} />
+      <JobFormDialog open={open} onOpenChange={handleOpenChange} mode="create" onDone={onDone} onOpenOccupants={onOpenOccupants} onOpenCredentials={onOpenCredentials} />
     </>
   )
 }
@@ -1936,12 +2006,16 @@ export function CreateJobPage({
   onDone,
   onBack,
   backLabel,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   onDone: (job: WatchJob) => void
   onBack?: () => void
   backLabel?: string
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
-  return <JobFormPage mode="create" onDone={onDone} onBack={onBack} backLabel={backLabel} />
+  return <JobFormPage mode="create" onDone={onDone} onBack={onBack} backLabel={backLabel} onOpenOccupants={onOpenOccupants} onOpenCredentials={onOpenCredentials} />
 }
 
 export function EditJobDialog({
@@ -1949,11 +2023,15 @@ export function EditJobDialog({
   onOpenChange,
   job,
   step,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   job: WatchJob
   step?: number
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
   return (
     <JobFormDialog
@@ -1962,6 +2040,8 @@ export function EditJobDialog({
       mode="edit"
       initialJob={job}
       initialStep={step as WizardStep}
+      onOpenOccupants={onOpenOccupants}
+      onOpenCredentials={onOpenCredentials}
     />
   )
 }
@@ -1972,12 +2052,16 @@ export function EditJobPage({
   onBack,
   backLabel,
   step,
+  onOpenOccupants,
+  onOpenCredentials,
 }: {
   job: WatchJob
   onDone: (job: WatchJob) => void
   onBack?: () => void
   backLabel?: string
   step?: number
+  onOpenOccupants?: () => void
+  onOpenCredentials?: () => void
 }) {
   return (
     <JobFormPage
@@ -1987,6 +2071,8 @@ export function EditJobPage({
       onBack={onBack}
       backLabel={backLabel}
       initialStep={step !== undefined ? step as WizardStep : 1}
+      onOpenOccupants={onOpenOccupants}
+      onOpenCredentials={onOpenCredentials}
     />
   )
 }

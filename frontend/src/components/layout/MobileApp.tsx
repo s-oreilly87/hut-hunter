@@ -114,6 +114,8 @@ export function MobileApp({
               setSelectedJobId(job.id)
               navigate({ name: 'jobs' }, { replace: true })
             }}
+            onOpenOccupants={() => setOccupantsOpen(true)}
+            onOpenCredentials={() => setCredentialsOpen(true)}
           />
         )}
 
@@ -124,6 +126,8 @@ export function MobileApp({
             onBack={() => navigate({ name: 'job-detail', jobId: selectedJob.id })}
             onDone={(job) => navigate({ name: 'job-detail', jobId: job.id }, { replace: true })}
             step={route.step}
+            onOpenOccupants={() => setOccupantsOpen(true)}
+            onOpenCredentials={() => setCredentialsOpen(true)}
           />
         )}
       </div>

@@ -114,6 +114,8 @@ export function DesktopApp({
           if (!open) navigate({ name: 'dashboard' }, { replace: true })
         }}
         hideTrigger
+        onOpenOccupants={() => setOccupantsOpen(true)}
+        onOpenCredentials={() => setCredentialsOpen(true)}
       />
       {selectedJob && (
         <EditJobDialog
@@ -123,6 +125,8 @@ export function DesktopApp({
           }}
           job={selectedJob}
           step={route.name === 'edit-job' ? route.step : undefined}
+          onOpenOccupants={() => setOccupantsOpen(true)}
+          onOpenCredentials={() => setCredentialsOpen(true)}
         />
       )}
     </div>

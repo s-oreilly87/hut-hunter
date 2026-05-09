@@ -178,7 +178,7 @@ export function CredentialsDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 px-4 py-4 text-sm text-muted-foreground">
+          <div className="rounded-[1.5rem] border border-border/70 bg-secondary/35 p-3 text-xs text-muted-foreground">
             Sign-ins are encrypted at rest and only decrypted when Hut Hunter needs them for your account.
           </div>
 
