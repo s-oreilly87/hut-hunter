@@ -40,23 +40,15 @@ export function MonitoringBadge({ job, displayStatus }: Props) {
 
   if (displayStatus === 'hold_placed') {
     return (
-      <Badge variant="outline" className="border-amber-500 text-amber-600">
+      <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
         Hold placed
-      </Badge>
-    )
-  }
-
-  if (displayStatus === 'hold_expired') {
-    return (
-      <Badge variant="outline" className="border-zinc-500 text-zinc-600">
-        Hold expired
       </Badge>
     )
   }
 
   if (displayStatus === 'attempting_hold') {
     return (
-      <Badge variant="outline" className="border-amber-500 text-amber-600">
+      <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
         Securing hold
       </Badge>
     )

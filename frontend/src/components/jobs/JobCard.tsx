@@ -116,7 +116,7 @@ function getAvailabilityVisual(status: AvailabilityResult['status']) {
         icon: XCircle,
         tileClass: 'border-rose-500/25 bg-rose-500/8',
         iconClass: 'bg-rose-500/12 text-rose-700',
-        badgeClass: 'bg-rose-600 text-white hover:bg-rose-600',
+        badgeClass: 'bg-rose-500 text-white hover:bg-rose-500',
       }
     default:
       return {
@@ -366,7 +366,7 @@ function HoldFailedView({
                 {errorMsg}
               </p>
             </div>
-            <Badge className="bg-rose-600 text-white hover:bg-rose-600">
+            <Badge className="bg-rose-500 text-white hover:bg-rose-500">
               Hold Failed
             </Badge>
           </div>
