@@ -8,7 +8,9 @@ Today the app is centered on New Zealand DOC inventory and supports:
 - Standard huts
 - Campsite-style booking workflows exposed through the current DOC adapters
 
-The product promise reflected in the auth welcome screen is the core of the app:
+Other booking sites are in the works (Canadian Provincial parks) as well as an agentic adapter builder to streamline extensible compatability
+
+The product promise reflected in the welcome screen is the core of the app:
 
 - **Availability checks** for preferred dates, direction, and party setup
 - **Notifications** through email or Gotify
