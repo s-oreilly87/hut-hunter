@@ -11,7 +11,7 @@ export function JobListLoadingSkeleton() {
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="h-32 animate-pulse rounded-3xl border border-border/70 bg-muted/50"
+          className="h-32 animate-pulse rounded-3xl border border-border/70 bg-muted/50 max-sm:rounded-none max-sm:border-x-0"
         />
       ))}
     </div>
@@ -42,7 +42,7 @@ export function JobListEmptyState({
   const minHeight = isNoJobs ? 'min-h-72' : 'min-h-56'
 
   return (
-    <div className={`flex ${minHeight} flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border/80 bg-muted/25 px-6 py-10 text-center`}>
+    <div className={`flex ${minHeight} flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border/80 bg-muted/25 px-6 py-10 text-center max-sm:rounded-none max-sm:border-x-0`}>
       <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
         <Clock3 className="size-5" />
       </div>

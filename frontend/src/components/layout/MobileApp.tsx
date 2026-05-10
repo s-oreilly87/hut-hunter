@@ -10,6 +10,7 @@ import { NotificationsDialog } from '@/components/notifications/NotificationsDia
 import { CredentialsDialog } from '@/components/credentials/CredentialsDialog'
 import { Button } from '../ui/Button'
 import type { AppViewProps } from '@/components/layout/types'
+import { cn } from '@/lib/utils'
 
 export function MobileApp({
   userEmail,
@@ -47,7 +48,10 @@ export function MobileApp({
       />
 
       <div
-        className="mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pb-4 pt-4"
+        className={cn(
+          'mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pb-4 pt-4',
+          'max-sm:gap-0 max-sm:px-0 max-sm:pb-0 max-sm:pt-0',
+        )}
       >
         {route.name === 'dashboard' && (
           <StatsGrid
