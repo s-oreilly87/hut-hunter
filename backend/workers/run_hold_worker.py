@@ -8,5 +8,5 @@ logging.basicConfig(level=logging.INFO)
 
 if __name__ == "__main__":
     from arq.worker import run_worker
-    from app.workers.tasks import HoldWorkerSettings
+    from app.workers.hold_worker import HoldWorkerSettings
     run_worker(HoldWorkerSettings)  # type: ignore[arg-type]

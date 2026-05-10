@@ -5,7 +5,8 @@ import pytest
 from app.api.routes import MAX_INTERVAL_MINUTES
 from app.core.config import settings
 from app.models.job import JobStatus, utcnow
-from app.workers.tasks import _clear_unavailable_snapshot, scheduler_tick
+from app.workers._shared import _clear_unavailable_snapshot
+from app.workers.poll_worker import scheduler_tick
 
 pytestmark = pytest.mark.asyncio
 
@@ -189,9 +190,9 @@ async def test_clear_unavailable_snapshot_removes_only_previous_unavailable_arti
     session_factory,
     monkeypatch,
 ):
-    import app.workers.tasks as worker_tasks
+    import app.workers._shared as worker_shared
 
-    monkeypatch.setattr(worker_tasks, "AsyncSessionLocal", session_factory)
+    monkeypatch.setattr(worker_shared, "AsyncSessionLocal", session_factory)
     base = "artifacts/test-unavailable-snapshot"
     keep_base = "artifacts/test-reservation-snapshot"
     artifact_dir = settings.artifacts_dir
@@ -633,9 +634,9 @@ async def test_scheduler_cleans_hold_artifacts_when_hold_expires(
     session_factory,
     monkeypatch,
 ):
-    import app.workers.tasks as worker_tasks
+    import app.workers.poll_worker as poll_worker
 
-    monkeypatch.setattr(worker_tasks, "AsyncSessionLocal", session_factory)
+    monkeypatch.setattr(poll_worker, "AsyncSessionLocal", session_factory)
     reservation_base = "artifacts/test-expired-reservation"
     cart_base = "artifacts/test-expired-cart"
     receipt_base = "artifacts/test-kept-receipt"

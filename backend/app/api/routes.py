@@ -1,7 +1,6 @@
 import json
 import logging
 from datetime import timedelta
-from pathlib import Path
 from typing import Any, List
 from urllib.parse import urlsplit
 
@@ -57,37 +56,21 @@ from app.models.notification import (
 )
 from app.models.user import AppUser
 from app.adapters import adapter_requires_credentials, get_adapter, list_adapters
+from app.workers._shared import (
+    _artifact_file_paths,
+    _check_job_arq_id,
+    _params_have_occupants,
+)
 
-# Minimum interval the UI should permit (matches the form's min=1). Enforced
-# at the API layer as well so programmatic callers can't set e.g. 0 and cause
-# the scheduler to hammer the adapter.
 MIN_INTERVAL_MINUTES = 1
 MAX_INTERVAL_MINUTES = 120
 
 
 def _clamp_interval(minutes: int | None) -> int:
-    """Clamp interval_minutes to the [MIN, MAX] range; fall back to 15 if None."""
+    """Clamp interval_minutes to [MIN, MAX]; falls back to 15 if None."""
     if minutes is None:
         return 15
     return max(MIN_INTERVAL_MINUTES, min(MAX_INTERVAL_MINUTES, int(minutes)))
-
-
-def _check_job_arq_id(job_id: str) -> str:
-    """Stable ARQ job ID for dedup. ARQ rejects a second enqueue with the
-    same `_job_id` while a job is pending or running — so this is our
-    at-most-one-queued guarantee per watch job."""
-    return f"check_availability:{job_id}"
-
-
-def _artifact_file_paths(base: str) -> list[Path]:
-    if base.startswith("artifacts/"):
-        base = base[len("artifacts/"):]
-    artifact_base = settings.artifacts_dir / base
-    return [
-        artifact_base.with_suffix(".jpg"),
-        artifact_base.with_suffix(".png"),
-        artifact_base.with_suffix(".html"),
-    ]
 
 
 def _job_artifact_bases(job: WatchJob) -> set[str]:
@@ -149,11 +132,6 @@ def _vnc_client_config() -> dict[str, str | int | None]:
         "port": settings.vnc_port,
         "path": path,
     }
-
-
-def _params_have_occupants(params: dict) -> bool:
-    occupants = params.get("occupants")
-    return isinstance(occupants, list) and len(occupants) > 0
 
 
 def _value_present(value: Any) -> bool:
@@ -860,7 +838,7 @@ async def book_job(
     and Book that instead. Rejects HOLD_PLACED with a live cart so two
     concurrent holds don't fight over the hold-queue worker.
     """
-    from app.workers.tasks import HOLD_QUEUE_NAME
+    from app.workers.hold_worker import HOLD_QUEUE_NAME
 
     job = await _get_owned_job(session, current_user.id, job_id)
 
@@ -1057,7 +1035,7 @@ async def update_notification_settings(
 async def _enqueue_browser_close(job_id: str, redis) -> None:
     """Ask the hold worker to tear down the headed Chromium for this job.
     Fire-and-forget — the task is a no-op if the browser is already gone."""
-    from app.workers.tasks import HOLD_QUEUE_NAME
+    from app.workers.hold_worker import HOLD_QUEUE_NAME
     await redis.enqueue_job(
         "close_browser_task",
         job_id,
@@ -1070,7 +1048,7 @@ async def _enqueue_complete_snapshot(job_id: str, redis) -> None:
     torn down. Must be enqueued *before* close_browser_task — the hold queue
     runs FIFO with max_jobs=1, so enqueue order determines run order. A no-op
     if the browser is already gone."""
-    from app.workers.tasks import HOLD_QUEUE_NAME
+    from app.workers.hold_worker import HOLD_QUEUE_NAME
     await redis.enqueue_job(
         "snapshot_complete_task",
         job_id,
@@ -1083,7 +1061,7 @@ async def _enqueue_live_browser_assist(job_id: str, action: str, redis, chars: s
 
     Used by the mobile /pay helpers for scrolling, focus movement, and text relay.
     """
-    from app.workers.tasks import HOLD_QUEUE_NAME
+    from app.workers.hold_worker import HOLD_QUEUE_NAME
     await redis.enqueue_job(
         "assist_live_browser_task",
         job_id,
