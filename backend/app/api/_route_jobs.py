@@ -18,6 +18,7 @@ from app.api._route_deps import (
     _job_has_required_credentials,
     _latest_cart,
     _serialize_job,
+    _validate_job_start_date_for_adapter,
     _validate_job_occupants_for_adapter,
     get_redis,
 )
@@ -73,6 +74,7 @@ async def create_job(
         raise HTTPException(status_code=409, detail="Occupants are required before auto-book can be enabled.")
     if body.auto_book and not _job_has_required_credentials(body.adapter_id, configured_adapter_ids):
         raise HTTPException(status_code=409, detail="Stored booking credentials are required before auto-book can be enabled.")
+    _validate_job_start_date_for_adapter(body.adapter_id, body.params)
     if _params_have_occupants(body.params):
         _validate_job_occupants_for_adapter(body.adapter_id, body.params)
 
@@ -137,8 +139,10 @@ async def update_job(
     next_params = patch["params"] if "params" in patch else json.loads(job.params)
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
 
-    if "params" in patch and _params_have_occupants(next_params):
-        _validate_job_occupants_for_adapter(job.adapter_id, next_params)
+    if "params" in patch:
+        _validate_job_start_date_for_adapter(job.adapter_id, next_params)
+        if _params_have_occupants(next_params):
+            _validate_job_occupants_for_adapter(job.adapter_id, next_params)
 
     if "name" in patch:
         job.name = patch["name"]

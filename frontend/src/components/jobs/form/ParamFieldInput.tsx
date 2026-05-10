@@ -6,7 +6,7 @@ import {
   SearchableSelect,
   type SearchableOptionGroup,
 } from '@/components/ui/SearchableSelect'
-import { toInputDateValue } from '@/lib/jobDate'
+import { currentInputDateInTimeZone, toInputDateValue } from '@/lib/jobDate'
 import { facilityDisplayName } from './paramHelpers'
 
 /**
@@ -29,12 +29,14 @@ export function ParamFieldInput({
   onChange,
   options,
   disabled = false,
+  bookingTimezone,
 }: {
   field: ParamField
   value: unknown
   onChange: (val: unknown) => void
   options?: string[] | null
   disabled?: boolean
+  bookingTimezone?: string | null
 }) {
   const selectOptions = options ?? field.options
 
@@ -141,6 +143,7 @@ export function ParamFieldInput({
         value={toInputDateValue(String(value ?? ''))}
         onChange={onChange}
         disabled={disabled}
+        minValue={bookingTimezone ? currentInputDateInTimeZone(bookingTimezone) : undefined}
       />
     )
   }
