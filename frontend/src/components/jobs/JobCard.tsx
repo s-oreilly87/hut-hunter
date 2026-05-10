@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   BadgeInfo,
   ArrowLeft,
-  FileCode2,
   ImageIcon,
   LayoutDashboard,
   Loader2,
@@ -13,23 +12,16 @@ import {
   Pencil,
   Play,
   Search,
-  Settings2,
   Stamp,
   Trash2,
-  Users,
-  XCircle,
 } from 'lucide-react'
 import {
-  type ArtifactRecord,
   adaptersApi,
   jobsApi,
   occupantsApi,
-  type AvailabilityResult,
-  type LastResultEntry,
   type WatchJob,
 } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
-import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import {
@@ -57,21 +49,21 @@ import {
   formatRelativeTimeFromNow,
 } from '@/lib/time'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
-import { getHeaderFields } from '@/components/jobs/jobParamDisplay'
 import { isJobOutdatedOnCampers } from '@/lib/occupantSnapshots'
 import {
-  formatArtifactLabel,
-  formatResultValue,
-  getAvailabilityCopy,
-  getAvailabilityVisual,
   getCompletedBookingArtifacts,
   getHoldFlowArtifacts,
   getReceiptArtifact,
   getUnavailableArtifact,
-  isAvailabilityResult,
-  isHoldFailedEntry,
-  titleize,
 } from '@/lib/availabilityResults'
+import {
+  AutoBookBadge,
+  NoSignInBadge,
+} from '@/components/jobs/shared/AutoBookBadge'
+import { OutdatedCampersNotice } from '@/components/jobs/shared/OutdatedCampers'
+import { HeaderParamSummary } from '@/components/jobs/shared/HeaderParamSummary'
+import { ArtifactGallery } from '@/components/jobs/results/ArtifactGallery'
+import { LastResultView } from '@/components/jobs/results/LastResultView'
 import { cn } from '@/lib/utils'
 
 function formatRelativeTime(value: string | null): string {
@@ -82,492 +74,7 @@ function formatRelativeTime(value: string | null): string {
   })
 }
 
-function ArtifactLinkButton({
-  href,
-  icon: Icon,
-  children,
-}: {
-  href: string
-  icon: typeof ImageIcon
-  children: string
-}) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-foreground hover:bg-muted"
-    >
-      <Icon className="size-3.5" />
-      {children}
-    </a>
-  )
-}
 
-function ArtifactActions({
-  artifactPng,
-  artifactHtml,
-  borderClass = 'border-border/70',
-}: {
-  artifactPng?: string | null
-  artifactHtml?: string | null
-  borderClass?: string
-}) {
-  if (!artifactPng && !artifactHtml) return null
-
-  return (
-    <div className={`flex flex-wrap gap-1.5 border-t pt-3 ${borderClass}`}>
-      {artifactPng && (
-        <ArtifactLinkButton href={artifactPng} icon={ImageIcon}>
-          Screenshot
-        </ArtifactLinkButton>
-      )}
-      {artifactHtml && (
-        <ArtifactLinkButton href={artifactHtml} icon={FileCode2}>
-          HTML
-        </ArtifactLinkButton>
-      )}
-    </div>
-  )
-}
-
-function GenericResultView({
-  entry,
-  artifactPng,
-  artifactHtml,
-}: {
-  entry: Record<string, unknown>
-  artifactPng?: string | null
-  artifactHtml?: string | null
-}) {
-  const primaryMessage = typeof entry.error === 'string'
-    ? entry.error
-    : typeof entry.message === 'string'
-      ? entry.message
-      : null
-  const detailEntries = Object.entries(entry).filter(([key]) =>
-    key !== 'error' && key !== 'message',
-  )
-
-  return (
-    <div className="rounded-[1.25rem] border border-destructive/30 bg-destructive/5 px-4 py-4">
-      <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
-          <AlertTriangle className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1 space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="font-medium tracking-tight text-foreground">
-                Automation Error
-              </p>
-              <p className="text-sm leading-5 text-foreground/85">
-                {primaryMessage ?? 'The latest run returned an unstructured error payload.'}
-              </p>
-            </div>
-            <Badge variant="destructive">Needs Review</Badge>
-          </div>
-
-          {detailEntries.length > 0 && (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {detailEntries.map(([key, value]) => (
-                <div
-                  key={key}
-                  className="rounded-2xl border border-destructive/15 bg-background/70 px-3 py-3"
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    {titleize(key)}
-                  </p>
-                  <p className="mt-1 wrap-break-word text-sm text-foreground">
-                    {formatResultValue(value)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <ArtifactActions
-            artifactPng={artifactPng}
-            artifactHtml={artifactHtml}
-            borderClass="border-destructive/15"
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function HoldFailedView({
-  entry,
-  artifactPng,
-  artifactHtml,
-}: {
-  entry: Record<string, unknown>
-  artifactPng?: string | null
-  artifactHtml?: string | null
-}) {
-  const errorMsg = typeof entry.error === 'string'
-    ? entry.error
-    : 'The hold attempt did not complete successfully.'
-
-  return (
-    <div className="rounded-[1.25rem] border border-rose-500/30 bg-rose-500/5 px-4 py-4">
-      <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600">
-          <XCircle className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="font-medium tracking-tight text-foreground">
-                Hold Failed
-              </p>
-              <p className="text-sm leading-5 text-foreground/85">
-                {errorMsg}
-              </p>
-            </div>
-            <Badge className="bg-rose-500 text-white hover:bg-rose-500">
-              Hold Failed
-            </Badge>
-          </div>
-
-          <ArtifactActions
-            artifactPng={artifactPng}
-            artifactHtml={artifactHtml}
-            borderClass="border-rose-500/15"
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AvailabilityResultTile({
-  entry,
-}: {
-  entry: AvailabilityResult
-}) {
-  const visual = getAvailabilityVisual(entry.status)
-  const copy = getAvailabilityCopy(entry)
-  const Icon = visual.icon
-
-  return (
-    <div className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}>
-      <div className="flex items-start gap-3">
-        <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
-          <Icon className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium tracking-tight text-foreground">
-                {entry.site}
-              </p>
-              <p className="mt-1 text-sm leading-5 text-foreground/85">
-                {copy.summary}
-              </p>
-            </div>
-            <Badge
-              variant={entry.status === 'unknown' ? 'outline' : 'default'}
-              className={`shrink-0 ${visual.badgeClass}`}
-            >
-              {titleize(entry.status)}
-            </Badge>
-          </div>
-
-          {copy.details.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {copy.details.map((detail) => (
-                <span
-                  key={detail}
-                  className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
-                >
-                  {detail}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function UnavailableResultTile({
-  entries,
-  unavailableArtifact,
-}: {
-  entries: AvailabilityResult[]
-  unavailableArtifact?: ArtifactRecord | null
-}) {
-  const visual = getAvailabilityVisual('unavailable')
-  const Icon = visual.icon
-  const siteCount = entries.length
-  const firstCopy = entries[0] ? getAvailabilityCopy(entries[0]) : null
-  const summary = siteCount === 1
-    ? (firstCopy?.summary ?? 'No availability was found for this site.')
-    : `No availability was found for ${siteCount} selected sites.`
-
-  return (
-    <div className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}>
-      <div className="flex items-start gap-3">
-        <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${visual.iconClass}`}>
-          <Icon className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium tracking-tight text-foreground">
-                {siteCount === 1 ? entries[0]?.site : 'Selected Sites'}
-              </p>
-              <p className="mt-1 text-sm leading-5 text-foreground/85">
-                {summary}
-              </p>
-            </div>
-            <Badge className={`shrink-0 ${visual.badgeClass}`}>
-              Unavailable
-            </Badge>
-          </div>
-
-          {siteCount > 1 && (
-            <div className="flex flex-wrap gap-2">
-              {entries.map((entry) => (
-                <span
-                  key={entry.site}
-                  className="rounded-full border border-rose-500/20 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
-                >
-                  {entry.site}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {unavailableArtifact && (
-            <ArtifactGallery artifacts={[unavailableArtifact]} />
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function LastResultView({
-  result,
-  artifactPng,
-  artifactHtml,
-  unavailableArtifact,
-}: {
-  result: LastResultEntry[]
-  artifactPng?: string | null
-  artifactHtml?: string | null
-  unavailableArtifact?: ArtifactRecord | null
-}) {
-  if (!result.length) {
-    return <p className="text-sm text-muted-foreground">No results captured yet.</p>
-  }
-
-  const unavailableResults = result.filter(
-    (entry): entry is AvailabilityResult =>
-      isAvailabilityResult(entry) && entry.status === 'unavailable',
-  )
-  const hasUnavailableResults = unavailableResults.length > 0
-  let unavailableRendered = false
-
-  return (
-    <div className="space-y-3">
-      {result.map((entry, index) => {
-        if (isAvailabilityResult(entry)) {
-          if (entry.status === 'unavailable') {
-            if (unavailableRendered) return null
-            unavailableRendered = true
-            return (
-              <UnavailableResultTile
-                key="unavailable-results"
-                entries={unavailableResults}
-                unavailableArtifact={unavailableArtifact}
-              />
-            )
-          }
-
-          if (hasUnavailableResults) {
-            return <AvailabilityResultTile key={index} entry={entry} />
-          }
-
-          return <AvailabilityResultTile key={index} entry={entry} />
-        }
-
-        if (isHoldFailedEntry(entry)) {
-          return (
-            <HoldFailedView
-              key={index}
-              entry={entry as Record<string, unknown>}
-              artifactPng={artifactPng}
-              artifactHtml={artifactHtml}
-            />
-          )
-        }
-
-        return (
-          <GenericResultView
-            key={index}
-            entry={entry as Record<string, unknown>}
-            artifactPng={artifactPng}
-            artifactHtml={artifactHtml}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-function HeaderParamSummary({
-  params,
-  onEdit,
-  centered = false,
-}: {
-  params: Record<string, unknown>
-  onEdit?: () => void
-  centered?: boolean
-}) {
-  const fields = getHeaderFields(params)
-
-  if (!fields.length) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">
-          No booking parameters stored.
-        </span>
-        {onEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-8 shrink-0 text-muted-foreground/50"
-            onClick={onEdit}
-          >
-            <Pencil className="size-4" />
-          </Button>
-        )}
-      </div>
-    )
-  }
-
-  const facilityFields = fields.filter((field) => field.key === 'facility' || field.key === 'facility_park')
-  const primaryFields = fields.filter((field) => field.key === 'track' || field.key === 'date')
-  const secondaryFields = fields.filter(
-    (field) => field.key === 'nights' || field.key === 'people' || field.key === 'direction',
-  )
-  const tertiaryFields = fields.filter((field) => field.key === 'sites')
-  const rows = [facilityFields, primaryFields, secondaryFields, tertiaryFields].filter((row) => row.length > 0)
-
-  return (
-    <div className="flex items-center gap-2">
-      {centered && onEdit && <span className="size-8 shrink-0" aria-hidden="true" />}
-      <div className="space-y-1.5">
-        {rows.map((row, rowIndex) => (
-          <div
-            key={rowIndex}
-            className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm leading-5 text-muted-foreground"
-          >
-            {row.map((field) => {
-              const Icon = field.icon
-              const textClass = field.isSubtitle ? 'text-xs text-muted-foreground/70' : ''
-
-              return (
-                <span key={field.key} className={`inline-flex items-start gap-2 ${textClass}`}>
-                  <Icon className={`mt-0.5 shrink-0 ${field.isSubtitle ? 'size-3 text-foreground/45' : 'size-3.5 text-foreground/65'}`} />
-                  <span className="sr-only">{field.label}: </span>
-                  {field.tags ? (
-                    <span className="flex flex-wrap gap-1">
-                      {field.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground/75"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </span>
-                  ) : field.href ? (
-                    <a
-                      href={field.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="hover:underline underline-offset-2 decoration-muted-foreground/40 hover:text-foreground"
-                    >
-                      {field.value}
-                    </a>
-                  ) : (
-                    <span>{field.value}</span>
-                  )}
-                </span>
-              )
-            })}
-          </div>
-        ))}
-      </div>
-      {onEdit && (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-8 shrink-0 text-muted-foreground/50"
-          onClick={onEdit}
-        >
-          <Pencil className="size-4" />
-        </Button>
-      )}
-    </div>
-  )
-}
-
-function ArtifactGallery({
-  artifacts,
-}: {
-  artifacts: ArtifactRecord[]
-}) {
-  if (!artifacts.length) return null
-
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {artifacts.map((artifact, index) => (
-        <div
-          key={`${artifact.label}:${artifact.png_url}:${index}`}
-          className="overflow-hidden rounded-2xl border border-border/70 bg-background/80"
-        >
-          <div className="border-b border-border/70 px-3.5 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-              {formatArtifactLabel(artifact.label)}
-            </p>
-          </div>
-
-          {artifact.png_url && (
-            <a
-              href={artifact.png_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block bg-muted/40"
-            >
-              <img
-                src={artifact.png_url}
-                alt={formatArtifactLabel(artifact.label)}
-                className="aspect-4/3 w-full object-cover"
-                loading="lazy"
-              />
-            </a>
-          )}
-
-          {artifact.html_url && (
-            <div className="flex flex-wrap gap-1.5 px-3.5 py-2.5">
-              <ArtifactLinkButton href={artifact.html_url} icon={FileCode2}>
-                HTML
-              </ArtifactLinkButton>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
 
 function MonitoringSection({
   job,
@@ -642,18 +149,8 @@ function MonitoringSection({
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
               Monitoring
             </h3>
-            {!job.credentials_configured ? (
-              <>
-                <Badge variant="outline">Notify only</Badge>
-                <Badge className="bg-amber-500 text-white hover:bg-amber-500">
-                  No sign-in
-                </Badge>
-              </>
-            ) : (
-              <Badge variant={job.auto_book ? 'default' : 'outline'}>
-                {job.auto_book ? 'Auto-book' : 'Notify only'}
-              </Badge>
-            )}
+            <AutoBookBadge job={job} />
+            {!job.credentials_configured && <NoSignInBadge />}
           </div>
           <div className="flex items-center gap-1">
             {showToggle && (
@@ -748,54 +245,6 @@ function HoldExpiryCountdown({ cartExpiresAt }: { cartExpiresAt: string | null }
         {formatCountdown(countdownSeconds)}
       </span>
     </p>
-  )
-}
-
-function OutdatedCampersNotice({
-  onEditJob,
-  onEditCampers,
-}: {
-  onEditJob: () => void
-  onEditCampers: () => void
-}) {
-  return (
-    <section>
-      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
-        <div className="flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
-            <AlertTriangle className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-base font-medium tracking-tight text-foreground">
-              Camper Details Changed
-            </p>
-            <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
-              Campers attached to this hunt have been edited since this job was created. To use the current campers and ensure all required fields are still filled out, save this job again to update the camper details.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="bg-amber-500/10 border-amber-500/30 text-amber-800 hover:bg-amber-500/20"
-                onClick={onEditJob}
-              >
-                <Settings2 className="mr-1.5 size-3.5" />
-                Edit Hunt
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="bg-amber-500/10 border-amber-500/30 text-amber-800 hover:bg-amber-500/20"
-                onClick={onEditCampers}
-              >
-                <Users className="mr-1.5 size-3.5" />
-                Edit Campers
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
   )
 }
 

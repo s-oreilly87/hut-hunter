@@ -1,16 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ChevronDown, Clock3 } from 'lucide-react'
+import { ChevronDown, Clock3 } from 'lucide-react'
 import { adaptersApi, jobsApi, occupantsApi, type WatchJob } from '@/lib/api'
 import { useJobsStore } from '@/store/jobs'
 import { type DisplayStatus, getDisplayStatus } from '@/lib/availability'
-import { Badge } from '../ui/Badge'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '../ui/Tooltip'
+import { TooltipProvider } from '../ui/Tooltip'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
@@ -26,6 +20,8 @@ import {
   getJobSubtitle,
   getJobTitle,
 } from '@/components/jobs/jobParamDisplay'
+import { AutoBookBadge } from '@/components/jobs/shared/AutoBookBadge'
+import { OutdatedCampersIcon } from '@/components/jobs/shared/OutdatedCampers'
 import {
   Table,
   TableBody,
@@ -56,23 +52,7 @@ function JobIdentity({
     <div className="space-y-0.5">
       <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight text-foreground">
         <span className="truncate">{getJobTitle(job)}</span>
-        {hasOutdatedCampers && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-500/12 text-amber-700"
-                onClick={(event) => event.stopPropagation()}
-                aria-label="Camper details changed"
-                tabIndex={0}
-              >
-                <AlertTriangle className="size-3.5" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              Campers attached to this hunt have been edited since this job was created. Save this job again to update the camper details.
-            </TooltipContent>
-          </Tooltip>
-        )}
+        {hasOutdatedCampers && <OutdatedCampersIcon />}
       </p>
       <p className="text-xs tracking-tight text-muted-foreground/90">
         {getJobSubtitle(job, adapterDateFieldKeyById, adapterTrackFieldKeyById)}
@@ -81,15 +61,6 @@ function JobIdentity({
         {getJobMetaLine(job)}
       </p>
     </div>
-  )
-}
-
-function AutoBookBadge({ job }: { job: WatchJob }) {
-  const isAutoBook = job.auto_book && job.credentials_configured
-  return (
-    <Badge variant={isAutoBook ? 'default' : 'outline'}>
-      {isAutoBook ? 'Auto-book' : 'Notify only'}
-    </Badge>
   )
 }
 

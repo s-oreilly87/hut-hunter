@@ -1,18 +1,12 @@
 import {
   createElement,
-  useDeferredValue,
   useEffect,
-  useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
-  Calendar,
-  ChevronDown,
-  ChevronLeft,
   ChevronRight,
   LockKeyhole,
   Plus,
@@ -37,13 +31,14 @@ import {
   SelectTrigger, SelectValue,
 } from '../ui/Select'
 import { InfoTooltip, SectionHeading } from '../ui/SectionHeading'
+import { DatePicker } from '../ui/DatePicker'
+import {
+  SearchableSelect,
+  type SearchableOptionGroup,
+} from '../ui/SearchableSelect'
 import { getJobParamIcon } from '@/components/jobs/jobParamDisplay'
 import {
-  formatDateForDisplay,
-  formatDateForInput,
   isDateValidInTz,
-  isSameCalendarDay,
-  parseInputDateValue,
   toAdapterDateValue,
   toInputDateValue,
 } from '@/lib/jobDate'
@@ -63,442 +58,6 @@ function facilityDisplayName(opt: string): string {
   return m ? m[1].trim() : opt
 }
 
-type SearchableOptionGroup = {
-  label?: string
-  options: string[]
-}
-
-function SearchableSelectInput({
-  value,
-  onChange,
-  groups,
-  placeholder,
-  disabled = false,
-  displayValue,
-}: {
-  value: string
-  onChange: (value: string) => void
-  groups: SearchableOptionGroup[]
-  placeholder: string
-  disabled?: boolean
-  displayValue?: (value: string) => string
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const renderValue = useMemo(
-    () => displayValue ?? ((option: string) => option),
-    [displayValue],
-  )
-  const selectedLabel = value ? renderValue(value) : ''
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const visibleQuery = open ? query : selectedLabel
-  const deferredQuery = useDeferredValue(visibleQuery)
-
-  useEffect(() => {
-    if (!open) return
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => document.removeEventListener('mousedown', handlePointerDown)
-  }, [open])
-
-  const totalOptions = groups.reduce((count, group) => count + group.options.length, 0)
-  const normalizedQuery = deferredQuery.trim().toLowerCase()
-  const showTruncatedHint = !normalizedQuery && totalOptions > 24
-  const canClear = !disabled && (Boolean(value) || Boolean(visibleQuery))
-
-  const clearSelection = () => {
-    if (value) onChange('')
-    setQuery('')
-    setOpen(true)
-    requestAnimationFrame(() => inputRef.current?.focus())
-  }
-
-  const filteredGroups = useMemo(() => {
-    if (!normalizedQuery) {
-      let remaining = 24
-      return groups
-        .map((group) => {
-          const slice = remaining > 0 ? group.options.slice(0, remaining) : []
-          remaining -= slice.length
-          return { label: group.label, options: slice }
-        })
-        .filter((group) => group.options.length > 0)
-    }
-
-    return groups
-      .map((group) => ({
-        label: group.label,
-        options: group.options.filter((option) => {
-          const label = renderValue(option).toLowerCase()
-          return label.includes(normalizedQuery) || option.toLowerCase().includes(normalizedQuery)
-        }),
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [groups, normalizedQuery, renderValue])
-
-  return (
-    <div ref={ref} className="relative">
-      <div className="relative">
-        <Input
-          ref={inputRef}
-          value={visibleQuery}
-          placeholder={placeholder}
-          disabled={disabled}
-          onFocus={() => {
-            setQuery(selectedLabel)
-            setOpen(true)
-          }}
-          onChange={(event) => {
-            setOpen(true)
-            setQuery(event.target.value)
-          }}
-          className={cn(canClear ? 'pr-16' : 'pr-9')}
-        />
-        {canClear && (
-          <button
-            type="button"
-            aria-label="Clear selection"
-            className="absolute inset-y-1 right-8 flex w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={clearSelection}
-          >
-            <X className="size-3.5" />
-          </button>
-        )}
-        <button
-          type="button"
-          tabIndex={-1}
-          disabled={disabled}
-          aria-hidden="true"
-          className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground disabled:opacity-60"
-          onClick={() => setOpen((current) => !current)}
-        >
-          <ChevronDown className={cn('size-4 transition', open && 'rotate-180')} />
-        </button>
-      </div>
-
-      {open && (
-        <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-lg ring-1 ring-black/5">
-          {value && (
-            <button
-              type="button"
-              className="mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={clearSelection}
-            >
-              Clear selection
-            </button>
-          )}
-
-          {filteredGroups.length > 0 ? (
-            filteredGroups.map((group) => (
-              <div key={group.label ?? 'options'} className="space-y-1">
-                {group.label && (
-                  <p className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-                    {group.label}
-                  </p>
-                )}
-                {group.options.map((option) => {
-                  const selected = option === value
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      className={cn(
-                        'flex w-full items-start rounded-xl px-3 py-2 text-left text-sm hover:bg-secondary/70',
-                        selected && 'bg-primary/10 text-primary',
-                      )}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        onChange(option)
-                        setQuery(renderValue(option))
-                        setOpen(false)
-                      }}
-                    >
-                      {renderValue(option)}
-                    </button>
-                  )
-                })}
-              </div>
-            ))
-          ) : (
-            <p className="px-3 py-3 text-sm text-muted-foreground">
-              No matches found.
-            </p>
-          )}
-
-          {showTruncatedHint && (
-            <p className="px-3 pt-3 text-xs text-muted-foreground">
-              Showing the first 24 options. Start typing to narrow the list.
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DatePickerInput({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: string
-  onChange: (value: string) => void
-  disabled?: boolean
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const selectedDate = parseInputDateValue(value)
-  const today = new Date()
-  const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [visibleMonth, setVisibleMonth] = useState(() => {
-    const base = selectedDate ?? today
-    return new Date(base.getFullYear(), base.getMonth(), 1)
-  })
-  const visibleDraft = open ? draft : formatDateForDisplay(value)
-
-  useEffect(() => {
-    if (!open) return
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => document.removeEventListener('mousedown', handlePointerDown)
-  }, [open])
-
-  const monthLabel = new Intl.DateTimeFormat(undefined, {
-    month: 'long',
-    year: 'numeric',
-  }).format(visibleMonth)
-  const firstWeekday = new Date(
-    visibleMonth.getFullYear(),
-    visibleMonth.getMonth(),
-    1,
-  ).getDay()
-  const daysInMonth = new Date(
-    visibleMonth.getFullYear(),
-    visibleMonth.getMonth() + 1,
-    0,
-  ).getDate()
-  const cells: Array<Date | null> = [
-    ...Array.from({ length: firstWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, index) => (
-      new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), index + 1)
-    )),
-  ]
-
-  const shiftMonth = (amount: number) => {
-    setVisibleMonth((current) => (
-      new Date(current.getFullYear(), current.getMonth() + amount, 1)
-    ))
-  }
-
-  const chooseDate = (date: Date) => {
-    onChange(formatDateForInput(date))
-    setDraft(formatDateForDisplay(formatDateForInput(date)))
-    setOpen(false)
-  }
-
-  const chooseToday = () => {
-    chooseDate(today)
-    setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1))
-  }
-
-  const commitDraft = () => {
-    const trimmed = draft.trim()
-    if (!trimmed) {
-      onChange('')
-      return
-    }
-
-    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed)
-    if (!match) {
-      setDraft(formatDateForDisplay(value))
-      return
-    }
-
-    const [, monthRaw, dayRaw, yearRaw] = match
-    const month = Number(monthRaw)
-    const day = Number(dayRaw)
-    const year = Number(yearRaw)
-    const date = new Date(year, month - 1, day)
-    if (
-      date.getFullYear() !== year
-      || date.getMonth() !== month - 1
-      || date.getDate() !== day
-    ) {
-      setDraft(formatDateForDisplay(value))
-      return
-    }
-
-    onChange(formatDateForInput(date))
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <div
-        className={cn(
-          'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-2.5 py-1 text-left text-base shadow-xs transition-[color,box-shadow] outline-none focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:text-sm',
-          open && 'border-ring ring-3 ring-ring/50',
-          disabled && 'pointer-events-none cursor-not-allowed opacity-50',
-        )}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          inputMode="numeric"
-          disabled={disabled}
-          className={cn(
-            'min-w-0 flex-1 bg-transparent text-left outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed',
-          )}
-          placeholder="mm/dd/yyyy"
-          value={visibleDraft}
-          onChange={(event) => setDraft(event.target.value)}
-          onFocus={() => {
-            setDraft(formatDateForDisplay(value))
-            if (selectedDate) {
-              setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
-            }
-            setOpen(true)
-          }}
-          onBlur={commitDraft}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              commitDraft()
-              inputRef.current?.blur()
-            }
-            if (event.key === 'Escape') {
-              setDraft(formatDateForDisplay(value))
-              setOpen(false)
-              inputRef.current?.blur()
-            }
-          }}
-        />
-        <span className="flex items-center gap-1 text-muted-foreground">
-          {value && !disabled && (
-            <button
-              type="button"
-              aria-label="Clear date"
-              className="flex size-6 items-center justify-center rounded-md hover:bg-secondary hover:text-foreground"
-              onClick={() => {
-                onChange('')
-                setDraft('')
-                inputRef.current?.focus()
-              }}
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={disabled}
-            aria-label="Open calendar"
-            className="flex size-6 items-center justify-center rounded-md hover:bg-secondary hover:text-foreground disabled:pointer-events-none"
-            onClick={() => {
-              setDraft(formatDateForDisplay(value))
-              if (selectedDate) {
-                setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
-              }
-              setOpen((current) => !current)
-            }}
-          >
-            <Calendar className="size-4" />
-          </button>
-        </span>
-      </div>
-
-      {open && (
-        <div className="absolute left-0 top-full z-40 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-2xl border border-border/80 bg-popover p-3 text-popover-foreground shadow-xl ring-1 ring-black/5">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              aria-label="Previous month"
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-              onClick={() => shiftMonth(-1)}
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <p className="text-sm font-semibold tracking-tight text-foreground">
-              {monthLabel}
-            </p>
-            <button
-              type="button"
-              aria-label="Next month"
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-              onClick={() => shiftMonth(1)}
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-
-          <div className="mt-3 grid grid-cols-7 gap-1 text-center">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-              <div
-                key={`${day}-${index}`}
-                className="flex h-7 items-center justify-center text-[11px] font-semibold text-muted-foreground"
-              >
-                {day}
-              </div>
-            ))}
-            {cells.map((date, index) => {
-              const selected = date ? isSameCalendarDay(selectedDate, date) : false
-              const isToday = date ? isSameCalendarDay(today, date) : false
-              return date ? (
-                <button
-                  key={date.toISOString()}
-                  type="button"
-                  className={cn(
-                    'flex h-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-secondary',
-                    selected && 'bg-primary text-primary-foreground hover:bg-primary',
-                    !selected && isToday && 'border border-primary/30 text-primary',
-                  )}
-                  onClick={() => chooseDate(date)}
-                >
-                  {date.getDate()}
-                </button>
-              ) : (
-                <div key={`blank-${index}`} className="h-8" />
-              )
-            })}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3">
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
-              onClick={() => {
-                onChange('')
-                setOpen(false)
-              }}
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-              onClick={chooseToday}
-            >
-              Today
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 function ParamFieldInput({
   field,
@@ -588,7 +147,7 @@ function ParamFieldInput({
       : [{ options: selectOptions ?? [] }]
 
     return (
-      <SearchableSelectInput
+      <SearchableSelect
         value={String(value ?? '')}
         onChange={(nextValue) => onChange(nextValue)}
         groups={groups}
@@ -614,7 +173,7 @@ function ParamFieldInput({
 
   if (field.type === 'date') {
     return (
-      <DatePickerInput
+      <DatePicker
         value={toInputDateValue(String(value ?? ''))}
         onChange={onChange}
         disabled={disabled}
