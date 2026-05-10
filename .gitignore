@@ -12,4 +12,5 @@ node_modules/
 frontend/dist/
 /artifacts/
 /backend/artifacts/
+/backend/scripts/artifacts
 .junie

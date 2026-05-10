@@ -7,10 +7,6 @@ accessed via URLs of the form::
 
     https://bookings.doc.govt.nz/Web/#!park/{park_id}/{facility_id}
 
-Note: an older version of this code used ``Default.aspx`` as the path, which
-now returns a 404.  The SPA root is ``/Web/`` — same as the scraper's
-``LANDING_URL`` (``/Web/#!results``).
-
 On that page:
   * The date range is edited via a custom date-range popup (clicking the
     "1 Night · Wed, Apr 01 - Thu, Apr 02" booking bar opens a two-month
@@ -18,9 +14,6 @@ On that page:
   * Availability is shown in a wide "Site List" table with a "Site"
     column, "Available # of People" row, "Number of sites available"
     row, and one column per day in the selected range.
-
-The port of the Mueller Hut logic from the standalone ``watch.ts`` script
-lives in this file.
 """
 
 from __future__ import annotations
@@ -49,13 +42,11 @@ logger = logging.getLogger(__name__)
 MONTH_SHORT = {m: m[:3] for m in MONTHS}
 
 
-# NOTE: an earlier commit tried to bake DOC's listbox options into a
-# constant here, but the listbox `id` attributes turn out to be opaque
-# "place" ids — not park_id / facility_id — and therefore can't be used
-# to build a booking URL. The real catalog lives in doc_standard_huts.json
-# and is produced by backend/scripts/scrape_standard_huts.py, which walks
-# the booking site end-to-end to capture the ``(park_id, facility_id)``
-# pairs needed for ``!park/{park_id}/{facility_id}``.
+# The facility catalog lives in doc_standard_huts.json and is produced by
+# backend/scripts/scrape_standard_huts.py, which walks the booking site
+# end-to-end to capture (park_id, facility_id) pairs. The listbox id
+# attributes on the DOC SPA are opaque "place" ids that cannot be used
+# to derive booking URLs directly.
 
 
 # -------------------------------------------------------------------------- #
@@ -1429,21 +1420,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 book_link = page.locator("#mainContent_bReserve")
                 await book_link.wait_for(state="visible", timeout=15_000)
 
-                view_occ_btn = page.locator("#aViewOccupant")
-                if await view_occ_btn.count() > 0:
-                    await view_occ_btn.click()
-                    logger.info("Opened View Occupants modal")
-                    await page.locator("#myModal_occu").wait_for(
-                        state="visible", timeout=5_000
-                    )
-                    await page.wait_for_timeout(300)
-                    await self.snapshot(page, "reservation_details")
-                    await page.locator("#myModal_occu .close").first.click()
-                    await page.locator("#myModal_occu").wait_for(
-                        state="hidden", timeout=5_000
-                    )
-                else:
-                    await self.snapshot(page, "reservation_details")
+                await self._snapshot_reservation_details(page)
 
                 await book_link.click()
                 logger.info("Clicked reserve (#mainContent_bReserve)")

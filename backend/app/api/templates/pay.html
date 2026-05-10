@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Complete your booking</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #111;
+      color: #eee;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+    /* position:fixed pins body to the visual viewport — when iOS/Android opens
+       the keyboard and internally scrolls the layout viewport, a fixed body
+       stays put. JS updates body.style.top via visualViewport.offsetTop. */
+    body {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      height: var(--pay-height, 100vh);
+      overflow: hidden;
+    }
+    header {
+      padding: 10px 16px;
+      background: #1b1b1b;
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+    header .left { font-weight: 600; }
+    header .right { color: #9cd; font-size: 0.9em; }
+
+    /* The VNC iframe is cropped from the top to hide the remote Chromium's
+       address bar / tab strip. The wrapper clips overflow and the iframe is
+       shifted up by 80px and grown by the same amount so the bottom lines up. */
+    .vnc-frame {
+      position: relative;
+      overflow: hidden;
+      flex: 1 1 auto;
+      background: #000;
+      min-height: 0;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .vnc-frame iframe {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      max-width: 100%;
+      top: -80px;
+      height: calc(100% + 80px);
+      border: 0;
+      display: block;
+      background: #000;
+    }
+
+    .actions {
+      flex: 0 0 auto;
+      min-width: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #1b1b1b;
+      border-top: 1px solid #333;
+    }
+    .actions a {
+      flex: 1 1 100%;
+      text-align: center;
+      color: #9cd;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .actions a:hover { text-decoration: underline; }
+    .actions button {
+      flex: 1 1 0;
+      padding: 18px 24px;
+      font-size: 1.15rem;
+      font-weight: 600;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      color: white;
+      transition: filter 0.1s ease-in-out;
+    }
+    .actions button:hover:not(:disabled) { filter: brightness(1.1); }
+    .actions button:disabled { opacity: 0.5; cursor: default; }
+    .actions .cancel { background: #b33a3a; }
+    .actions .complete { background: #2f8f3f; }
+
+    .mobile-tools {
+      display: none;
+      flex: 0 0 auto;
+      padding: 10px 12px;
+      gap: 8px;
+      background: #161616;
+      border-top: 1px solid #2b2b2b;
+      border-bottom: 1px solid #2b2b2b;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .mobile-tools button {
+      padding: 14px 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #eef6ff;
+      background: #273546;
+      border: 1px solid #41576f;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .mobile-tools button:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+    .mobile-tools .wide {
+      grid-column: 1 / -1;
+      background: #204b36;
+      border-color: #2f8f61;
+    }
+    .mobile-tools-hint {
+      display: none;
+      flex: 0 0 auto;
+      padding: 8px 12px 0;
+      color: #98afc4;
+      font-size: 0.78rem;
+      background: #111;
+    }
+
+    .banner {
+      flex: 0 0 auto;
+      padding: 8px 16px;
+      background: #3a2f14;
+      color: #ffd58a;
+      font-size: 0.85em;
+      border-bottom: 1px solid #5a4820;
+      line-height: 1.4;
+    }
+    .banner strong { color: #ffe8b0; }
+
+    #status {
+      flex: 0 0 auto;
+      padding: 10px 16px;
+      background: #222;
+      font-size: 0.9em;
+      color: #aaa;
+      border-top: 1px solid #333;
+      min-height: 1.2em;
+    }
+    #status.ok { color: #9be89b; }
+    #status.err { color: #f08a8a; }
+
+    @media (max-width: 900px), (pointer: coarse) {
+      body.mobile-embed header {
+        align-items: flex-start;
+        gap: 8px;
+        flex-direction: column;
+      }
+      body.mobile-embed .banner { font-size: 0.8em; }
+      body.mobile-embed .vnc-frame iframe { top: 0; height: 100%; }
+      body.mobile-embed .actions button { flex: 1 1 100%; }
+      body.mobile-embed .mobile-tools { display: grid; }
+      body.mobile-embed .mobile-tools-hint { display: block; }
+      body.mobile-embed #status { display: none; }
+    }
+
+    /* Keyboard relay — hidden until ⌨ Open Keyboard is tapped.
+       Focusing the textarea opens the OS keyboard on THIS page (guaranteed).
+       Prev/Next/Done are embedded here; .mobile-tools is hidden while active
+       so the iframe gets the reclaimed space. */
+    .key-relay-wrap {
+      display: none;
+      flex: 0 0 auto;
+      flex-direction: column;
+      gap: 5px;
+      padding: 6px 10px 8px;
+      background: #1a2435;
+      border-top: 2px solid #2f8f61;
+      width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .key-relay-wrap.active { display: flex; }
+    .key-relay-wrap textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: #111b27;
+      color: #eef6ff;
+      border: 1px solid #2a4060;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 16px; /* 16px prevents iOS auto-zoom */
+      font-family: inherit;
+      line-height: 1.3;
+      resize: none;
+      outline: none;
+      min-height: 38px;
+      max-height: 72px;
+    }
+    .key-relay-wrap textarea:focus { border-color: #2f8f61; }
+    .key-relay-controls {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .key-relay-nav {
+      flex: 1;
+      padding: 8px 4px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #eef6ff;
+      background: #273546;
+      border: 1px solid #41576f;
+      border-radius: 8px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #key-relay-close {
+      padding: 8px 14px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #f08a8a;
+      background: #3a2020;
+      border: 1px solid #6b3030;
+      border-radius: 8px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+    }
+    body.key-relay-active .mobile-tools-hint { display: none !important; }
+    body.key-relay-active .mobile-tools { display: none !important; }
+    body.key-relay-active .actions { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="left">Hut Hunter — complete your booking</div>
+    <div class="right">Hold expires in ~__MINUTES_LEFT__ min</div>
+  </header>
+
+  <div class="banner">
+    <strong>Heads up:</strong>
+    click <strong>Booking Complete</strong> after you've paid — the job moves
+    to <em>Booking Complete</em> and polling stops. Clicking
+    <strong>Cancel</strong> closes the browser and moves the job to
+    <em>Cancelled</em>; re-trigger it later to resume checking. Closing this
+    tab without clicking either leaves the hold in limbo.
+  </div>
+
+  <div class="vnc-frame">
+    <iframe id="vnc-iframe" allow="clipboard-read; clipboard-write"></iframe>
+  </div>
+
+  <div class="mobile-tools-hint" id="mobile-tools-hint">
+    Use two fingers to scroll inside the booking page
+  </div>
+
+  <!-- Relay textarea: focused directly on tap so iOS/Android opens the keyboard
+       on THIS page. Keystrokes are forwarded to the Playwright browser via API. -->
+  <div class="key-relay-wrap" id="key-relay-wrap">
+    <textarea
+      id="key-relay-input"
+      placeholder="Type here — keys go to the booking form"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+      rows="1"
+    ></textarea>
+    <div class="key-relay-controls">
+      <button class="key-relay-nav" data-relay-nav="focus-prev" type="button">← Prev</button>
+      <button class="key-relay-nav" data-relay-nav="focus-next" type="button">Next →</button>
+      <button id="key-relay-close" type="button">✕ Done</button>
+    </div>
+  </div>
+
+  <div class="mobile-tools" id="mobile-tools">
+    <button data-assist="keyboard" class="wide" type="button">⌨ Open Keyboard</button>
+    <button data-assist="focus-prev" type="button">← Prev Field</button>
+    <button data-assist="focus-next" type="button">Next Field →</button>
+  </div>
+
+  <div class="actions">
+    <a id="vnc-direct-link" href="#" target="_blank" rel="noopener noreferrer">Open VNC directly</a>
+    <button class="cancel" id="btn-cancel" type="button">Cancel</button>
+    <button class="complete" id="btn-complete" type="button">Booking Complete</button>
+  </div>
+  <div id="status"></div>
+
+  <script>
+    const jobId = __JOB_ID__;
+    const vncConfig = __VNC_CONFIG__;
+    const status = document.getElementById('status');
+    const btnCancel = document.getElementById('btn-cancel');
+    const btnComplete = document.getElementById('btn-complete');
+    const vncIframe = document.getElementById('vnc-iframe');
+    const vncDirectLink = document.getElementById('vnc-direct-link');
+    const mobileTools = document.getElementById('mobile-tools');
+    const keyRelayWrap = document.getElementById('key-relay-wrap');
+    const keyRelayInput = document.getElementById('key-relay-input');
+    const keyRelayClose = document.getElementById('key-relay-close');
+    const isMobileEmbed =
+      window.matchMedia('(pointer: coarse)').matches ||
+      window.matchMedia('(max-width: 900px)').matches;
+    let mobileFieldPrimed = false;
+
+    function buildVncUrl() {
+      let baseUrl = vncConfig.base_url;
+      let host = vncConfig.host;
+      const port = vncConfig.port;
+      const path = vncConfig.path || 'websockify';
+
+      if (!baseUrl) {
+        host = window.location.hostname;
+        baseUrl = `${window.location.protocol}//${host}:${port}`;
+      }
+
+      const url = new URL(`${baseUrl}/vnc.html`);
+      url.searchParams.set('autoconnect', '1');
+      url.searchParams.set('resize', isMobileEmbed ? 'scale' : 'remote');
+      url.searchParams.set('scale', '1');
+      url.searchParams.set('view_clip', '0');
+      if (host) url.searchParams.set('host', host);
+      if (port) url.searchParams.set('port', String(port));
+      url.searchParams.set('path', path);
+      return url.toString();
+    }
+
+    function syncViewportHeight() {
+      const vv = window.visualViewport;
+      const height = vv ? vv.height : window.innerHeight;
+      const offsetTop = vv ? (vv.offsetTop || 0) : 0;
+      document.documentElement.style.setProperty('--pay-height', `${Math.round(height)}px`);
+      document.body.style.top = `${Math.round(offsetTop)}px`;
+    }
+
+    async function primeMobileField() {
+      if (mobileFieldPrimed) return;
+      mobileFieldPrimed = true;
+      try {
+        const res = await fetch(`/api/v1/jobs/${jobId}/assist/focus-next`, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch (e) {
+        mobileFieldPrimed = false;
+        throw e;
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Keyboard relay — the ONLY reliable way to open the OS keyboard on iOS is
+    // to focus a real input that lives on THIS page (not inside an iframe).
+    // We focus keyRelayInput directly in the tap handler (before any await),
+    // which guarantees the keyboard opens. Keystrokes are forwarded to the
+    // Playwright browser via the send-text assist API.
+    // ---------------------------------------------------------------------------
+
+    function openKeyboardRelay() {
+      if (!keyRelayWrap || !keyRelayInput) return;
+      keyRelayWrap.classList.add('active');
+      document.body.classList.add('key-relay-active');
+      keyRelayInput.focus({ preventScroll: true });
+    }
+
+    function closeKeyboardRelay() {
+      if (!keyRelayWrap || !keyRelayInput) return;
+      keyRelayWrap.classList.remove('active');
+      document.body.classList.remove('key-relay-active');
+      keyRelayInput.blur();
+      keyRelayInput.value = '';
+      relayPrev = '';
+      relayBuffer = '';
+    }
+
+    let relayPrev = '';
+    let relayTimer = null;
+    let relayBuffer = '';
+
+    function flushRelayBuffer() {
+      const toSend = relayBuffer;
+      relayBuffer = '';
+      if (!toSend) return;
+      void fetch(`/api/v1/jobs/${jobId}/assist/send-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chars: toSend }),
+      }).catch((e) => console.warn('key relay failed:', e));
+    }
+
+    function scheduleRelay(chars) {
+      relayBuffer += chars;
+      if (relayTimer) clearTimeout(relayTimer);
+      relayTimer = window.setTimeout(flushRelayBuffer, 80);
+    }
+
+    if (keyRelayInput) {
+      keyRelayInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          flushRelayBuffer();
+          void fetch(`/api/v1/jobs/${jobId}/assist/send-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chars: '\n' }),
+          }).catch(() => {});
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          flushRelayBuffer();
+          void assist('focus-next');
+        }
+      });
+
+      keyRelayInput.addEventListener('input', () => {
+        const current = keyRelayInput.value;
+        if (current.length > relayPrev.length) {
+          scheduleRelay(current.slice(relayPrev.length));
+        } else if (current.length < relayPrev.length) {
+          scheduleRelay('\b'.repeat(relayPrev.length - current.length));
+        }
+        relayPrev = current;
+        if (current.length > 200) {
+          keyRelayInput.value = current.slice(-50);
+          relayPrev = keyRelayInput.value;
+        }
+      });
+    }
+
+    keyRelayClose?.addEventListener('click', closeKeyboardRelay);
+
+    keyRelayWrap?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-relay-nav]');
+      if (!btn) return;
+      flushRelayBuffer();
+      void assist(btn.dataset.relayNav);
+    });
+
+    async function assist(action) {
+      if (action === 'keyboard') {
+        // Focus the relay textarea synchronously within the tap gesture —
+        // the only reliable way to open the OS keyboard on iOS.
+        openKeyboardRelay();
+        void primeMobileField().catch(() => {});
+        return;
+      }
+
+      if (action === 'focus-next' || action === 'focus-prev') {
+        if (keyRelayInput) {
+          keyRelayInput.value = '';
+          relayPrev = '';
+          relayBuffer = '';
+        }
+      }
+
+      const buttons = mobileTools ? Array.from(mobileTools.querySelectorAll('button')) : [];
+      for (const button of buttons) button.disabled = true;
+      try {
+        const res = await fetch(`/api/v1/jobs/${jobId}/assist/${action}`, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch (e) {
+        status.className = 'err';
+        status.textContent = 'Assist failed: ' + e.message;
+      } finally {
+        for (const button of buttons) button.disabled = false;
+        if (keyRelayWrap?.classList.contains('active') && keyRelayInput) {
+          keyRelayInput.focus({ preventScroll: true });
+        }
+      }
+    }
+
+    const vncUrl = buildVncUrl();
+    vncDirectLink.href = vncUrl;
+    if (isMobileEmbed) {
+      document.body.classList.add('mobile-embed');
+      vncDirectLink.textContent = 'Open noVNC directly';
+      syncViewportHeight();
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', syncViewportHeight);
+        window.visualViewport.addEventListener('scroll', syncViewportHeight);
+      } else {
+        window.addEventListener('resize', syncViewportHeight);
+      }
+    }
+    vncIframe.src = vncUrl;
+    vncIframe.addEventListener('load', () => {
+      if (!isMobileEmbed) return;
+      window.setTimeout(() => { void primeMobileField().catch(() => {}); }, 700);
+      // Show relay bar without focusing — no user gesture yet, so no keyboard
+      if (keyRelayWrap && keyRelayInput) {
+        keyRelayWrap.classList.add('active');
+        document.body.classList.add('key-relay-active');
+      }
+    });
+    mobileTools?.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-assist]');
+      if (!button) return;
+      void assist(button.dataset.assist);
+    });
+
+    let signaled = false;
+
+    async function post(action, confirmMsg) {
+      if (confirmMsg && !window.confirm(confirmMsg)) return;
+      btnCancel.disabled = true;
+      btnComplete.disabled = true;
+      status.className = '';
+      status.textContent = 'Working…';
+      try {
+        const res = await fetch(`/api/v1/jobs/${jobId}/${action}`, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await res.json();
+        signaled = true;
+        status.className = 'ok';
+        status.textContent = action === 'complete'
+          ? 'Booking marked complete. Browser closing, job moved to Booking Complete. Safe to close this tab.'
+          : 'Hold cancelled. Browser closing, job moved to Cancelled. Re-trigger the job from the dashboard to resume checking.';
+      } catch (e) {
+        status.className = 'err';
+        status.textContent = 'Failed: ' + e.message;
+        btnCancel.disabled = false;
+        btnComplete.disabled = false;
+      }
+    }
+
+    btnCancel.addEventListener('click', () => post('cancel',
+      'Cancel this hold?\n\n' +
+      'The browser will close and the job will move to "Cancelled". ' +
+      'Re-trigger it later to resume checking.'));
+    btnComplete.addEventListener('click', () => post('complete',
+      'Mark this booking as complete?\n\n' +
+      'The browser will close and the job will move to ' +
+      '"Booking Complete". Polling will stop for this job.'));
+
+    window.addEventListener('beforeunload', (e) => {
+      if (signaled) return;
+      const msg =
+        'Closing now leaves the hold in limbo. Click Cancel or ' +
+        'Booking Complete so Hut Hunter knows what to do with this job.';
+      e.preventDefault();
+      e.returnValue = msg;
+      return msg;
+    });
+  </script>
+</body>
+</html>

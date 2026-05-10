@@ -8,6 +8,8 @@ import uuid
 
 class CartSession(SQLModel, table=True):
     """Stores encrypted cart cookies for resume flow."""
+    __tablename__ = "cart_session"
+
     id: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
         primary_key=True
