@@ -2,7 +2,9 @@
 
 import json
 import logging
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, HTTPException
 from arq.connections import RedisSettings, create_pool
@@ -266,3 +268,42 @@ def _validate_job_occupants_for_adapter(adapter_id: str, params: dict) -> None:
             status_code=409,
             detail=f"Selected occupants are missing required {adapter.name} details: {'; '.join(problems)}.",
         )
+
+
+def _validate_job_start_date_for_adapter(adapter_id: str, params: dict) -> None:
+    try:
+        adapter = get_adapter(adapter_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    date_fields = [field for field in adapter.__class__.param_fields() if field.type == "date"]
+    if not date_fields:
+        return
+
+    for field in date_fields:
+        value = params.get(field.key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+
+        date_str = value.strip()
+        try:
+            day, month, year = map(int, date_str.split("/"))
+            start_date = datetime(year, month, day).date()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{field.label} must be a valid date.",
+            ) from exc
+
+        if adapter.booking_timezone is None:
+            today = datetime.now().astimezone().date()
+            timezone_label = "local time"
+        else:
+            today = datetime.now(ZoneInfo(adapter.booking_timezone)).date()
+            timezone_label = adapter.booking_timezone
+
+        if start_date < today:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{field.label} must be today or a future date ({timezone_label}).",
+            )

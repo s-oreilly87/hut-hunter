@@ -84,6 +84,7 @@ export function BookingInputsFields({
               onChange={(val) => handleParamChange(field.key, val)}
               options={opts}
               disabled={field.key === 'people' && selectedOccupantsPresent}
+              bookingTimezone={selectedAdapter.booking_timezone}
             />
             {field.key === 'people' && (
               <p className="text-xs text-muted-foreground">

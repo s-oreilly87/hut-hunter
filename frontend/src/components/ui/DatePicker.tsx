@@ -21,19 +21,22 @@ export function DatePicker({
   value,
   onChange,
   disabled = false,
+  minValue,
 }: {
   value: string
   onChange: (value: string) => void
   disabled?: boolean
+  minValue?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const selectedDate = parseInputDateValue(value)
   const today = new Date()
+  const minDate = parseInputDateValue(minValue ?? '')
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [visibleMonth, setVisibleMonth] = useState(() => {
-    const base = selectedDate ?? today
+    const base = selectedDate ?? minDate ?? today
     return new Date(base.getFullYear(), base.getMonth(), 1)
   })
   const visibleDraft = open ? draft : formatDateForDisplay(value)
@@ -79,14 +82,20 @@ export function DatePicker({
   }
 
   const chooseDate = (date: Date) => {
+    if (minDate && formatDateForInput(date) < formatDateForInput(minDate)) {
+      return
+    }
     onChange(formatDateForInput(date))
     setDraft(formatDateForDisplay(formatDateForInput(date)))
     setOpen(false)
   }
 
   const chooseToday = () => {
-    chooseDate(today)
-    setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1))
+    const target = minDate && formatDateForInput(today) < formatDateForInput(minDate)
+      ? minDate
+      : today
+    chooseDate(target)
+    setVisibleMonth(new Date(target.getFullYear(), target.getMonth(), 1))
   }
 
   const commitDraft = () => {
@@ -111,6 +120,7 @@ export function DatePicker({
       date.getFullYear() !== year
       || date.getMonth() !== month - 1
       || date.getDate() !== day
+      || (minDate && formatDateForInput(date) < formatDateForInput(minDate))
     ) {
       setDraft(formatDateForDisplay(value))
       return
@@ -141,8 +151,9 @@ export function DatePicker({
           onChange={(event) => setDraft(event.target.value)}
           onFocus={() => {
             setDraft(formatDateForDisplay(value))
-            if (selectedDate) {
-              setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
+            const focusDate = selectedDate ?? minDate
+            if (focusDate) {
+              setVisibleMonth(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1))
             }
             setOpen(true)
           }}
@@ -179,13 +190,14 @@ export function DatePicker({
             disabled={disabled}
             aria-label="Open calendar"
             className="flex size-6 items-center justify-center rounded-md hover:bg-secondary hover:text-foreground disabled:pointer-events-none"
-            onClick={() => {
-              setDraft(formatDateForDisplay(value))
-              if (selectedDate) {
-                setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
-              }
-              setOpen((current) => !current)
-            }}
+          onClick={() => {
+            setDraft(formatDateForDisplay(value))
+            const focusDate = selectedDate ?? minDate
+            if (focusDate) {
+              setVisibleMonth(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1))
+            }
+            setOpen((current) => !current)
+          }}
           >
             <Calendar className="size-4" />
           </button>
@@ -228,12 +240,16 @@ export function DatePicker({
             {cells.map((date, index) => {
               const selected = date ? isSameCalendarDay(selectedDate, date) : false
               const isToday = date ? isSameCalendarDay(today, date) : false
+              const isPastMinDate = date
+                ? Boolean(minDate && formatDateForInput(date) < formatDateForInput(minDate))
+                : false
               return date ? (
                 <button
                   key={date.toISOString()}
                   type="button"
+                  disabled={isPastMinDate}
                   className={cn(
-                    'flex h-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-secondary',
+                    'flex h-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent',
                     selected && 'bg-primary text-primary-foreground hover:bg-primary',
                     !selected && isToday && 'border border-primary/30 text-primary',
                   )}

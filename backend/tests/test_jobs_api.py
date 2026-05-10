@@ -2,7 +2,8 @@ from datetime import timedelta, timezone
 
 import pytest
 
-from app.api.routes import MAX_INTERVAL_MINUTES
+import app.api._route_deps as route_deps
+from app.api._route_deps import MAX_INTERVAL_MINUTES
 from app.core.config import settings
 from app.models.job import JobStatus, utcnow
 from app.workers._shared import _clear_unavailable_snapshot
@@ -111,9 +112,36 @@ async def test_create_job_rejects_missing_adapter_specific_occupant_details(
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "Selected occupants are missing required DOC Great Walk details: "
+        "Selected occupants are missing required NZ DOC Great Walk details: "
         "Alex Walker (missing Category)."
     )
+    assert fake_redis.calls == []
+
+
+async def test_create_job_rejects_past_start_date_in_adapter_timezone(
+    client,
+    fake_redis,
+    make_job_payload,
+    make_job_params,
+    monkeypatch,
+):
+    class FrozenDateTime(route_deps.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            current = cls(2026, 5, 10, 0, 30, tzinfo=timezone.utc)
+            return current if tz is None else current.astimezone(tz)
+
+    monkeypatch.setattr(route_deps, "datetime", FrozenDateTime)
+
+    response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(
+            params=make_job_params(date="09/05/2026"),
+        ),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Start Date must be today or a future date (Pacific/Auckland)."
     assert fake_redis.calls == []
 
 
@@ -347,6 +375,30 @@ async def test_update_job_rejects_auto_book_without_credentials(
     )
 
 
+async def test_update_job_rejects_past_start_date_in_adapter_timezone(
+    client,
+    seed_job,
+    make_job_params,
+    monkeypatch,
+):
+    class FrozenDateTime(route_deps.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            current = cls(2026, 5, 10, 0, 30, tzinfo=timezone.utc)
+            return current if tz is None else current.astimezone(tz)
+
+    monkeypatch.setattr(route_deps, "datetime", FrozenDateTime)
+    job = await seed_job()
+
+    response = await client.patch(
+        f"/api/v1/jobs/{job.id}",
+        json={"params": make_job_params(date="09/05/2026")},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Start Date must be today or a future date (Pacific/Auckland)."
+
+
 async def test_delete_job_removes_cart_sessions_and_enqueues_browser_close(
     client,
     fake_redis,
@@ -553,7 +605,7 @@ async def test_book_job_requires_adapter_specific_occupant_details(
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "Selected occupants are missing required DOC Great Walk details: "
+        "Selected occupants are missing required NZ DOC Great Walk details: "
         "Alex Walker (missing Category)."
     )
 

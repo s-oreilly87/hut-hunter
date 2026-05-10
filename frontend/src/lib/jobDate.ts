@@ -60,6 +60,20 @@ export function formatDateForDisplay(value: string): string {
   return `${month}/${day}/${year}`
 }
 
+export function currentInputDateInTimeZone(timezone: string): string {
+  const tzParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const year = tzParts.find((part) => part.type === 'year')?.value
+  const month = tzParts.find((part) => part.type === 'month')?.value
+  const day = tzParts.find((part) => part.type === 'day')?.value
+  if (!year || !month || !day) return ''
+  return `${year}-${month}-${day}`
+}
+
 export function isSameCalendarDay(a: Date | null, b: Date): boolean {
   return (
     Boolean(a)
@@ -74,23 +88,8 @@ export function isSameCalendarDay(a: Date | null, b: Date): boolean {
  * adapter's booking timezone. Returns true when the date is today or later.
  */
 export function isDateValidInTz(dateStr: string, timezone: string): boolean {
-  const parts = dateStr.split('/')
-  if (parts.length !== 3) return false
-  const [dd, mm, yyyy] = parts
-  if (!dd || !mm || !yyyy || yyyy.length !== 4) return false
-
-  const tzParts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date())
-  const tzY = Number(tzParts.find(p => p.type === 'year')?.value)
-  const tzM = Number(tzParts.find(p => p.type === 'month')?.value)
-  const tzD = Number(tzParts.find(p => p.type === 'day')?.value)
-
-  const jobY = Number(yyyy), jobM = Number(mm), jobD = Number(dd)
-  if ([jobY, jobM, jobD, tzY, tzM, tzD].some(isNaN)) return false
-
-  const tzInt = tzY * 10000 + tzM * 100 + tzD
-  const jobInt = jobY * 10000 + jobM * 100 + jobD
-  return jobInt >= tzInt
+  const jobDate = toInputDateValue(dateStr)
+  const currentDate = currentInputDateInTimeZone(timezone)
+  if (!jobDate || !currentDate) return false
+  return jobDate >= currentDate
 }
