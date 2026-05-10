@@ -39,7 +39,7 @@ export function JobListMobileCard({
       tabIndex={0}
       data-job-id={job.id}
       ref={(node) => setRef(job.id, node)}
-      className="w-full cursor-pointer rounded-[1.35rem] border border-border/80 bg-background/75 px-4 py-4 text-left transition-colors hover:border-primary/20 hover:bg-background"
+      className="w-full cursor-pointer rounded-[1.35rem] border border-border/80 bg-background/75 px-4 py-4 text-left transition-colors hover:border-primary/20 hover:bg-background max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0"
       onClick={() => onSelect(job.id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

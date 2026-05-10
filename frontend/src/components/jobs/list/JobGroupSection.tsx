@@ -49,7 +49,7 @@ export function JobGroupSection({
   setDesktopRef: (jobId: string, node: HTMLTableRowElement | null) => void
 }) {
   return (
-    <section className="overflow-hidden rounded-[1.5rem] border border-border/70 bg-background/55">
+    <section className="overflow-hidden rounded-[1.5rem] border border-border/70 bg-background/55 max-sm:border-x-0">
       <button
         type="button"
         className="flex w-full items-center justify-between gap-4 bg-secondary/50 px-4 py-3.5 text-left hover:bg-secondary/70 sm:px-5"
@@ -72,7 +72,7 @@ export function JobGroupSection({
       </button>
 
       {isExpanded && (
-        <div className="px-3 py-3 sm:px-4">
+        <div className="px-0 py-0 sm:px-4 sm:py-3">
           <div className="grid gap-3 lg:hidden">
             {group.jobs.map((job) => {
               const displayStatus = getDisplayStatus(job, pendingBookings)

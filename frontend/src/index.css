@@ -179,7 +179,7 @@
   }
 
   .app-panel {
-    @apply gap-0 py-0 rounded-[1.75rem] border border-white/60 bg-card/85 shadow-[0_18px_60px_-30px_rgba(23,47,36,0.45)] backdrop-blur-md;
+    @apply gap-0 py-0 rounded-[1.75rem] border border-white/60 bg-card/85 shadow-[0_18px_60px_-30px_rgba(23,47,36,0.45)] backdrop-blur-md max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:shadow-none max-sm:backdrop-blur-none;
   }
 
   .app-panel-frame {

@@ -41,7 +41,10 @@ import { HoldActiveSection } from '@/components/jobs/card/HoldActiveSection'
 import { HoldExpiredSection } from '@/components/jobs/card/HoldExpiredSection'
 import { BookingInProgressSection } from '@/components/jobs/card/BookingInProgressSection'
 import { LatestResultSection } from '@/components/jobs/card/LatestResultSection'
+import { HeaderParamSummary } from '@/components/jobs/shared/HeaderParamSummary'
 import { cn } from '@/lib/utils'
+
+const MOBILE_FLAT_CARD_CLASSES = 'max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0 max-sm:border-b-0 max-sm:shadow-none max-sm:ring-0 max-sm:backdrop-blur-none'
 
 /**
  * Detail panel for a single job.
@@ -208,19 +211,26 @@ export function JobCard({
 
   return (
     <>
-      <Card className={cn('app-panel app-panel-frame gap-0 py-0 border-border/80 bg-card/90', className)}>
+      <Card className={cn('app-panel app-panel-frame gap-0 py-0 border-border/80', MOBILE_FLAT_CARD_CLASSES, className)}>
         <JobCardHeader
           job={job}
           isLocked={isLocked}
           onEditTitle={() => handleEdit(0)}
-          onEditParams={() => handleEdit(1)}
           onBack={onBack}
           backLabel={backLabel}
           actions={headerActions}
         />
 
-        <CardContent className="app-panel-body-scroll px-6">
-          <div className="space-y-6 pt-6 pb-6">
+        <CardContent className="app-panel-body-scroll px-0 [-webkit-mask-image:none] [mask-image:none]">
+          <div className="sticky top-0 z-10 border-b border-border/70 bg-taupe-50/95 px-4 py-3 backdrop-blur-sm sm:px-6">
+            <HeaderParamSummary
+              params={job.params}
+              onEdit={!isLocked ? () => handleEdit(1) : undefined}
+              compact
+            />
+          </div>
+
+          <div className="space-y-6 px-4 pt-6 pb-6 sm:px-6">
             {hasOutdatedCampers && (
               <OutdatedCampersNotice
                 onEditJob={() => handleEdit()}

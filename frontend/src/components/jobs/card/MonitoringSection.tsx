@@ -102,11 +102,11 @@ export function MonitoringSection({
 
   return (
     <section>
-      <div className="rounded-[1.25rem] border border-border/70 bg-background/80 px-4 py-4">
+      <div className="rounded-[1.25rem] border border-border/70 bg-background/65 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Activity className="size-4 text-primary" />
-            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground/70">
+            <h3 className="text-xs font-semibold tracking-tight text-muted-foreground/80">
               Monitoring
             </h3>
             <AutoBookBadge job={job} />
@@ -139,7 +139,7 @@ export function MonitoringSection({
           </div>
         </div>
 
-        <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+        <div className="mt-3 space-y-1 text-xs text-muted-foreground/85">
           {displayStatus === 'checking' ? (
             <p>Checking now…</p>
           ) : (
@@ -157,7 +157,7 @@ export function MonitoringSection({
         </div>
 
         {!hideTrigger && (
-          <div className="mt-3 pt-3 border-t border-border/50">
+          <div className="mt-3 border-t border-border/50 pt-3">
             <Button
               size="sm"
               variant="outline"
