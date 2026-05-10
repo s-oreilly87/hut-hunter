@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import timedelta
+from pathlib import Path
 from typing import cast
 
 from arq import cron
@@ -33,6 +34,12 @@ from app.workers._shared import (
 logger = logging.getLogger(__name__)
 
 HOLD_QUEUE_NAME = "arq:holds"
+
+_JS_DIR = Path(__file__).parent / "js"
+_JS_TOUCH_PAGE  = (_JS_DIR / "touch_payment_page.js").read_text()
+_JS_RELAY_TEXT  = (_JS_DIR / "relay_text.js").read_text()
+_JS_SCROLL      = (_JS_DIR / "scroll.js").read_text()
+_JS_FOCUS_FIELD = (_JS_DIR / "focus_field.js").read_text()
 
 # Process-local registry of Chromium browsers kept alive after attempt_hold so
 # the user can view/complete payment. Keyed by job_id.
@@ -69,58 +76,13 @@ async def close_live_browser(job_id: str) -> bool:
 
 
 async def _touch_live_payment_page(page) -> None:
-    """Lightweight activity heartbeat for the payment page.
-
-    Combines a same-origin fetch with DOM activity events to prevent
-    inactivity timeouts without doing anything disruptive like reloads.
-    """
-    await page.evaluate(
-        """async () => {
-          const dispatch = (target, type, init = {}) => {
-            target.dispatchEvent(new MouseEvent(type, {
-              bubbles: true, cancelable: true, clientX: 18, clientY: 18, ...init,
-            }));
-          };
-          try {
-            await fetch(window.location.href, { method: 'GET', credentials: 'include', cache: 'no-store' });
-          } catch (_) {}
-          if (document.body) {
-            dispatch(document.body, 'mousemove');
-            dispatch(document.body, 'mousedown');
-            dispatch(document.body, 'mouseup');
-          }
-          dispatch(document, 'mousemove');
-          window.dispatchEvent(new Event('focus'));
-        }"""
-    )
+    """Lightweight activity heartbeat — see js/touch_payment_page.js."""
+    await page.evaluate(_JS_TOUCH_PAGE)
 
 
 async def _relay_text_into_active_element(page, text: str) -> None:
-    """Dispatch keyboard events on the focused DOM element.
-
-    More reliable than page.keyboard.type() because it doesn't require the
-    Chrome window to hold OS focus at the CDP level.
-    """
-    await page.evaluate(
-        """(text) => {
-          const el = document.activeElement;
-          if (!el) return;
-          const tag = el.tagName.toLowerCase();
-          for (const ch of text) {
-            el.dispatchEvent(new KeyboardEvent('keydown',  { key: ch, bubbles: true, cancelable: true }));
-            el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true, cancelable: true }));
-            if (tag === 'input' || tag === 'textarea') {
-              const start = el.selectionStart ?? el.value.length;
-              const end   = el.selectionEnd   ?? el.value.length;
-              el.value = el.value.slice(0, start) + ch + el.value.slice(end);
-              el.selectionStart = el.selectionEnd = start + ch.length;
-              el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ch }));
-            }
-            el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true, cancelable: true }));
-          }
-        }""",
-        text,
-    )
+    """Dispatch keyboard events on the focused DOM element — see js/relay_text.js."""
+    await page.evaluate(_JS_RELAY_TEXT, text)
 
 
 async def _assist_live_browser(page, action: str, chars: str = "") -> dict[str, object]:
@@ -155,84 +117,12 @@ async def _assist_live_browser(page, action: str, chars: str = "") -> dict[str, 
             await _relay_text_into_active_element(page, printable)
         return {"ok": True, "action": "send-text", "chars": chars}
 
-    if action == "scroll-up":
-        return await page.evaluate(
-            """() => {
-              const root = document.scrollingElement || document.documentElement || document.body;
-              const step = Math.max(Math.round(window.innerHeight * 0.72), 240);
-              root.scrollBy({ top: -step, left: 0, behavior: 'auto' });
-              return { ok: true, action: 'scroll-up', scrollTop: root.scrollTop };
-            }"""
-        )
-
-    if action == "scroll-down":
-        return await page.evaluate(
-            """() => {
-              const root = document.scrollingElement || document.documentElement || document.body;
-              const step = Math.max(Math.round(window.innerHeight * 0.72), 240);
-              root.scrollBy({ top: step, left: 0, behavior: 'auto' });
-              return { ok: true, action: 'scroll-down', scrollTop: root.scrollTop };
-            }"""
-        )
+    if action in {"scroll-up", "scroll-down", "scroll-top"}:
+        return await page.evaluate(_JS_SCROLL, action)
 
     if action in {"focus-next", "focus-prev"}:
         direction = 1 if action == "focus-next" else -1
-        return await page.evaluate(
-            """(direction) => {
-              const selector = [
-                'input:not([type="hidden"]):not([disabled])',
-                'select:not([disabled])',
-                'textarea:not([disabled])',
-                'button:not([disabled])',
-                '[contenteditable="true"]',
-              ].join(',');
-
-              const visibleControls = Array.from(document.querySelectorAll(selector)).filter((el) => {
-                const style = window.getComputedStyle(el);
-                const rect = el.getBoundingClientRect();
-                return style.display !== 'none' && style.visibility !== 'hidden'
-                    && rect.width > 0 && rect.height > 0;
-              });
-
-              if (!visibleControls.length) {
-                return { ok: false, action: direction > 0 ? 'focus-next' : 'focus-prev', reason: 'no_focusable_controls' };
-              }
-
-              const active = document.activeElement;
-              let currentIndex = visibleControls.findIndex((el) => el === active || el.contains(active));
-              if (currentIndex === -1) currentIndex = direction > 0 ? -1 : 0;
-
-              let nextIndex = currentIndex + direction;
-              if (nextIndex < 0) nextIndex = visibleControls.length - 1;
-              else if (nextIndex >= visibleControls.length) nextIndex = 0;
-
-              const target = visibleControls[nextIndex];
-              target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
-              if (typeof target.focus === 'function') target.focus({ preventScroll: true });
-
-              const tag = target.tagName.toLowerCase();
-              const type = (target.getAttribute('type') || '').toLowerCase();
-              if (tag === 'input' || tag === 'textarea') {
-                if (typeof target.click === 'function') target.click();
-                if (typeof target.setSelectionRange === 'function' && type !== 'checkbox' && type !== 'radio') {
-                  const end = target.value ? target.value.length : 0;
-                  target.setSelectionRange(end, end);
-                }
-              }
-
-              return { ok: true, action: direction > 0 ? 'focus-next' : 'focus-prev', tag, id: target.id || null, name: target.getAttribute('name'), type };
-            }""",
-            direction,
-        )
-
-    if action == "scroll-top":
-        return await page.evaluate(
-            """() => {
-              const root = document.scrollingElement || document.documentElement || document.body;
-              root.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-              return { ok: true, action: 'scroll-top', scrollTop: root.scrollTop };
-            }"""
-        )
+        return await page.evaluate(_JS_FOCUS_FIELD, direction)
 
     return {"ok": False, "action": action, "reason": "unknown_action"}
 
