@@ -8,7 +8,7 @@ from app.models.job import utcnow
 
 
 class AppUser(SQLModel, table=True):
-    __tablename__ = "appuser"
+    __tablename__ = "app_user"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     email: str = Field(

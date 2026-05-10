@@ -9,13 +9,13 @@ from app.models.job import utcnow
 
 
 class AdapterCredential(SQLModel, table=True):
-    __tablename__ = "adaptercredential"
+    __tablename__ = "adapter_credential"
     __table_args__ = (
-        UniqueConstraint("user_id", "adapter_id", name="uq_adaptercredential_user_adapter"),
+        UniqueConstraint("user_id", "adapter_id", name="uq_adapter_credential_user_adapter"),
     )
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str = Field(foreign_key="appuser.id", index=True)
+    user_id: str = Field(foreign_key="app_user.id", index=True)
     adapter_id: str = Field(
         sa_column=Column(String, nullable=False, index=True),
     )

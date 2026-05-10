@@ -115,11 +115,13 @@ def is_job_expired(adapter_id: str, params: dict) -> bool:
 
 class WatchJob(SQLModel, table=True):
     """A configured availability watch job."""
+    __tablename__ = "watch_job"
+
     id: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
         primary_key=True
     )
-    user_id: str | None = Field(default=None, foreign_key="appuser.id", index=True)
+    user_id: str | None = Field(default=None, foreign_key="app_user.id", index=True)
     name: str                          # e.g. "Tongariro Alpine Crossing"
     adapter_id: str                    # which site adapter to use e.g. "doc_nz"
     params: str                        # JSON blob of search params

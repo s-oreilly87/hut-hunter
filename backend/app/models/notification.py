@@ -9,11 +9,11 @@ from app.models.job import utcnow
 
 
 class UserNotificationSettings(SQLModel, table=True):
-    __tablename__ = "usernotificationsettings"
+    __tablename__ = "user_notification_settings"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str = Field(
-        foreign_key="appuser.id",
+        foreign_key="app_user.id",
         index=True,
         unique=True,
     )
