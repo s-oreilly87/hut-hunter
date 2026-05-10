@@ -8,6 +8,7 @@ import os
 from datetime import datetime, time
 from pathlib import Path
 
+from app.core.artifacts import DEBUG_SNAPSHOT_TERMS
 from app.core.config import settings
 from app.models.credential import AdapterCredentialSecret
 
@@ -158,18 +159,7 @@ class BaseAdapter(ABC):
 
     @staticmethod
     def _snapshot_should_include_html(label: str) -> bool:
-        debug_terms = (
-            "error",
-            "failed",
-            "failure",
-            "timeout",
-            "not_found",
-            "did_not_open",
-            "did_not_update",
-            "validation",
-        )
-        normalized = label.lower()
-        return any(term in normalized for term in debug_terms)
+        return any(term in label.lower() for term in DEBUG_SNAPSHOT_TERMS)
 
     async def _hide_snapshot_overlays(self, page: Page) -> None:
         """Temporarily hide fixed bottom action bars that obscure full-page screenshots."""

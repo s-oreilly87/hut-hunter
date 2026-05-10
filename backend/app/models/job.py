@@ -6,6 +6,7 @@ import uuid
 import json
 from sqlalchemy import Column
 from sqlalchemy import DateTime
+from app.core.artifacts import DEBUG_SNAPSHOT_TERMS
 from app.core.config import settings
 
 def utcnow() -> datetime:
@@ -31,18 +32,7 @@ def as_optional_utc(value: Optional[datetime]) -> Optional[datetime]:
 
 
 def _artifact_should_include_html(value: str) -> bool:
-    debug_terms = (
-        "error",
-        "failed",
-        "failure",
-        "timeout",
-        "not_found",
-        "did_not_open",
-        "did_not_update",
-        "validation",
-    )
-    normalized = value.lower()
-    return any(term in normalized for term in debug_terms)
+    return any(term in value.lower() for term in DEBUG_SNAPSHOT_TERMS)
 
 
 def artifact_urls(base: str, *, label: str | None = None) -> tuple[str, str | None]:
@@ -99,9 +89,8 @@ class JobStatus(str, Enum):
     EXPIRED = "expired"
 
 
-# Terminal-ish states where triggering a check is blocked (user must reactivate
-# via the front-end / an explicit API call — NOT in the current minimal flow,
-# but the set is useful for the workers' guard logic).
+# Terminal states where a new check cannot be triggered until the user
+# explicitly reactivates (e.g. re-trigger after cancellation).
 TERMINAL_STATUSES = {JobStatus.BOOKING_COMPLETE}
 
 
@@ -129,7 +118,7 @@ class WatchJob(SQLModel, table=True):
     auto_book: bool = Field(default=False)
     # When true, the scheduler periodically enqueues check_availability on
     # interval_minutes cadence. When false, the job only runs on manual Force
-    # Check. See scheduler_tick in app/workers/tasks.py.
+    # Check. See scheduler_tick in app/workers/poll_worker.py.
     enable_monitoring: bool = Field(default=False)
     # Minutes between scheduled checks. UI clamps to 1..120; the DB column is
     # unbounded but sane values only come through the API.

@@ -25,6 +25,7 @@ from app.core.database import get_session
 from app.models.job import JobStatus, WatchJob, as_utc, utcnow
 from app.models.session import CartSession
 from app.models.user import AppUser
+from app.workers.hold_worker import HOLD_QUEUE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +62,10 @@ def _vnc_client_config() -> dict[str, str | int | None]:
 
 async def _enqueue_complete_snapshot(job_id: str, redis) -> None:
     """Must be enqueued before close_browser_task — hold queue is FIFO with max_jobs=1."""
-    from app.workers.hold_worker import HOLD_QUEUE_NAME
     await redis.enqueue_job("snapshot_complete_task", job_id, _queue_name=HOLD_QUEUE_NAME)
 
 
 async def _enqueue_live_browser_assist(job_id: str, action: str, redis, chars: str = "") -> None:
-    from app.workers.hold_worker import HOLD_QUEUE_NAME
     await redis.enqueue_job("assist_live_browser_task", job_id, action, chars, _queue_name=HOLD_QUEUE_NAME)
 
 

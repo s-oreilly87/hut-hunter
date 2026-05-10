@@ -250,3 +250,30 @@ class BaseDOCAdapter(BaseAdapter):
             (start + timedelta(days=i)).strftime("%d/%m/%Y")
             for i in range(nights)
         ]
+
+    # ------------------------------------------------------------------
+    # Reservation Details snapshot
+    # ------------------------------------------------------------------
+
+    async def _snapshot_reservation_details(self, page: Page) -> None:
+        """Open the View Occupants modal for a richer Reservation Details snapshot,
+        then close it. Best-effort — failures are non-fatal and fall back to a
+        plain page snapshot."""
+        try:
+            view_occ_btn = page.locator("#aViewOccupant")
+            if await view_occ_btn.count() > 0:
+                await view_occ_btn.click()
+                logger.info("Opened View Occupants modal on Reservation Details page")
+                await page.locator("#myModal_occu").wait_for(state="visible", timeout=6_000)
+                await page.wait_for_timeout(300)
+                await self.snapshot(page, "reservation_details")
+                await page.locator("#myModal_occu .close").first.click()
+                await page.locator("#myModal_occu").wait_for(state="hidden", timeout=8_000)
+            else:
+                await self.snapshot(page, "reservation_details")
+        except Exception as modal_err:
+            logger.warning(f"View Occupants modal snapshot failed (non-fatal): {modal_err}")
+            try:
+                await self.snapshot(page, "reservation_details")
+            except Exception:
+                pass

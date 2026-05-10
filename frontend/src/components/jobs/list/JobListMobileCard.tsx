@@ -1,23 +1,11 @@
 import type { WatchJob } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
-import { formatRelativeTimeFromNow } from '@/lib/time'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { AutoBookBadge } from '@/components/jobs/shared/AutoBookBadge'
 import { JobIdentity } from './JobIdentity'
+import { formatTimeAgo, isJobFinished } from './jobListHelpers'
 import { cn } from '@/lib/utils'
-
-function formatTimeAgo(value: string | null): string {
-  return formatRelativeTimeFromNow(value, { justNowLabel: 'just now' })
-}
-
-function isJobFinished(displayStatus: DisplayStatus): boolean {
-  return (
-    displayStatus === 'booking_complete'
-    || displayStatus === 'cancelled'
-    || displayStatus === 'expired'
-  )
-}
 
 /**
  * Mobile-layout (lg:hidden) card variant of a single job in the JobList.

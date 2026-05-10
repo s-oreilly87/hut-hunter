@@ -20,6 +20,7 @@ from app.models.occupant import AdapterOccupant, Occupant
 from app.models.session import CartSession
 from app.models.user import AppUser
 from app.workers._shared import _artifact_file_paths, _params_have_occupants
+from app.workers.hold_worker import HOLD_QUEUE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +224,6 @@ def _validate_adapter_values_payload(
 
 async def _enqueue_browser_close(job_id: str, redis) -> None:
     """Ask the hold worker to tear down the headed browser. Fire-and-forget."""
-    from app.workers.hold_worker import HOLD_QUEUE_NAME
     await redis.enqueue_job("close_browser_task", job_id, _queue_name=HOLD_QUEUE_NAME)
 
 

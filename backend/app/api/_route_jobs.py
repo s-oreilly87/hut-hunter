@@ -36,6 +36,7 @@ from app.models.job import (
 from app.models.session import CartSession
 from app.models.user import AppUser
 from app.workers._shared import _check_job_arq_id, _params_have_occupants
+from app.workers.hold_worker import HOLD_QUEUE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -281,8 +282,6 @@ async def book_job(
 ):
     """Dispatch the hold worker manually. Valid when last_result shows all sites
     AVAILABLE. Rejects partial availability and live holds."""
-    from app.workers.hold_worker import HOLD_QUEUE_NAME
-
     job = await _get_owned_job(session, current_user.id, job_id)
 
     if job.status == JobStatus.HOLD_PLACED.value:
