@@ -1,12 +1,13 @@
 import {
   ArrowRight,
   CalendarDays,
-  Map,
+  Map as MapIcon,
   MapPinned,
   MoonStar,
   type LucideIcon,
   Users,
 } from 'lucide-react'
+import type { AdapterInfo, WatchJob } from '@/lib/api'
 
 export type JobHeaderField = {
   key: string
@@ -94,7 +95,7 @@ export function parseFacilityOption(value: unknown): ParsedFacility | null {
 export function getJobParamIcon(key: string): LucideIcon | null {
   switch (key) {
     case 'track':
-      return Map
+      return MapIcon
     case 'date':
       return CalendarDays
     case 'nights':
@@ -127,7 +128,7 @@ export function getHeaderFields(params: Record<string, unknown>): JobHeaderField
         key: 'facility_park',
         label: 'Park',
         value: facilityParsed.parkName,
-        icon: Map,
+        icon: MapIcon,
         href: facilityParsed.href,
         isSubtitle: true,
       }
@@ -138,7 +139,7 @@ export function getHeaderFields(params: Record<string, unknown>): JobHeaderField
         key: 'track',
         label: 'Track',
         value: params.track.trim(),
-        icon: Map,
+        icon: MapIcon,
       }
     : null
   const dateLabel = formatDateLabel(params.date)
@@ -190,4 +191,108 @@ export function getHeaderFields(params: Record<string, unknown>): JobHeaderField
   return [facility, facilityPark, track, date, nights, people, direction, sites].filter(
     (field): field is JobHeaderField => Boolean(field),
   )
+}
+
+// ─── Adapter field lookup maps ───────────────────────────────────────────────
+//
+// JobList renders many jobs grouped by adapter; precomputing per-adapter maps
+// once and reusing them across rows is much cheaper than scanning each
+// adapter's `param_fields` on every render.
+
+export interface AdapterFieldMaps {
+  /** Adapter id → display name. */
+  nameById: Map<string, string>
+  /** Adapter id → AdapterInfo. */
+  byId: Map<string, AdapterInfo>
+  /** Adapter id → key of the adapter's date field, if any. */
+  dateFieldKeyById: Map<string, string>
+  /** Adapter id → key of the adapter's "track" field, if any. */
+  trackFieldKeyById: Map<string, string>
+}
+
+export function buildAdapterFieldMaps(adapters: AdapterInfo[]): AdapterFieldMaps {
+  const nameById = new Map(adapters.map((adapter) => [adapter.adapter_id, adapter.name]))
+  const byId = new Map(adapters.map((adapter) => [adapter.adapter_id, adapter]))
+
+  const dateFieldKeyById = new Map(
+    adapters.flatMap((adapter) => {
+      const dateField = adapter.param_fields.find((field) => field.type === 'date')
+      return dateField ? [[adapter.adapter_id, dateField.key] as const] : []
+    }),
+  )
+
+  const trackFieldKeyById = new Map(
+    adapters.flatMap((adapter) => {
+      const trackField = adapter.param_fields.find(
+        (field) => field.key === 'track' || field.label.toLowerCase() === 'track',
+      )
+      return trackField ? [[adapter.adapter_id, trackField.key] as const] : []
+    }),
+  )
+
+  return { nameById, byId, dateFieldKeyById, trackFieldKeyById }
+}
+
+export function getAdapterDisplayName(
+  adapterId: string,
+  nameById: Map<string, string>,
+): string {
+  return nameById.get(adapterId) ?? adapterId
+}
+
+function getDateFieldKey(
+  job: WatchJob,
+  dateFieldKeyById: Map<string, string>,
+): string | null {
+  return dateFieldKeyById.get(job.adapter_id) ?? ('date' in job.params ? 'date' : null)
+}
+
+function getTrackFieldKey(
+  job: WatchJob,
+  trackFieldKeyById: Map<string, string>,
+): string | null {
+  return trackFieldKeyById.get(job.adapter_id) ?? ('track' in job.params ? 'track' : null)
+}
+
+// ─── Compact one-line summaries used by the list view ────────────────────────
+
+export function getJobTitle(job: WatchJob): string {
+  const trimmed = job.name.trim()
+  return trimmed || 'Untitled Hunt'
+}
+
+export function getJobSubtitle(
+  job: WatchJob,
+  dateFieldKeyById: Map<string, string>,
+  trackFieldKeyById: Map<string, string>,
+): string {
+  const dateFieldKey = getDateFieldKey(job, dateFieldKeyById)
+
+  const facilityStr = typeof job.params.facility === 'string' ? job.params.facility.trim() : ''
+  if (facilityStr) {
+    const parsedFacility = parseFacilityOption(facilityStr)
+    const facilityName = parsedFacility?.facilityName ?? facilityStr
+    const startDate = dateFieldKey ? formatDateLabel(job.params[dateFieldKey]) : null
+    if (facilityName && startDate) return `${facilityName}, ${startDate}`
+    if (facilityName) return facilityName
+  }
+
+  const trackFieldKey = getTrackFieldKey(job, trackFieldKeyById)
+  const trackName = trackFieldKey ? String(job.params[trackFieldKey] ?? '').trim() : ''
+  const startDate = dateFieldKey ? formatDateLabel(job.params[dateFieldKey]) : null
+
+  if (trackName && startDate) return `${trackName}, ${startDate}`
+  if (trackName) return trackName
+  if (startDate) return startDate
+  return 'No track selected'
+}
+
+export function getJobMetaLine(job: WatchJob): string {
+  const nights = formatCountLabel(job.params.nights, 'Night', 'Nights')
+  const people = formatCountLabel(job.params.people, 'Person', 'People')
+
+  if (nights && people) return `${nights}, ${people}`
+  if (nights) return nights
+  if (people) return people
+  return 'Party details not set'
 }

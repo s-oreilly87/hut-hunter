@@ -22,6 +22,19 @@ export function jobHasOccupants(job: WatchJob): boolean {
   return Array.isArray(occupants) && occupants.length > 0
 }
 
+/**
+ * A "live" job is one that is still actively tracked: not yet booked, not
+ * cancelled, and not expired. Used as the gating predicate for monitoring,
+ * outdated-camper checks, missing-occupants notices, etc.
+ */
+export function isLiveJob(job: WatchJob): boolean {
+  return (
+    job.status !== 'booking_complete'
+    && job.status !== 'cancelled'
+    && job.status !== 'expired'
+  )
+}
+
 export function getDisplayStatus(
   job: WatchJob,
   pendingBookings: Set<string>,

@@ -1,4 +1,5 @@
 import type { AdapterInfo, Occupant, WatchJob } from '@/lib/api'
+import { isLiveJob } from '@/lib/availability'
 
 function isBlankValue(value: unknown): boolean {
   if (value == null) return true
@@ -74,5 +75,23 @@ export function jobHasOutdatedOccupantSnapshots(
     const currentSnapshot = buildCurrentOccupantSnapshot(currentOccupant, adapter)
     return stableStringify(savedSnapshot) !== stableStringify(currentSnapshot)
   })
+}
+
+/**
+ * Whether a job needs its camper details refreshed: the job is still live
+ * (not booked / cancelled / expired), an adapter is known, and at least one
+ * attached camper has been edited since the snapshot was saved.
+ *
+ * Combines the status guard and the snapshot comparison that JobList and
+ * JobCard previously duplicated.
+ */
+export function isJobOutdatedOnCampers(
+  job: WatchJob,
+  occupants: Occupant[],
+  adapter: AdapterInfo | undefined,
+): boolean {
+  if (!isLiveJob(job)) return false
+  if (!adapter) return false
+  return jobHasOutdatedOccupantSnapshots(job, occupants, adapter)
 }
 

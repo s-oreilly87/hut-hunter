@@ -1,5 +1,5 @@
 import type { WatchJob } from '@/lib/api'
-import { getDisplayStatus, hasHoldExpired } from '@/lib/availability'
+import { getDisplayStatus, hasHoldExpired, isLiveJob } from '@/lib/availability'
 
 export type JobFilterKey =
   | 'all'
@@ -18,13 +18,8 @@ export interface JobFilterDefinition {
   matches: (job: WatchJob, pendingBookings: Set<string>) => boolean
 }
 
-export function isLiveJob(job: WatchJob): boolean {
-  return (
-    job.status !== 'booking_complete'
-    && job.status !== 'cancelled'
-    && job.status !== 'expired'
-  )
-}
+// Re-export so consumers that already import from this module keep working.
+export { isLiveJob }
 
 export const JOB_FILTERS: JobFilterDefinition[] = [
   {
