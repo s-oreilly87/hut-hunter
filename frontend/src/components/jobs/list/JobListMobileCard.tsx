@@ -5,7 +5,6 @@ import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { AutoBookBadge } from '@/components/jobs/shared/AutoBookBadge'
 import { JobIdentity } from './JobIdentity'
 import { formatTimeAgo, isJobFinished } from './jobListHelpers'
-import { cn } from '@/lib/utils'
 
 /**
  * Mobile-layout (lg:hidden) card variant of a single job in the JobList.
@@ -16,7 +15,6 @@ import { cn } from '@/lib/utils'
  */
 export function JobListMobileCard({
   job,
-  isSelected,
   displayStatus,
   hasOutdatedCampers,
   adapterDateFieldKeyById,
@@ -25,7 +23,6 @@ export function JobListMobileCard({
   setRef,
 }: {
   job: WatchJob
-  isSelected: boolean
   displayStatus: DisplayStatus
   hasOutdatedCampers: boolean
   adapterDateFieldKeyById: Map<string, string>
@@ -42,12 +39,7 @@ export function JobListMobileCard({
       tabIndex={0}
       data-job-id={job.id}
       ref={(node) => setRef(job.id, node)}
-      className={cn(
-        'w-full cursor-pointer rounded-[1.35rem] border px-4 py-4 text-left transition-colors',
-        isSelected
-          ? 'border-primary/45 bg-primary/8 ring-2 ring-primary/20 shadow-[0_22px_55px_-34px_rgba(22,53,40,0.7)]'
-          : 'border-border/80 bg-background/75 hover:border-primary/20 hover:bg-background',
-      )}
+      className="w-full cursor-pointer rounded-[1.35rem] border border-border/80 bg-background/75 px-4 py-4 text-left transition-colors hover:border-primary/20 hover:bg-background"
       onClick={() => onSelect(job.id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

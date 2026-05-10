@@ -82,7 +82,6 @@ export function JobGroupSection({
                 <JobListMobileCard
                   key={job.id}
                   job={job}
-                  isSelected={selectedJobId === job.id}
                   displayStatus={displayStatus}
                   hasOutdatedCampers={hasOutdatedCampers}
                   adapterDateFieldKeyById={adapterDateFieldKeyById}
