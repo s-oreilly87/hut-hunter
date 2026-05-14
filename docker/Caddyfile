@@ -3,24 +3,59 @@
 }
 
 :80 {
-    encode zstd gzip
+    route {
+        encode zstd gzip
 
-    header {
-        Referrer-Policy strict-origin-when-cross-origin
-        X-Content-Type-Options nosniff
-        X-Frame-Options SAMEORIGIN
+        header {
+            Referrer-Policy strict-origin-when-cross-origin
+            X-Content-Type-Options nosniff
+            X-Frame-Options SAMEORIGIN
+        }
+
+        handle /api/* {
+            reverse_proxy api:8000
+        }
+
+        handle /health {
+            reverse_proxy api:8000
+        }
+
+        handle /artifacts/* {
+            reverse_proxy api:8000
+        }
+
+        handle /pay/* {
+            reverse_proxy api:8000
+        }
+
+        handle /vnc.html* {
+            reverse_proxy hold_worker:6080
+        }
+
+        handle /vnc_lite.html* {
+            reverse_proxy hold_worker:6080
+        }
+
+        handle /websockify* {
+            reverse_proxy hold_worker:6080
+        }
+
+        handle /app/* {
+            reverse_proxy hold_worker:6080
+        }
+
+        handle /core/* {
+            reverse_proxy hold_worker:6080
+        }
+
+        handle /vendor/* {
+            reverse_proxy hold_worker:6080
+        }
+
+        handle {
+            root * /srv
+            try_files {path} /index.html
+            file_server
+        }
     }
-
-    @api path /api/* /health /artifacts/*
-    reverse_proxy @api api:8000
-
-    @pay path /pay/*
-    reverse_proxy @pay api:8000
-
-    @novnc path /vnc.html* /vnc_lite.html* /websockify* /app/* /core/* /vendor/*
-    reverse_proxy @novnc hold_worker:6080
-
-    root * /srv
-    try_files {path} /index.html
-    file_server
 }

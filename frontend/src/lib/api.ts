@@ -6,6 +6,25 @@ export const api = axios.create({
   withCredentials: true,
 })
 
+function expectArray<T>(value: unknown, label: string): T[] {
+  if (Array.isArray(value)) return value as T[]
+  console.warn(`Expected ${label} API response to be an array.`, value)
+  return []
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isAuthUser(value: unknown): value is AuthUser {
+  return (
+    isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.email === 'string'
+    && typeof value.created_at === 'string'
+  )
+}
+
 export interface AuthUser {
   id: string
   email: string
@@ -189,13 +208,18 @@ export interface UpdateNotificationSettingsDto {
 }
 
 export const adaptersApi = {
-  list: () => api.get<AdapterInfo[]>('/adapters').then(r => r.data),
+  list: () => api.get<AdapterInfo[] | unknown>('/adapters').then(r => expectArray<AdapterInfo>(r.data, 'adapters')),
 }
 
 export const authApi = {
   me: async () => {
     try {
-      return (await api.get<AuthUser>('/auth/me')).data
+      const data = (await api.get<AuthUser | unknown>('/auth/me')).data
+      if (isAuthUser(data)) {
+        return data
+      }
+      console.warn('Expected auth/me API response to be an auth user object.', data)
+      return null
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         return null
@@ -211,7 +235,7 @@ export const authApi = {
 }
 
 export const occupantsApi = {
-  list: () => api.get<Occupant[]>('/occupants').then(r => r.data),
+  list: () => api.get<Occupant[] | unknown>('/occupants').then(r => expectArray<Occupant>(r.data, 'occupants')),
   create: (data: OccupantCreate) => api.post<Occupant>('/occupants', data).then(r => r.data),
   update: (id: string, data: Partial<OccupantCreate>) =>
     api.patch<Occupant>(`/occupants/${id}`, data).then(r => r.data),
@@ -219,7 +243,7 @@ export const occupantsApi = {
 }
 
 export const credentialsApi = {
-  list: () => api.get<AdapterCredential[]>('/credentials').then(r => r.data),
+  list: () => api.get<AdapterCredential[] | unknown>('/credentials').then(r => expectArray<AdapterCredential>(r.data, 'credentials')),
   upsert: (adapterId: string, data: AdapterCredentialUpsert) =>
     api.put<AdapterCredential>(`/credentials/${adapterId}`, data).then(r => r.data),
   remove: (adapterId: string) => api.delete(`/credentials/${adapterId}`),
@@ -232,7 +256,7 @@ export const notificationsApi = {
 }
 
 export const jobsApi = {
-  list: () => api.get<WatchJob[]>('/jobs').then(r => r.data),
+  list: () => api.get<WatchJob[] | unknown>('/jobs').then(r => expectArray<WatchJob>(r.data, 'jobs')),
   get: (id: string) => api.get<WatchJob>(`/jobs/${id}`).then(r => r.data),
   create: (data: CreateWatchJobDto) => api.post<WatchJob>('/jobs', data).then(r => r.data),
   update: (id: string, data: UpdateWatchJobDto) =>
