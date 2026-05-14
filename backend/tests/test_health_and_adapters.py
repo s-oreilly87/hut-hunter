@@ -22,7 +22,7 @@ async def test_get_adapters_returns_doc_metadata(client):
     adapters = response.json()
     adapter = next(item for item in adapters if item["adapter_id"] == "doc_great_walk")
 
-    assert adapter["name"] == "DOC Great Walk"
+    assert adapter["name"] == "NZ DOC Great Walk"
     assert adapter["requires_credentials"] is True
     assert adapter["booking_timezone"] == "Pacific/Auckland"
     assert adapter["booking_cutoff_time"] == "20:00:00"

@@ -146,6 +146,16 @@ def _facility_options_tree() -> list[dict]:
     return result
 
 
+def _flatten_facility_options(options_tree: list[dict]) -> list[str]:
+    """Flatten the grouped facility tree into the legacy flat options list."""
+    return [
+        item
+        for group in options_tree
+        for item in (group.get("items") or [])
+        if isinstance(item, str) and item.strip()
+    ]
+
+
 
 # -------------------------------------------------------------------------- #
 # Helpers that don't need adapter state
@@ -237,14 +247,17 @@ class DocStandardHutAdapter(BaseDOCAdapter):
     @classmethod
     def param_fields(cls) -> list[ParamField]:
         options_tree = _facility_options_tree()
+        flat_options = _flatten_facility_options(options_tree)
+        default_facility = flat_options[0] if flat_options else ""
 
         return [
             ParamField(
                 key="facility",
                 label="Hut / Campsite",
                 type="select",
+                options=flat_options,
                 options_tree=options_tree,
-                default="",
+                default=default_facility,
                 required=True,
             ),
             ParamField(
@@ -947,53 +960,11 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             hut_name, people_text, sites_text, icon, cell_is_bookable, aria_status,
         )
 
-        if not cell_is_bookable or re.search(r"booked|closed|unavailable|not.available", aria_status):
-            return AvailabilityResult(
-                site=hut_name,
-                status=AvailabilityStatus.UNAVAILABLE,
-                evidence=(
-                    f"Site cell not bookable online. "
-                    f"tabindex0={cell_is_bookable} aria_status={aria_status!r} "
-                    f"icon={icon!r}"
-                ),
-                icon=icon,
-            )
-
-        # ── Cell is clickable → determine capacity ────────────────────────────
-        # DOC facilities use one of two rows to show how many spots remain:
-        #   • "Available # of People"  — hut-style (beds/bunks)
-        #   • "Number of sites available" — campsite-style
-        # Prefer people count; fall back to site count.  Either > 0 confirms
-        # the date is genuinely bookable (the clickable button already told us).
-
-        count = people_num if people_num is not None else sites_num
-        count_source = "people" if people_num is not None else "sites"
-
-        if count is not None:
-            if count_source == "sites":
-                avail_status = (
-                    AvailabilityStatus.AVAILABLE
-                    if count > 0
-                    else AvailabilityStatus.UNAVAILABLE
-                )
-            elif count >= people_wanted:
-                avail_status = AvailabilityStatus.AVAILABLE
-            elif count > 0:
-                avail_status = AvailabilityStatus.PARTIALLY_AVAILABLE
-            else:
-                avail_status = AvailabilityStatus.UNAVAILABLE
-            return AvailabilityResult(
-                site=hut_name,
-                status=avail_status,
-                evidence=(
-                    f"{count_source}={count!r} peopleCell={people_text!r} "
-                    f"sitesCell={sites_text!r} icon={icon!r}"
-                ),
-                total_available=count,
-                icon=icon,
-            )
-
-        if unit_cells:
+        # Some campsite pages omit the summary rows entirely and only render
+        # one unit cell per site. In that mode the top-level site cell is blank,
+        # so we must classify from the unit grid before applying the summary
+        # cell heuristics.
+        if unit_cells and not site_cell_html.strip():
             available_units = 0
             sample_icon = icon
             sample_statuses: list[str] = []
@@ -1021,6 +992,53 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 ),
                 total_available=available_units,
                 icon=sample_icon,
+            )
+
+        if not cell_is_bookable or re.search(r"booked|closed|unavailable|not.available", aria_status):
+            return AvailabilityResult(
+                site=hut_name,
+                status=AvailabilityStatus.UNAVAILABLE,
+                evidence=(
+                    f"Site cell not bookable online. "
+                    f"tabindex0={cell_is_bookable} aria_status={aria_status!r} "
+                    f"icon={icon!r}"
+                ),
+                total_available=0,
+                icon=icon,
+            )
+
+        # ── Cell is clickable → determine capacity ────────────────────────────
+        # DOC facilities use one of two rows to show how many spots remain:
+        #   • "Available # of People"  — hut-style (beds/bunks)
+        #   • "Number of sites available" — campsite-style
+        # Prefer people count; fall back to site count. Either > 0 confirms
+        # the date is genuinely bookable.
+
+        count = people_num if people_num is not None else sites_num
+        count_source = "people" if people_num is not None else "sites"
+
+        if count is not None:
+            if count_source == "sites":
+                avail_status = (
+                    AvailabilityStatus.AVAILABLE
+                    if count > 0
+                    else AvailabilityStatus.UNAVAILABLE
+                )
+            elif count >= people_wanted:
+                avail_status = AvailabilityStatus.AVAILABLE
+            elif count > 0:
+                avail_status = AvailabilityStatus.PARTIALLY_AVAILABLE
+            else:
+                avail_status = AvailabilityStatus.UNAVAILABLE
+            return AvailabilityResult(
+                site=hut_name,
+                status=avail_status,
+                evidence=(
+                    f"{count_source}={count!r} peopleCell={people_text!r} "
+                    f"sitesCell={sites_text!r} icon={icon!r}"
+                ),
+                total_available=count,
+                icon=icon,
             )
 
         return AvailabilityResult(
