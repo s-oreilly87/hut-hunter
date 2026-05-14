@@ -53,11 +53,11 @@ async def test_pay_page_renders_vnc_embed_for_active_hold(client, seed_job, seed
     assert "view_clip', '0'" in response.text
     assert "syncViewportHeight" in response.text
     assert "Open VNC directly" in response.text
-    assert "Start Typing" in response.text
-    assert "Previous Field" in response.text
+    assert "Open Keyboard" in response.text
+    assert "Prev Field" in response.text
     assert "Next Field" in response.text
-    assert "Use two fingers to scroll inside the payment page" in response.text
-    assert "hh-open-keyboard" in response.text
+    assert "Use two fingers to scroll inside the booking page" in response.text
+    assert 'data-assist="keyboard"' in response.text
     assert "/api/v1/jobs/${jobId}/assist/${action}" in response.text
     assert "primeMobileField" in response.text
     assert "mobile-embed" in response.text

@@ -1,5 +1,7 @@
 # Hut Hunter
 
+License: GPL-3.0
+
 Hut Hunter is a booking assistant for popular, hard-to-book huts and campsites. It monitors availability, sends alerts quickly, and can continue through the booking flow to secure a reservation hold so you do not lose your spot.
 
 Today the app is centered on New Zealand DOC inventory and supports:
@@ -15,6 +17,12 @@ The product promise reflected in the welcome screen is the core of the app:
 - **Availability checks** for preferred dates, direction, and party setup
 - **Notifications** through email or Gotify
 - **Booking holds and auto-booking** using saved site credentials and saved occupant details
+
+## Repo notes
+
+- This project is not affiliated with New Zealand DOC.
+- Booking credentials and occupant details are user data. Treat this as a private app unless you are prepared to operate it responsibly.
+- The production deployment path in this repo is aimed at a single-owner demo on a trusted host, not a hardened multi-tenant SaaS launch.
 
 ## What the app does
 
@@ -143,11 +151,11 @@ Each adapter publishes:
 
 ## Installation
 
-There are two practical ways to run the project.
+There are three practical ways to run the project.
 
-### Option 1: Docker Compose
+### Option 1: Docker Compose for local development
 
-This is the easiest path because it includes Postgres, Redis, Mailpit, the API, and both workers.
+This is the easiest path for local work because it includes Postgres, Redis, Mailpit, the API, and both workers.
 
 1. Copy the example environment:
 
@@ -187,7 +195,52 @@ npm run dev
 - Mailpit inbox: `http://localhost:8025`
 - noVNC checkout session: `http://localhost:6080`
 
-### Option 2: Local backend + local frontend
+### Option 2: Production-style Docker deployment
+
+Use this when deploying the demo to a NAS or another always-on box and putting it behind Cloudflare Tunnel or another reverse proxy.
+
+What this stack does:
+
+- builds the frontend into a static site
+- serves the frontend and API from one public origin
+- reverse-proxies noVNC through the same web entrypoint
+- keeps Postgres, Redis, and the hold-worker VNC service off public ports
+
+1. Copy environment config:
+
+```bash
+cp .env.example .env
+```
+
+2. Set production values:
+
+- `ENVIRONMENT=production`
+- `APP_URL=https://your-public-hostname`
+- `VNC_URL=https://your-public-hostname`
+- `SECRET_KEY` to a long random value
+- `ENCRYPTION_KEY` to a generated Fernet key
+- `POSTGRES_PASSWORD` to a real secret
+- `SMTP_*` to a real provider
+
+3. Start the production stack:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+4. Point your Cloudflare Tunnel or reverse proxy at:
+
+- `http://<nas-or-docker-host>:8080`
+
+5. Open the app at your public hostname.
+
+Important deployment notes:
+
+- Keep `5432`, `6379`, and the worker-side VNC service unexposed.
+- The pay page depends on WebSocket proxying for `/websockify`; make sure your tunnel/proxy allows WebSockets.
+- This stack intentionally does not include Mailpit.
+
+### Option 3: Local backend + local frontend
 
 Use this when you want to run Python and Node directly on your machine.
 

@@ -66,7 +66,10 @@ async def _enqueue_complete_snapshot(job_id: str, redis) -> None:
 
 
 async def _enqueue_live_browser_assist(job_id: str, action: str, redis, chars: str = "") -> None:
-    await redis.enqueue_job("assist_live_browser_task", job_id, action, chars, _queue_name=HOLD_QUEUE_NAME)
+    args = [job_id, action]
+    if chars:
+        args.append(chars)
+    await redis.enqueue_job("assist_live_browser_task", *args, _queue_name=HOLD_QUEUE_NAME)
 
 
 class _AssistBody(BaseModel):

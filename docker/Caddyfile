@@ -1,0 +1,26 @@
+{
+    auto_https off
+}
+
+:80 {
+    encode zstd gzip
+
+    header {
+        Referrer-Policy strict-origin-when-cross-origin
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+    }
+
+    @api path /api/* /health /artifacts/*
+    reverse_proxy @api api:8000
+
+    @pay path /pay/*
+    reverse_proxy @pay api:8000
+
+    @novnc path /vnc.html* /vnc_lite.html* /websockify* /app/* /core/* /vendor/*
+    reverse_proxy @novnc hold_worker:6080
+
+    root * /srv
+    try_files {path} /index.html
+    file_server
+}
