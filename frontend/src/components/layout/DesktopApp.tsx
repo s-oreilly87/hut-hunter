@@ -102,7 +102,7 @@ export function DesktopApp({
 
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
       <NotificationsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} />
-      <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} />
+      <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} userEmail={userEmail} />
 
       <CreateJobDialog
         open={route.name === 'create-job'}

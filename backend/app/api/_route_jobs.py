@@ -129,7 +129,8 @@ async def update_job(
     Monitoring transitions:
       • OFF → ON   — enqueue a check now; set next_check_at one interval out.
       • ON  → OFF  — clear next_check_at; WAITING → PAUSED.
-      • Interval change (monitoring on) — reschedule next_check_at from now.
+      • ON  → ON   — enqueue a check now (any edit triggers a fresh check);
+                     also reschedule next_check_at if interval changed.
     """
     job = await _get_owned_job(session, current_user.id, job_id)
     if job.status == JobStatus.BOOKING_COMPLETE.value:
@@ -189,9 +190,12 @@ async def update_job(
         job.next_check_at = None
         if job.status == JobStatus.WAITING.value:
             job.status = JobStatus.PAUSED.value
-    elif job.enable_monitoring and job.interval_minutes != prev_interval:
-        # Interval changed while monitoring is on
-        job.next_check_at = now + timedelta(minutes=job.interval_minutes)
+    elif job.enable_monitoring and prev_monitoring:
+        # Monitoring stays on — reschedule if interval changed, and always
+        # trigger an immediate check so the user sees fresh results for any edit.
+        if job.interval_minutes != prev_interval:
+            job.next_check_at = now + timedelta(minutes=job.interval_minutes)
+        dispatch_now = True
 
     session.add(job)
     await session.commit()
