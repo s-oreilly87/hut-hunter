@@ -95,12 +95,12 @@
     --secondary: oklch(0.28 0.02 145);
     --secondary-foreground: oklch(0.95 0.01 95);
     --muted: oklch(0.28 0.02 145);
-    --muted-foreground: oklch(0.77 0.02 95);
-    --accent: oklch(0.32 0.03 128);
+    --muted-foreground: oklch(0.70 0.025 145);
+    --accent: oklch(0.32 0.03 145);
     --accent-foreground: oklch(0.95 0.01 95);
     --destructive: oklch(0.67 0.16 28);
-    --border: oklch(1 0 0 / 12%);
-    --input: oklch(1 0 0 / 14%);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 12%);
     --ring: oklch(0.74 0.1 150);
     --chart-1: oklch(0.76 0.1 150);
     --chart-2: oklch(0.8 0.08 107);
@@ -113,7 +113,7 @@
     --sidebar-primary-foreground: oklch(0.19 0.02 145);
     --sidebar-accent: oklch(0.28 0.02 145);
     --sidebar-accent-foreground: oklch(0.95 0.01 95);
-    --sidebar-border: oklch(1 0 0 / 12%);
+    --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.74 0.1 150);
 }
 
@@ -143,6 +143,13 @@
       linear-gradient(180deg, color-mix(in srgb, white 45%, var(--background)) 0%, var(--background) 30%, color-mix(in srgb, white 10%, var(--background)) 100%);
   }
 
+  /* Dark mode: drop the white-mixing gradient layer — it washes out dark backgrounds */
+  .dark body {
+    background-image:
+      radial-gradient(circle at top left, color-mix(in srgb, var(--primary) 16%, transparent), transparent 28rem),
+      radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 12%, transparent), transparent 22rem);
+  }
+
   a {
     @apply transition-colors;
   }
@@ -165,6 +172,13 @@
     pointer-events: none;
   }
 
+  /* Dark mode: replace the bright white overlay with a very subtle light wash */
+  .dark .app-shell::before {
+    background:
+      linear-gradient(135deg, oklch(1 0 0 / 3%), transparent 45%),
+      linear-gradient(180deg, oklch(1 0 0 / 2%), oklch(1 0 0 / 0%));
+  }
+
   .app-shell::after {
     content: '';
     position: fixed;
@@ -178,8 +192,15 @@
     pointer-events: none;
   }
 
+  /* Dark mode grid: use a light-on-dark line color */
+  .dark .app-shell::after {
+    background-image:
+      linear-gradient(oklch(1 0 0 / 4%) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(1 0 0 / 4%) 1px, transparent 1px);
+  }
+
   .app-panel {
-    @apply gap-0 py-0 rounded-[1.75rem] border border-white/60 bg-card/85 shadow-[0_18px_60px_-30px_rgba(23,47,36,0.45)] backdrop-blur-md max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:shadow-none max-sm:backdrop-blur-none;
+    @apply gap-0 py-0 rounded-[1.75rem] border border-white/60 dark:border-white/8 dark:inset-ring dark:inset-ring-white/5 bg-card/85 shadow-[0_18px_60px_-30px_rgba(23,47,36,0.45)] dark:shadow-none backdrop-blur-md max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:shadow-none max-sm:backdrop-blur-none;
   }
 
   .app-panel-frame {

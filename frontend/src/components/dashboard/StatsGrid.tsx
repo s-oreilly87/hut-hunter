@@ -177,7 +177,7 @@ export function StatsGrid({
               <article
                 key={stat.filterKey}
                 className={cn(
-                  'app-panel w-full min-h-28 overflow-hidden px-5 py-3.5 sm:w-64',
+                  'app-panel w-full min-h-28 overflow-hidden px-5 py-3.5 sm:w-60',
                   isActive && 'ring-2 ring-primary/25',
                 )}
               >

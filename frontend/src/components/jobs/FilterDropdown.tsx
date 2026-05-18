@@ -53,7 +53,7 @@ export function FilterDropdown({
       <button
         type="button"
         className={cn(
-          'flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm font-medium ring-1 ring-black/5',
+          'flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm font-medium ring-1 ring-black/5 dark:ring-white/5',
           isFiltered
             ? 'border-primary/35 bg-primary/10 text-primary ring-primary/10'
             : 'border-border/70 bg-background/80 text-foreground hover:bg-secondary/60',
@@ -77,7 +77,7 @@ export function FilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 min-w-[196px] overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg ring-1 ring-black/5">
+        <div className="absolute right-0 top-full z-50 mt-2 min-w-[196px] overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg ring-1 ring-black/5 dark:ring-white/5">
           <div className="p-1.5">
             {JOB_FILTERS.map((filter) => {
               const count = filterCounts.get(filter.key) ?? 0
