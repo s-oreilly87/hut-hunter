@@ -126,6 +126,11 @@ class BaseDOCAdapter(BaseAdapter):
                 "DOC login modal did not close — check the stored username/password"
             )
 
+        # Give the page time to process the authentication and settle before
+        # the next selector lookup — the first hold attempt after a cold
+        # session would fail without this grace period.
+        await page.wait_for_load_state("networkidle", timeout=15_000)
+
         return True
 
     # ------------------------------------------------------------------
