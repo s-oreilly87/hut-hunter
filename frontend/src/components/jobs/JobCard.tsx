@@ -222,7 +222,7 @@ export function JobCard({
         />
 
         <CardContent className="app-panel-body-scroll px-0 [-webkit-mask-image:none] [mask-image:none]">
-          <div className="sticky top-0 z-10 border-b border-border/70 bg-taupe-50/95 px-4 py-3 backdrop-blur-sm sm:px-6">
+          <div className="sticky top-0 z-10 border-b border-border/70 bg-muted/80 px-4 py-3 backdrop-blur-sm sm:px-6">
             <HeaderParamSummary
               params={job.params}
               onEdit={!isLocked ? () => handleEdit(1) : undefined}

@@ -205,7 +205,7 @@ export function DatePicker({
       </div>
 
       {open && (
-        <div className="absolute left-0 top-full z-40 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-2xl border border-border/80 bg-popover p-3 text-popover-foreground shadow-xl ring-1 ring-black/5">
+        <div className="absolute left-0 top-full z-40 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-2xl border border-border/80 bg-popover p-3 text-popover-foreground shadow-xl ring-1 ring-black/5 dark:ring-white/5">
           <div className="flex items-center justify-between gap-2">
             <button
               type="button"
