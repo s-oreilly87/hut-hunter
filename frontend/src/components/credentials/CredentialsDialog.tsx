@@ -21,16 +21,21 @@ function CredentialCard({
   adapterId,
   adapterName,
   credential,
+  accountEmail,
   onSaved,
 }: {
   adapterId: string
   adapterName: string
   credential?: AdapterCredential
+  accountEmail: string
   onSaved: () => void
 }) {
   const qc = useQueryClient()
+  // Pre-fill the username with the account email when no credential is saved
+  // yet — the user can correct it before saving if their booking-site login
+  // differs. We never write this pre-fill to the DB on its own.
   const [draft, setDraft] = useState<DraftState>({
-    username: credential?.username ?? '',
+    username: credential?.username ?? accountEmail,
     password: '',
   })
   const [error, setError] = useState<string | null>(null)
@@ -141,9 +146,11 @@ function CredentialCard({
 export function CredentialsDialog({
   open,
   onOpenChange,
+  userEmail,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  userEmail: string
 }) {
   const qc = useQueryClient()
   const { data: adapters = [] } = useQuery({
@@ -197,6 +204,7 @@ export function CredentialsDialog({
                 adapterId={adapter.adapter_id}
                 adapterName={adapter.name}
                 credential={byAdapterId.get(adapter.adapter_id)}
+                accountEmail={userEmail}
                 onSaved={invalidateJobs}
               />
             ))

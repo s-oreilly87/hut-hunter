@@ -138,7 +138,7 @@ export function MobileApp({
 
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
       <NotificationsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} />
-      <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} />
+      <CredentialsDialog open={credentialsOpen} onOpenChange={setCredentialsOpen} userEmail={userEmail} />
     </div>
   )
 }
