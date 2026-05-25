@@ -3,7 +3,6 @@
 import json
 import logging
 from datetime import timedelta
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +43,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/jobs", response_model=List[WatchJobRead])
+@router.get("/jobs", response_model=list[WatchJobRead])
 async def list_jobs(
     session: AsyncSession = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),

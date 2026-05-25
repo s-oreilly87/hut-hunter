@@ -486,7 +486,7 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
         night_dates = self._generate_night_dates(date_str, nights)
         logger.info(f"Attempting hold for {nights} night(s): {night_dates} at sites: {sites}")
 
-        # --- 1. Get sites in DOM order (top to bottom as displayed) ---
+        # Read sites in DOM top-to-bottom order (matches track direction).
         table = page.locator("table.js-book-modal")
         site_links = table.locator("a.gridParkLink span")
         dom_ordered_sites = []
@@ -497,14 +497,9 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
 
         logger.info(f"Sites in DOM order: {dom_ordered_sites}")
 
-        # --- 2. Select one cell per night in DOM order ---
-        # Each site maps to the corresponding night: site[0] on night_dates[0],
-        # site[1] on night_dates[1], etc. The DOC availability table orders huts
-        # top-to-bottom matching the track direction, so this naturally maps to
-        # night 1 hut → night 2 hut → etc.
-        #
-        # Use JS click (el.click()) rather than Playwright's coordinate-based
-        # click to reliably target each cell regardless of DOM overlay position.
+        # Select one cell per night: site[0] → night_dates[0], site[1] → night_dates[1], etc.
+        # Use JS click (el.click()) rather than Playwright's coordinate-based click to
+        # reliably target each cell regardless of DOM overlay position.
         selected_count = 0
         for i, night_date in enumerate(night_dates):
             if i >= len(dom_ordered_sites):
@@ -541,7 +536,7 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 ),
             )
 
-        # --- 3. Click Reserve (outside loop, after all selections) ---
+        # Click Reserve once after all cells are selected.
         reserve_btn = page.get_by_role("button", name="Reserve")
         try:
             await reserve_btn.wait_for(state="visible", timeout=10_000)
@@ -562,20 +557,17 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 message=f"Reserve button did not become enabled after {selected_count} selection(s)",
             )
 
-        # --- 3b. Handle login modal if session has expired ---
+        # Handle login modal if the session has expired. After login the site
+        # should automatically proceed to the occupant modal — the 15s timeout
+        # below will catch it either way.
         try:
             logged_in = await self._login_if_prompted(page)
             if logged_in:
-                # After login the site should automatically proceed to the occupant
-                # modal. If it doesn't (some SPA flows need a nudge), click Reserve
-                # again — the 15s timeout on the occupant modal below will catch it
-                # either way.
                 logger.info("Login completed — continuing to occupant details")
         except RuntimeError as e:
             await self.snapshot(page, "login_error")
             return BookingResult(success=False, held=False, message=str(e))
 
-        # --- 4. Fill occupant details modal ---
         try:
             await page.locator("text=Occupant Details").first.wait_for(
                 state="visible", timeout=15_000
@@ -590,11 +582,9 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
 
         await self._fill_occupants(page, occupants)
 
-        # --- 5. Save & Continue ---
         await page.get_by_role("button", name="Save & Continue").click()
         logger.info("Clicked Save & Continue")
 
-        # --- 6. Wait for Reservation Details page ---
         try:
             await page.wait_for_url("**/SelectReservationPreCartGreatWalk**", timeout=15_000)
             logger.info("Reached Reservation Details page")
@@ -605,7 +595,6 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 message="Did not reach Reservation Details page",
             )
 
-        # --- 7a. Wait for Book Great Walk button ---
         try:
             book_link = page.locator("#mainContent_bReserve")
             await book_link.wait_for(state="visible", timeout=15_000)
@@ -617,10 +606,9 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 message="Book Great Walk button did not appear on Reservation Details page",
             )
 
-        # --- 7b. Best-effort: open View Occupants modal for a richer snapshot ---
+        # Best-effort: open View Occupants modal for a richer snapshot before clicking through.
         await self._snapshot_reservation_details(page)
 
-        # --- 7c. Click Book Great Walk ---
         try:
             await book_link.click()
             logger.info("Clicked Book Great Walk")
@@ -632,7 +620,6 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 message="Book Great Walk button click timed out — check artifact for page state",
             )
 
-        # --- 8. Wait for Shopping Cart ---
         try:
             await page.wait_for_url("**/ShoppingCart**", timeout=15_000)
             logger.info("Reached Shopping Cart")
@@ -644,7 +631,6 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 message="Did not reach Shopping Cart page",
             )
 
-        # --- 9. T&Cs, checkout, and cart session ---
         await self._check_terms(page)
 
         cart_url = await self._proceed_to_checkout(page)
