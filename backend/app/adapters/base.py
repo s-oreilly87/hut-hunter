@@ -60,6 +60,10 @@ class ParamField:
     # present, `options` should be the flattened item list so that older
     # API clients that don't understand options_tree still work correctly.
     options_tree: list[dict] | None = None
+    # For number fields: inclusive lower/upper bounds surfaced to the frontend
+    # so it can set min/max on the <input type="number"> and validate accordingly.
+    min: int | None = None
+    max: int | None = None
 
 
 @dataclass

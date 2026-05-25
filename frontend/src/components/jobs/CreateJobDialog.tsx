@@ -132,8 +132,9 @@ function JobFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'max-h-[92vh] overflow-y-auto',
-          presentation === 'dialog' ? 'sm:max-w-3xl' : 'sm:max-w-lg p-0',
+          presentation === 'dialog'
+            ? 'max-h-[92vh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl'
+            : 'max-h-[92vh] overflow-y-auto sm:max-w-lg p-0',
         )}
         showCloseButton={presentation === 'dialog'}
       >

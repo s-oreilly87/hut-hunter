@@ -140,6 +140,9 @@ export interface ParamField {
   // <SelectGroup> per entry. Each entry is { group: string; items: string[] }.
   // `options` is still present as the flattened list for backwards compat.
   options_tree?: { group: string; items: string[] }[] | null
+  // For number fields: inclusive bounds for the <input type="number">.
+  min?: number | null
+  max?: number | null
 }
 
 export interface AdapterInfo {

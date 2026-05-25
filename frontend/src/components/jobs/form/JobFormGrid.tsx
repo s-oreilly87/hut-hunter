@@ -59,11 +59,17 @@ export function JobFormGrid({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="pl-2 text-2xl tracking-tight sm:pl-3">
-          {title}
-        </DialogTitle>
-      </DialogHeader>
+      {/* Fixed header — stays visible while body scrolls */}
+      <div className="shrink-0 px-6 pt-6 pb-2">
+        <DialogHeader>
+          <DialogTitle className="pl-2 text-2xl tracking-tight sm:pl-3">
+            {title}
+          </DialogTitle>
+        </DialogHeader>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
       <div className="grid gap-4 py-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
         <div className="space-y-4">
           <FormSection>
@@ -134,6 +140,7 @@ export function JobFormGrid({
           </FormSection>
         </div>
       </div>
+      </div> {/* end scrollable body */}
     </>
   )
 }
