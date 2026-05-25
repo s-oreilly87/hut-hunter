@@ -1,11 +1,10 @@
+import json
+import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+
+from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
-import uuid
-import json
-from sqlalchemy import Column
-from sqlalchemy import DateTime
 from app.core.artifacts import DEBUG_SNAPSHOT_TERMS
 from app.core.config import settings
 
@@ -27,7 +26,7 @@ def as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def as_optional_utc(value: Optional[datetime]) -> Optional[datetime]:
+def as_optional_utc(value: datetime | None) -> datetime | None:
     return as_utc(value) if value is not None else None
 
 
@@ -126,7 +125,7 @@ class WatchJob(SQLModel, table=True):
     # Wall-clock timestamp of the next scheduled check. Null when monitoring
     # is off or a check is currently in flight that we haven't rescheduled yet.
     # Scheduler enqueues when next_check_at <= utcnow().
-    next_check_at: Optional[datetime] = Field(
+    next_check_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True, index=True),
     )
@@ -134,20 +133,20 @@ class WatchJob(SQLModel, table=True):
         default_factory=utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
-    last_checked_at: Optional[datetime] = Field(
+    last_checked_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-    last_result: Optional[str] = None  # JSON blob of last check result
+    last_result: str | None = None  # JSON blob of last check result
     # Relative base path of the most recent debug/success snapshot (no
     # extension). The snapshot adapter saves {base}.png + {base}.html; the API
     # serves them via the StaticFiles mount at /artifacts/. Set on any failure
     # during check/hold and on booking-complete.
-    last_artifact: Optional[str] = None
+    last_artifact: str | None = None
     # JSON list of snapshot bases/labels captured across the current booking
     # flow. Used by the frontend to render a lightweight artifact gallery for
     # holds and receipts.
-    artifact_history: Optional[str] = None
+    artifact_history: str | None = None
 
 
 class WatchJobCreate(SQLModel):
@@ -165,11 +164,11 @@ class WatchJobUpdate(SQLModel):
     supplied by the client get written. `adapter_id` is intentionally omitted:
     params are adapter-specific, so changing adapters should be done by
     deleting + recreating the job rather than mutating in place."""
-    name: Optional[str] = None
-    params: Optional[dict] = None
-    auto_book: Optional[bool] = None
-    enable_monitoring: Optional[bool] = None
-    interval_minutes: Optional[int] = None
+    name: str | None = None
+    params: dict | None = None
+    auto_book: bool | None = None
+    enable_monitoring: bool | None = None
+    interval_minutes: int | None = None
 
 
 class WatchJobRead(SQLModel):
@@ -183,16 +182,16 @@ class WatchJobRead(SQLModel):
     credentials_configured: bool
     enable_monitoring: bool
     interval_minutes: int
-    next_check_at: Optional[datetime]
-    cart_expires_at: Optional[datetime]
+    next_check_at: datetime | None
+    cart_expires_at: datetime | None
     created_at: datetime
-    last_checked_at: Optional[datetime]
+    last_checked_at: datetime | None
     last_result: list[dict] | None = None
     # URLs (relative to the API host) for the most recent snapshot. Null when
     # no artifact has been captured. See WatchJob.last_artifact for where this
     # comes from.
-    last_artifact_png: Optional[str] = None
-    last_artifact_html: Optional[str] = None
+    last_artifact_png: str | None = None
+    last_artifact_html: str | None = None
     artifact_history: list[dict] | None = None
 
     @classmethod
@@ -200,7 +199,7 @@ class WatchJobRead(SQLModel):
         cls,
         job: WatchJob,
         *,
-        cart_expires_at: Optional[datetime] = None,
+        cart_expires_at: datetime | None = None,
         credentials_configured: bool = True,
     ) -> "WatchJobRead":
         raw = json.loads(job.last_result) if job.last_result else None
@@ -216,8 +215,8 @@ class WatchJobRead(SQLModel):
         # mounted at /artifacts/<filename>, so strip the "artifacts/" prefix
         # and prepend the URL root. HTML is only returned for debug/error
         # snapshots, where the file exists.
-        png_url: Optional[str] = None
-        html_url: Optional[str] = None
+        png_url: str | None = None
+        html_url: str | None = None
         if job.last_artifact:
             png_url, html_url = artifact_urls(job.last_artifact)
 

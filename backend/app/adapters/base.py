@@ -1,12 +1,12 @@
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any
-from playwright.async_api import Page
-
-import os
 from datetime import datetime, time
+from enum import Enum
 from pathlib import Path
+from typing import Any
+
+from playwright.async_api import Page
 
 from app.core.artifacts import DEBUG_SNAPSHOT_TERMS
 from app.core.config import settings

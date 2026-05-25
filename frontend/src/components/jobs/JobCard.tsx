@@ -15,6 +15,7 @@ import { EditJobDialog } from '@/components/jobs/CreateJobDialog'
 import {
   getDisplayStatus,
   hasHoldExpired,
+  isLiveJob,
   jobHasOccupants,
 } from '@/lib/availability'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
@@ -149,10 +150,7 @@ export function JobCard({
   const hasOutdatedCampers = isJobOutdatedOnCampers(job, occupants, adapter)
   const holdExpired = hasHoldExpired(job)
   const isLocked = job.status === 'booking_complete'
-  const isLive =
-    job.status !== 'booking_complete'
-    && job.status !== 'cancelled'
-    && job.status !== 'expired'
+  const isLive = isLiveJob(job)
   const missingOccupants = !jobHasOccupants(job) && isLive
   const missingCredentials = !job.credentials_configured && isLive
 

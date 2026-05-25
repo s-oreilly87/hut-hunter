@@ -1,12 +1,14 @@
 import os
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.core.config import settings
-from app.core.database import verify_db_connection
+
 import app.models  # noqa: F401 - registers SQLModel metadata
 from app.api.auth import auth_router
 from app.api.routes import router, public_router
+from app.core.config import settings
+from app.core.database import verify_db_connection
 
 
 @asynccontextmanager
@@ -14,7 +16,7 @@ async def lifespan(_app: FastAPI):
     """Runs on startup and shutdown."""
     await verify_db_connection()
     yield
-    # anything after yield runs on shutdown
+
 
 app = FastAPI(
     title="Hut Hunter",

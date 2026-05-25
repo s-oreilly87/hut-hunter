@@ -156,7 +156,6 @@ def _flatten_facility_options(options_tree: list[dict]) -> list[str]:
     ]
 
 
-
 # -------------------------------------------------------------------------- #
 # Helpers that don't need adapter state
 # -------------------------------------------------------------------------- #
@@ -1202,7 +1201,6 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 message="No occupant details provided — cannot complete hold",
             )
 
-        # --- 1. Click the site row button for the target date ----------- #
         # DOC renders each date cell as a <button> with an aria-label of the
         # form "{Site Name} MM/DD/YYYY - available".  Targeting by aria-label
         # is far more reliable than computing row/column indices through a
@@ -1264,7 +1262,6 @@ class DocStandardHutAdapter(BaseDOCAdapter):
 
         await page.wait_for_timeout(600)
 
-        # --- 2. Click "Book Now" to proceed from the site list -------- #
         # For campsite-style facilities, clicking the date cell SELECTS it
         # (the cell turns into "Booking Selected") but the page stays on the
         # Site List.  The user must then click "Book Now" at the bottom of
@@ -1282,7 +1279,6 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         except PlaywrightTimeoutError:
             logger.info("No Book Now button found — assuming direct navigation after cell click")
 
-        # --- 3. Handle login if prompted ------------------------------ #
         # Clicking "Book Now" (or the cell itself for huts) will trigger the
         # login modal when the user isn't authenticated.  After a successful
         # login, DOC stays on the current page — no re-click needed since the
@@ -1294,7 +1290,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             await self.snapshot(page, "login_error")
             return BookingResult(success=False, held=False, message=str(e))
 
-        # --- 4. Detect which booking form appeared -------------------- #
+        # Detect which booking form appeared after login/cell-click.
         # Pattern A — Campsite "Reservation Details" inline form:
         #   After login (or if already logged in), DOC shows a page with a
         #   "Reserve Unit" button, adult-count select, and occupant name input.
@@ -1417,10 +1413,9 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             await page.get_by_role("button", name="Save & Continue").click()
             logger.info("Clicked Save & Continue")
 
-        # --- 6. Intermediate Reservation Details page (hut/Great Walk only) -- #
         # For campsite Pattern A, clicking "Reserve Unit" navigates directly to
-        # the Shopping Cart — there is no intermediate SelectReservationPreCart
-        # step.  Only run this block for Pattern B (hut/Great Walk modal flow).
+        # Shopping Cart — no intermediate SelectReservationPreCart step. Only
+        # run this block for Pattern B (hut/Great Walk modal flow).
         if not is_campsite_form:
             try:
                 await page.wait_for_url(
