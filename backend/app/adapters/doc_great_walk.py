@@ -152,6 +152,7 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
                 label="Nights",
                 type="number",
                 default=1,
+                min=1,
             ),
             ParamField(
                 key="date",
@@ -168,9 +169,10 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
             ParamField(
                 key="people",
                 label="People",
-                type="select",
-                options=PEOPLE_OPTIONS,
-                default="2",
+                type="number",
+                default=2,
+                min=1,
+                max=25,
             ),
         ]
 

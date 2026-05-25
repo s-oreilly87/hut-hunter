@@ -257,7 +257,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 type="select",
                 options=flat_options,
                 options_tree=options_tree,
-                default=default_facility,
+                default="",
                 required=True,
             ),
             ParamField(
@@ -265,6 +265,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 label="Nights",
                 type="number",
                 default=1,
+                min=1,
             ),
             ParamField(
                 key="date",
@@ -286,9 +287,10 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             ParamField(
                 key="people",
                 label="People",
-                type="select",
-                options=PEOPLE_OPTIONS,
-                default="2",
+                type="number",
+                default=2,
+                min=1,
+                max=25,
             ),
         ]
 

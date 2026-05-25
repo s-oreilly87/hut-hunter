@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import type { ParamField } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
+import { NumberInput } from '@/components/ui/NumberInput'
 import { DatePicker } from '@/components/ui/DatePicker'
 import {
   SearchableSelect,
@@ -15,7 +16,7 @@ import { facilityDisplayName } from './paramHelpers'
  * Picks the right primitive based on `field.type`:
  *   - multiselect → checkbox list (with empty-state for dependent fields)
  *   - select      → SearchableSelect (with grouped options when supplied)
- *   - number      → numeric Input (clamped to 1..25 for `people`)
+ *   - number      → numeric Input (min/max from field.min / field.max)
  *   - date        → DatePicker
  *   - default     → text Input
  *
@@ -126,12 +127,11 @@ export function ParamFieldInput({
 
   if (field.type === 'number') {
     return (
-      <Input
-        type="number"
-        min={field.key === 'people' ? 1 : undefined}
-        max={field.key === 'people' ? 25 : undefined}
+      <NumberInput
         value={String(value ?? '')}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(val) => onChange(val)}
+        min={field.min ?? undefined}
+        max={field.max ?? undefined}
         disabled={disabled}
       />
     )
