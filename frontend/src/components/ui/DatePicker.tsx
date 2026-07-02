@@ -7,6 +7,10 @@ import {
   isSameCalendarDay,
   parseInputDateValue,
 } from '@/lib/jobDate'
+import {
+  POPOVER_LAYER_ATTR,
+  POPOVER_LAYER_Z_INDEX,
+} from '@/lib/popoverLayer'
 import { cn } from '@/lib/utils'
 
 /**
@@ -66,14 +70,16 @@ export function DatePicker({
         position: 'fixed',
         bottom: window.innerHeight - rect.top + 8,
         left: rect.left,
-        zIndex: 50,
+        zIndex: POPOVER_LAYER_Z_INDEX,
+        pointerEvents: 'auto',
       })
     } else {
       setPopoverStyle({
         position: 'fixed',
         top: rect.bottom + 8,
         left: rect.left,
-        zIndex: 50,
+        zIndex: POPOVER_LAYER_Z_INDEX,
+        pointerEvents: 'auto',
       })
     }
   }, [])
@@ -231,6 +237,7 @@ export function DatePicker({
       {open && createPortal(
         <div
           ref={popoverRef}
+          {...{ [POPOVER_LAYER_ATTR]: '' }}
           style={popoverStyle}
           className="w-[min(20rem,calc(100vw-3rem))] rounded-2xl border border-border/80 bg-popover p-3 text-popover-foreground shadow-xl ring-1 ring-black/5 dark:ring-white/5"
         >

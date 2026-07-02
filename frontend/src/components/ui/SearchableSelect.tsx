@@ -11,6 +11,10 @@ import {
 import { createPortal } from 'react-dom'
 import { ChevronDown, X } from 'lucide-react'
 import { Input } from './Input'
+import {
+  POPOVER_LAYER_ATTR,
+  POPOVER_LAYER_Z_INDEX,
+} from '@/lib/popoverLayer'
 import { cn } from '@/lib/utils'
 
 export type SearchableOptionGroup = {
@@ -77,7 +81,8 @@ export function SearchableSelect({
         bottom: window.innerHeight - rect.top + 8,
         left: rect.left,
         width: rect.width,
-        zIndex: 50,
+        zIndex: POPOVER_LAYER_Z_INDEX,
+        pointerEvents: 'auto',
       })
     } else {
       setPopoverStyle({
@@ -85,7 +90,8 @@ export function SearchableSelect({
         top: rect.bottom + 8,
         left: rect.left,
         width: rect.width,
-        zIndex: 50,
+        zIndex: POPOVER_LAYER_Z_INDEX,
+        pointerEvents: 'auto',
       })
     }
   }, [])
@@ -197,6 +203,7 @@ export function SearchableSelect({
       {open && createPortal(
         <div
           ref={popoverRef}
+          {...{ [POPOVER_LAYER_ATTR]: '' }}
           style={popoverStyle}
           className="max-h-72 overflow-y-auto rounded-2xl border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-lg ring-1 ring-black/5 dark:ring-white/5"
         >
