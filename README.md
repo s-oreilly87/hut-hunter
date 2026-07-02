@@ -216,7 +216,7 @@ cp .env.example .env
 
 - `ENVIRONMENT=production`
 - `APP_URL=https://your-public-hostname`
-- `VNC_URL=https://your-public-hostname`
+- `VNC_URL=https://your-public-hostname` (optional; defaults to `APP_URL` in production)
 - `SECRET_KEY` to a long random value
 - `ENCRYPTION_KEY` to a generated Fernet key
 - `POSTGRES_PASSWORD` to a real secret
@@ -237,7 +237,8 @@ docker compose -f docker-compose.prod.yml up --build -d
 Important deployment notes:
 
 - Keep `5432`, `6379`, and the worker-side VNC service unexposed.
-- The pay page depends on WebSocket proxying for `/websockify`; make sure your tunnel/proxy allows WebSockets.
+- The pay page depends on WebSocket proxying for `/websockify`; make sure your tunnel/proxy allows WebSockets (Cloudflare Tunnel supports this by default).
+- noVNC is served on the same public origin as the app (`/vnc.html`, `/websockify`); do not expose hold-worker port `6080` publicly.
 - This stack intentionally does not include Mailpit.
 
 ### Option 3: Local backend + local frontend

@@ -323,7 +323,15 @@
 
       if (!baseUrl) {
         host = window.location.hostname;
-        baseUrl = `${window.location.protocol}//${host}:${port}`;
+        const isLocal =
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host === '[::1]';
+        if (isLocal && port) {
+          baseUrl = `${window.location.protocol}//${host}:${port}`;
+        } else {
+          baseUrl = window.location.origin;
+        }
       }
 
       const url = new URL(`${baseUrl}/vnc.html`);
