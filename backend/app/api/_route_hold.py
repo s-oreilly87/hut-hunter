@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,19 +45,91 @@ def _render_pay_page(job_id: str, vnc_config: dict, minutes_left: int) -> str:
     )
 
 
-def _vnc_client_config() -> dict[str, str | int | None]:
+_LOCAL_VNC_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def _vnc_config_from_url(vnc_url: str) -> dict[str, str | int | None]:
+    """Map an explicit noVNC base URL to pay-page client config."""
     path = "websockify"
-    if settings.vnc_url:
-        vnc_url = settings.vnc_url.rstrip("/")
-        parts = urlsplit(vnc_url)
-        if parts.hostname not in {"localhost", "127.0.0.1", "::1"}:
-            explicit_path = parts.path.rstrip("/")
-            if explicit_path:
-                path = f"{explicit_path.lstrip('/')}/websockify"
-            return {"base_url": vnc_url, "host": parts.hostname, "port": parts.port, "path": path}
-        if parts.port is not None:
-            return {"base_url": None, "host": None, "port": parts.port, "path": path}
+    vnc_url = vnc_url.rstrip("/")
+    parts = urlsplit(vnc_url)
+    if parts.hostname not in _LOCAL_VNC_HOSTS:
+        explicit_path = parts.path.rstrip("/")
+        if explicit_path:
+            path = f"{explicit_path.lstrip('/')}/websockify"
+        return {"base_url": vnc_url, "host": parts.hostname, "port": parts.port, "path": path}
+    if parts.port is not None:
+        return {"base_url": None, "host": None, "port": parts.port, "path": path}
     return {"base_url": None, "host": None, "port": settings.vnc_port, "path": path}
+
+
+def _effective_vnc_url() -> str | None:
+    if settings.vnc_url:
+        return settings.vnc_url
+    if settings.environment != "production":
+        return None
+    app_url = settings.app_url.rstrip("/")
+    parts = urlsplit(app_url)
+    if parts.hostname and parts.hostname not in _LOCAL_VNC_HOSTS:
+        return app_url
+    return None
+
+
+def _public_origin_from_request(request: Request) -> dict[str, str | int | None] | None:
+    """Derive the public app origin from reverse-proxy headers."""
+    host_header = (
+        request.headers.get("x-forwarded-host")
+        or request.headers.get("host")
+        or ""
+    ).split(",")[0].strip()
+    if not host_header:
+        return None
+
+    scheme = (
+        request.headers.get("x-forwarded-proto")
+        or request.url.scheme
+        or "https"
+    ).split(",")[0].strip()
+
+    hostname = host_header
+    port: int | None = None
+    if hostname.startswith("[") and "]:" in hostname:
+        hostname, port_part = hostname.rsplit("]:", 1)
+        hostname = f"{hostname}]"
+        port = int(port_part) if port_part.isdigit() else None
+    elif hostname.count(":") == 1:
+        hostname, port_part = hostname.split(":", 1)
+        port = int(port_part) if port_part.isdigit() else None
+
+    default_port = 443 if scheme == "https" else 80
+    if port is None or port == default_port:
+        return {"base_url": f"{scheme}://{hostname}", "host": hostname, "port": None}
+    return {
+        "base_url": f"{scheme}://{hostname}:{port}",
+        "host": hostname,
+        "port": port,
+    }
+
+
+def _vnc_client_config(request: Request | None = None) -> dict[str, str | int | None]:
+    """Build noVNC client config for the pay page.
+
+    Production deployments reverse-proxy noVNC on the same public origin as the
+    app (see docker/Caddyfile). When VNC_URL is unset, fall back to APP_URL or
+    the incoming request origin instead of exposing the internal :6080 port.
+    """
+    explicit = _effective_vnc_url()
+    if explicit:
+        config = _vnc_config_from_url(explicit)
+        if config["base_url"] is not None or config["port"] is not None:
+            return config
+
+    if settings.environment == "production" and request is not None:
+        origin = _public_origin_from_request(request)
+        if origin:
+            return {**origin, "path": "websockify"}
+
+    return {"base_url": None, "host": None, "port": settings.vnc_port, "path": "websockify"}
 
 
 async def _enqueue_complete_snapshot(job_id: str, redis) -> None:
@@ -183,6 +255,7 @@ async def resume_cart(
 
 @public_router.get("/pay/{job_id}")
 async def pay(
+    request: Request,
     job_id: str,
     session: AsyncSession = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
@@ -216,4 +289,4 @@ async def pay(
 
     seconds_left = int((cart_expires_at - utcnow()).total_seconds())
     minutes_left = max(0, seconds_left // 60)
-    return HTMLResponse(_render_pay_page(job_id, _vnc_client_config(), minutes_left))
+    return HTMLResponse(_render_pay_page(job_id, _vnc_client_config(request), minutes_left))

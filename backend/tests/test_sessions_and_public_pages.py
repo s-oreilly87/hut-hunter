@@ -79,6 +79,7 @@ async def test_pay_page_prefers_explicit_vnc_url_override(client, seed_job, seed
 
 async def test_pay_page_uses_vnc_port_when_no_vnc_url_override(client, seed_job, seed_cart, monkeypatch):
     monkeypatch.setattr(settings, "vnc_url", None)
+    monkeypatch.setattr(settings, "environment", "development")
     monkeypatch.setattr(settings, "vnc_port", 6090)
     job = await seed_job(status=JobStatus.HOLD_PLACED.value)
     await seed_cart(job.id, expires_at=utcnow() + timedelta(minutes=20))
@@ -88,6 +89,45 @@ async def test_pay_page_uses_vnc_port_when_no_vnc_url_override(client, seed_job,
     assert response.status_code == 200
     assert 'const vncConfig = {"base_url": null, "host": null, "port": 6090, "path": "websockify"};' in response.text
     assert "/vnc.html" in response.text
+
+
+async def test_pay_page_uses_app_url_for_vnc_in_production(client, seed_job, seed_cart, monkeypatch):
+    monkeypatch.setattr(settings, "vnc_url", None)
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "app_url", "https://hut-hunter.example.test")
+    job = await seed_job(status=JobStatus.HOLD_PLACED.value)
+    await seed_cart(job.id, expires_at=utcnow() + timedelta(minutes=20))
+
+    response = await client.get(f"/pay/{job.id}")
+
+    assert response.status_code == 200
+    assert (
+        'const vncConfig = {"base_url": "https://hut-hunter.example.test", '
+        '"host": "hut-hunter.example.test", "port": null, "path": "websockify"};'
+    ) in response.text
+
+
+async def test_pay_page_uses_request_origin_in_production(client, seed_job, seed_cart, monkeypatch):
+    monkeypatch.setattr(settings, "vnc_url", None)
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "app_url", "http://localhost:8000")
+    job = await seed_job(status=JobStatus.HOLD_PLACED.value)
+    await seed_cart(job.id, expires_at=utcnow() + timedelta(minutes=20))
+
+    response = await client.get(
+        f"/pay/{job.id}",
+        headers={
+            "Host": "hut-hunter.example.test",
+            "X-Forwarded-Proto": "https",
+        },
+    )
+
+    assert response.status_code == 200
+    assert (
+        'const vncConfig = {"base_url": "https://hut-hunter.example.test", '
+        '"host": "hut-hunter.example.test", "port": null, "path": "websockify"};'
+    ) in response.text
+    assert "window.location.origin" in response.text
 
 
 @pytest.mark.parametrize(
