@@ -14,6 +14,7 @@ import { Input } from './Input'
 import {
   POPOVER_LAYER_ATTR,
   POPOVER_LAYER_Z_INDEX,
+  popoverLayerEventHandlers,
 } from '@/lib/popoverLayer'
 import { cn } from '@/lib/utils'
 
@@ -206,6 +207,7 @@ export function SearchableSelect({
           {...{ [POPOVER_LAYER_ATTR]: '' }}
           style={popoverStyle}
           className="max-h-72 overflow-y-auto rounded-2xl border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-lg ring-1 ring-black/5 dark:ring-white/5"
+          {...popoverLayerEventHandlers}
         >
           {value && (
             <button

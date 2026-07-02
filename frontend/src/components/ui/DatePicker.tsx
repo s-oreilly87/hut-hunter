@@ -10,6 +10,7 @@ import {
 import {
   POPOVER_LAYER_ATTR,
   POPOVER_LAYER_Z_INDEX,
+  popoverLayerEventHandlers,
 } from '@/lib/popoverLayer'
 import { cn } from '@/lib/utils'
 
@@ -240,6 +241,7 @@ export function DatePicker({
           {...{ [POPOVER_LAYER_ATTR]: '' }}
           style={popoverStyle}
           className="w-[min(20rem,calc(100vw-3rem))] rounded-2xl border border-border/80 bg-popover p-3 text-popover-foreground shadow-xl ring-1 ring-black/5 dark:ring-white/5"
+          {...popoverLayerEventHandlers}
         >
           {/* Month nav */}
           <div className="flex items-center justify-between gap-2">
