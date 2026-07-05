@@ -75,7 +75,9 @@ The booking wizard is an Angular router flow (not separate page loads). Route pa
 
 Flow shape: **search → results → add to cart → `/create-booking/*` multi-step (party → contact → policies) → payment**. Analytics hooks in the bundle (`add_to_cart`, `begin_checkout`, `LoadAvailabilitySuccess`, `CART_INIT`) confirm the cart/checkout state machine. The payment step (`/create-booking/payment`) is the noVNC hand-off point, analogous to DOC's `CreditCardPayment` page.
 
-**Login model:** account-based (`/login`, `/logout`, `/account/*`), so `requires_credentials = True` for both provinces (matches the DOC adapters). Whether login is required *before* holding a cart or only *at* checkout is **OPEN** — confirm in M2.
+**Login model (confirmed in HH-100):** account-based, `requires_credentials = True`. Verified flow against live BC Parks: navigate `/login` → dismiss the cookie-consent gate (`#login-cookie-consent`) which otherwise hides the form → fill `#email` / `#password` → **press Enter** (the Angular form does *not* submit on the button click alone) → the site posts `POST /api/auth/login` and redirects to `/account`. The cart is account-scoped, so login is required before holding.
+
+**Cart/hold funnel (mapped in HH-100):** `/create-booking/results?resourceLocationId=&mapId=&bookingCategoryId=&startDate=&endDate=` → drill into a map loop (Leaflet `path.mapLinkArea-*`, needs force-click) → the site grid renders each site/date cell as a `<button>` whose **aria-label** states availability (`"Available for all selected dates"` is the only bookable one; others: `"Not available for selected dates"`, `"Closed during selected dates"`, `"Does not match all search filters"`) → click an available cell → Shopping Cart → `#proceedToCheckout` → occupant/party → payment. Occupancy/equipment are chosen during search; a single **permit-holder** name is taken at checkout (not per-person like DOC). **Still OPEN (defer to E2E HH-103):** the interactive site-config/checkout/occupant tail, and the exact **cart-hold expiry** — no countdown timer surfaces before the payment step, so it must be measured during a real E2E hold (still *not* assumed to be DOC's 25 min).
 
 ### Availability endpoint (resolved in HH-99)
 
@@ -151,9 +153,9 @@ Note: `/api/dateschedule/resourcelocationid` is the operating-**season** calenda
 
 ## 7. Open items to resolve in M2 (carry into the build log)
 
-1. Exact **cart hold / expiry duration** per province (HH-100) — measure with a live hold.
-2. **Occupant field** requirements from `/create-booking/partyinfo` + `/permitholder` (HH-100).
-3. Whether **login is required pre-hold or only at checkout** (HH-98/100).
+1. Exact **cart hold / expiry duration** — **still OPEN after HH-100:** no timer surfaces before payment; measure during the live E2E hold (HH-103). Not assumed to be DOC's 25 min.
+2. **Occupant fields** — **partially resolved (HH-100):** Camis takes party/equipment at search + a single permit-holder name at checkout; `occupant_fields()` exposes `permit_holder`. Full checkout form finalized at E2E (HH-103).
+3. **Login timing** — **RESOLVED (HH-100):** login is a dedicated `/login` route (consent gate + `#email`/`#password` + Enter → `POST /api/auth/login`), required before holding (cart is account-scoped).
 4. ~~Exact query params for the availability endpoint~~ — **RESOLVED (HH-99):** `GET /api/availability/map` (see §3). `/api/dateschedule` turned out to be season metadata, not live availability.
 5. ~~Map-tree traversal to enumerate parks~~ — **RESOLVED (HH-101):** the visual `/api/maps` tree dead-ends; use the flat `GET /api/resourcelocation` instead.
 6. Behaviour of the **Queue-it handshake** under Playwright, headless vs headed (HH-97 follow-through in M2) — `fill_form` now calls `_pass_queue_it`; still to be exercised against a live queue.

@@ -242,3 +242,34 @@ async def test_detect_availability_bad_params_returns_unknown(tmp_path):
     adapter = _catalog_adapter(tmp_path)
     results = await adapter.detect_availability(None, {"resource_location_id": -100})
     assert results[0].status == AvailabilityStatus.UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# HH-100 — login config + occupant fields + hold safety
+# ---------------------------------------------------------------------------
+
+def test_login_selectors_confirmed():
+    # Confirmed by driving the live BC Parks login.
+    assert BaseCamisAdapter._EMAIL_SELECTOR == "#email"
+    assert BaseCamisAdapter._PASSWORD_SELECTOR == "#password"
+    assert "#login-cookie-consent" in BaseCamisAdapter._CONSENT_SELECTORS
+    assert BaseCamisAdapter.API_AUTH_LOGIN == "/api/auth/login"
+
+
+def test_occupant_fields_permit_holder():
+    fields = _StubCamisAdapter.occupant_fields()
+    assert [f.key for f in fields] == ["permit_holder"]
+    assert fields[0].required is True
+
+
+def test_cart_hold_minutes_still_unset():
+    # HH-100 could not observe a pre-payment timer; must NOT be silently set.
+    assert _StubCamisAdapter().cart_hold_minutes is None
+
+
+async def test_attempt_hold_bad_params_never_claims_hold(tmp_path):
+    # Missing date → cannot build a query → must fail closed, not claim a hold.
+    adapter = _catalog_adapter(tmp_path)
+    result = await adapter.attempt_hold(None, {"resource_location_id": -100})
+    assert result.held is False
+    assert result.success is False

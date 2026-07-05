@@ -65,6 +65,8 @@ from app.adapters.base import (
     AvailabilityResult,
     AvailabilityStatus,
     BaseAdapter,
+    BookingResult,
+    OccupantField,
 )
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -123,9 +125,11 @@ class BaseCamisAdapter(BaseAdapter):
     booking_timezone: str | None = None
     booking_cutoff_time: time = time(23, 59)
 
-    # Cart hold / expiry timing. OPEN until measured with a live hold in HH-100
-    # — deliberately NOT defaulted to DOC's 25 min (recon §5). Left as ``None``
-    # so nothing downstream assumes a wrong window; HH-100 sets these.
+    # Cart hold / expiry timing. Still OPEN after HH-100: no countdown timer was
+    # observable before the payment step, so the real window must be measured
+    # during a live E2E hold (HH-103). Deliberately NOT defaulted to DOC's 25
+    # min (recon §5); left ``None`` so nothing downstream assumes a wrong window
+    # (``_persist_cart_session`` warns and falls back to 25 until it's set).
     cart_hold_minutes: int | None = None
     cart_inactive_after_minutes: int | None = None
     cart_keepalive_interval_minutes: int | None = None
@@ -134,6 +138,8 @@ class BaseCamisAdapter(BaseAdapter):
     # Known Camis JSON API endpoints (verified unauthenticated — recon §2)
     # ------------------------------------------------------------------
 
+    API_AUTH_LOGIN = "/api/auth/login"              # POST — account sign-in
+    API_CART = "/api/cart"                          # GET — current shopper cart
     API_MAPS_ROOT = "/api/maps/root"                # top-level region tree
     API_MAPS = "/api/maps"                          # ?resourceLocationId=<id>
     API_BOOKING_CATEGORIES = "/api/bookingcategories"
@@ -400,6 +406,141 @@ class BaseCamisAdapter(BaseAdapter):
         return [self._classify_daily_statuses(statuses, site_name)]
 
     # ------------------------------------------------------------------
+    # Cart / hold flow (HH-100)
+    #
+    # Verified funnel (live BC Parks): login → /create-booking/results for the
+    # park → drill into a map loop (Leaflet, needs force-click) → the site grid
+    # renders each site/date cell as a <button> whose aria-label states its
+    # availability → click an "Available for all selected dates" cell → the
+    # Shopping Cart → "Proceed to checkout" → occupant/party → payment (the
+    # noVNC hand-off). ``_persist_cart_session`` parks the cart for the user.
+    #
+    # The interactive tail (site-config dialog → checkout → occupant form →
+    # payment page) still needs live hardening under E2E (HH-103); no cart hold
+    # timer was observable before the payment step, so ``cart_hold_minutes``
+    # stays ``None`` (measure it during HH-103, do not guess).
+    # ------------------------------------------------------------------
+
+    # Site-grid cell aria-labels (observed live). Only the first is bookable.
+    _CELL_AVAILABLE = "Available for all selected dates"
+    _CELL_UNAVAILABLE_LABELS = (
+        "Not available for selected dates",
+        "Closed during selected dates",
+        "Does not match all search filters",
+    )
+
+    @classmethod
+    def occupant_fields(cls) -> list[OccupantField]:
+        """Occupant fields collected during the Camis booking.
+
+        Unlike the DOC flow (per-person name/age/category), Camis takes party
+        size and equipment during search and a single **permit holder** name at
+        checkout. Exposed minimally here; the full checkout occupant form is
+        finalized under E2E (HH-103).
+        """
+        return [
+            OccupantField(
+                key="permit_holder",
+                label="Permit Holder Name",
+                type="text",
+                required=True,
+            ),
+        ]
+
+    async def attempt_hold(self, page: Page, params: dict) -> BookingResult:
+        """Drive the Camis funnel to place a cart hold and park it for payment.
+
+        Implements the verified steps (login → results → loop drill → select an
+        available site cell → proceed to checkout) and, on reaching a checkout /
+        payment URL, persists the cart session so the noVNC hand-off works like
+        the DOC adapters. Conservative by design: it returns ``held=False`` with
+        a snapshot whenever it cannot confirm it reached checkout, so the hold
+        worker never reports a hold that didn't happen.
+
+        The site-config/occupant/payment tail needs live hardening (HH-103).
+        """
+        job_id = params.get("_job_id", "unknown")
+        try:
+            query = self._build_availability_query(params)
+        except (ValueError, KeyError) as e:
+            return BookingResult(success=False, held=False, message=str(e))
+
+        park = self._park_by_resource_location_id(query["resourceLocationId"])
+        site_name = (park or {}).get("full_name") or str(query["resourceLocationId"])
+
+        # 1. Authenticate (cart is account-scoped).
+        try:
+            await self._login(page)
+        except RuntimeError as e:
+            return BookingResult(success=False, held=False, message=str(e))
+
+        # 2. Open the booking results for the park + dates.
+        results_url = (
+            f"{self.base_url}/create-booking/results"
+            f"?resourceLocationId={query['resourceLocationId']}&mapId={query['mapId']}"
+            f"&bookingCategoryId={query['bookingCategoryId']}"
+            f"&startDate={query['startDate']}&endDate={query['endDate']}"
+        )
+        await page.goto(results_url, wait_until="domcontentloaded", timeout=60_000)
+        await self._pass_queue_it(page)
+        await page.wait_for_timeout(5_000)
+        await self.snapshot(page, "camis_results")
+
+        # 3. Find and click an available site cell. On the park root map the
+        #    grid may be one loop-drill deep; click a loop area first if no
+        #    available cell is visible yet.
+        cell = page.get_by_role("button", name=re.compile(re.escape(self._CELL_AVAILABLE), re.I))
+        if await cell.count() == 0:
+            loop = page.locator("path[class*='mapLinkArea']").first
+            if await loop.count() > 0:
+                await loop.click(force=True)
+                await page.wait_for_timeout(5_000)
+                cell = page.get_by_role("button", name=re.compile(re.escape(self._CELL_AVAILABLE), re.I))
+
+        if await cell.count() == 0:
+            await self.snapshot(page, "camis_no_available_cell")
+            return BookingResult(
+                success=False, held=False,
+                message=f"No bookable site cell found for {site_name} on {params.get('date')}",
+            )
+        await cell.first.click(force=True)
+        await page.wait_for_timeout(3_000)
+
+        # 4. Proceed to checkout (this is where Camis creates the reservation
+        #    transaction + hold timer — see class note).
+        proceed = page.locator("#proceedToCheckout")
+        if await proceed.count() == 0:
+            proceed = page.get_by_role("button", name=re.compile(r"proceed to checkout", re.I))
+        if await proceed.count() == 0:
+            await self.snapshot(page, "camis_no_checkout_button")
+            return BookingResult(
+                success=False, held=False,
+                message="Selected a site but could not find the Proceed to Checkout control",
+            )
+        await proceed.first.click()
+        await page.wait_for_timeout(6_000)
+        await self.snapshot(page, "camis_checkout")
+
+        # 5. Confirm we reached a checkout/payment step before claiming a hold.
+        if not re.search(r"create-booking|checkout|payment|cart", page.url, re.I):
+            await self.snapshot(page, "camis_checkout_not_reached")
+            return BookingResult(
+                success=False, held=False,
+                message="Did not reach the Camis checkout after selecting a site",
+            )
+
+        resume_url = await self._persist_cart_session(page, job_id, page.url)
+        return BookingResult(
+            success=True,
+            held=True,
+            reservation_url=resume_url,
+            message=(
+                f"Cart secured for {site_name} on {params.get('date')}. "
+                "Complete payment before the Camis cart expires."
+            ),
+        )
+
+    # ------------------------------------------------------------------
     # Queue-it waiting room
     # ------------------------------------------------------------------
 
@@ -433,46 +574,78 @@ class BaseCamisAdapter(BaseAdapter):
     # Login
     # ------------------------------------------------------------------
 
-    async def _login_if_prompted(self, page: Page, timeout_ms: int = 8_000) -> bool:
-        """If the Camis account login appears, sign in with bound credentials.
+    # Selectors confirmed by driving the live BC Parks login (HH-100):
+    #   /login route → cookie-consent gate → #email / #password → submit.
+    # The submit BUTTON click alone does not post the form on the Angular page;
+    # pressing Enter in the password field does (fires POST /api/auth/login).
+    _CONSENT_SELECTORS = ("#login-cookie-consent", "#consentButton")
+    _EMAIL_SELECTOR = "#email"
+    _PASSWORD_SELECTOR = "#password"
 
-        Returns ``True`` if a login was performed, ``False`` if no login prompt
-        was visible. Raises ``RuntimeError`` if a prompt appears but credentials
-        are missing.
+    async def _accept_cookie_consent(self, page: Page) -> None:
+        """Dismiss the cookie-consent gate that otherwise hides the login form."""
+        for sel in self._CONSENT_SELECTORS:
+            try:
+                btn = page.locator(sel).first
+                if await btn.count() > 0 and await btn.is_visible():
+                    await btn.click()
+                    await page.wait_for_timeout(800)
+                    return
+            except PlaywrightTimeoutError:
+                continue
 
-        NOTE: the concrete field selectors for the Angular ``/login`` route are
-        TENTATIVE — they anchor on generic email/password inputs and a submit
-        button by role, and must be confirmed against a live account in HH-100.
-        Availability polling (HH-99) does not require login; only the cart/hold
-        flow does, so this is scaffolding for HH-100 to finish.
+    async def _is_logged_in(self, page: Page) -> bool:
+        """True if the page shows a signed-in account affordance."""
+        return await page.evaluate(
+            """() => Array.from(document.querySelectorAll('button,a')).some(
+                el => /sign ?out|log ?out|my purchases|welcome,/i.test(el.innerText || '')
+            )"""
+        )
+
+    async def _login(self, page: Page) -> None:
+        """Sign in to the Camis account with the bound credentials.
+
+        Verified flow (HH-100, live BC Parks): navigate ``/login`` → accept the
+        cookie-consent gate → fill ``#email`` / ``#password`` → press Enter (the
+        Angular form does not submit on the button click alone) → the site posts
+        ``/api/auth/login`` and redirects to ``/account``.
+
+        Raises ``RuntimeError`` if credentials are missing or login doesn't land.
         """
-        email = page.locator(
-            'input[type="email"], input[name="email" i], input[autocomplete="username"]'
-        ).first
+        credentials = self._login_credentials
+        if credentials is None:
+            raise RuntimeError("Camis login required but no stored credentials are configured")
+
+        await page.goto(f"{self.base_url}/login", wait_until="domcontentloaded", timeout=60_000)
+        await self._pass_queue_it(page)
+        await page.wait_for_timeout(1_500)
+        await self._accept_cookie_consent(page)
+
+        await page.locator(self._EMAIL_SELECTOR).fill(credentials.username)
+        await page.locator(self._PASSWORD_SELECTOR).fill(credentials.password)
+        await page.focus(self._PASSWORD_SELECTOR)
+        await page.keyboard.press("Enter")
+
+        try:
+            await page.wait_for_url("**/account", timeout=20_000)
+        except PlaywrightTimeoutError:
+            if not await self._is_logged_in(page):
+                await self.snapshot(page, "camis_login_failed")
+                raise RuntimeError("Camis login did not complete — check the stored credentials")
+        logger.info("Camis login successful")
+
+    async def _login_if_prompted(self, page: Page, timeout_ms: int = 6_000) -> bool:
+        """Log in only if the current page is showing the login form.
+
+        Returns ``True`` if a login was performed, ``False`` if no form was
+        present (already authenticated, or on a non-login page).
+        """
+        email = page.locator(self._EMAIL_SELECTOR)
         try:
             await email.wait_for(state="visible", timeout=timeout_ms)
         except PlaywrightTimeoutError:
             return False
-
-        credentials = self._login_credentials
-        if credentials is None:
-            raise RuntimeError(
-                "Camis login prompt appeared but no stored credentials are configured"
-            )
-
-        logger.info("Camis login prompt detected — filling stored credentials")
-        await email.fill(credentials.username)
-        await page.locator(
-            'input[type="password"], input[autocomplete="current-password"]'
-        ).first.fill(credentials.password)
-        await page.get_by_role(
-            "button", name=re.compile(r"sign in|log ?in", re.I)
-        ).first.click()
-
-        try:
-            await page.wait_for_load_state("networkidle", timeout=15_000)
-        except PlaywrightTimeoutError:
-            pass
+        await self._login(page)
         return True
 
     # ------------------------------------------------------------------
