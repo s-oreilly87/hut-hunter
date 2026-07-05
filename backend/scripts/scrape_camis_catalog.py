@@ -124,6 +124,9 @@ def normalize_parks(raw: list[dict], culture: str = "en-CA") -> list[dict]:
             "region": entry.get("region"),
             "timezone": entry.get("ianaTimeZone"),
             "transaction_location_id": entry.get("transactionLocationId"),
+            # root_map_id is the mapId the availability endpoint keys off
+            # (/api/availability/map?mapId=...); the adapter resolves it per park.
+            "root_map_id": entry.get("rootMapId"),
             "resource_category_ids": entry.get("resourceCategoryIds") or [],
         }
     return sorted(parks.values(), key=lambda p: p["full_name"].lower())

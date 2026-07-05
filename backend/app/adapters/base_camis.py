@@ -61,7 +61,11 @@ from typing import Any
 import httpx
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
-from app.adapters.base import BaseAdapter
+from app.adapters.base import (
+    AvailabilityResult,
+    AvailabilityStatus,
+    BaseAdapter,
+)
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.job import utcnow
@@ -136,10 +140,25 @@ class BaseCamisAdapter(BaseAdapter):
     API_SEARCH_CRITERIA_TABS = "/api/searchcriteriatabs"
     API_CAPACITY_CATEGORIES = "/api/capacitycategory/capacitycategories"
     API_EQUIPMENT = "/api/equipment"
-    # Availability-adjacent — the prime candidates for detect_availability
-    # (HH-99). Exact query params are OPEN (recon §7).
+    # Live availability (HH-99). Verified against BC + Ontario: a GET returning
+    # per-day status arrays keyed by resourceLocationId under
+    # ``mapLinkAvailabilities``. Query params:
+    #   resourceLocationId, mapId, bookingCategoryId, startDate, endDate,
+    #   getDailyAvailability=true  (plus optional equipmentCategoryId etc.)
+    API_AVAILABILITY_MAP = "/api/availability/map"
+    # ``/api/dateschedule`` is the operating-SEASON calendar (reservable date
+    # ranges, go-live dates, min/max stay), not live availability — useful for
+    # gating polling to the open booking window, not for detection.
     API_DATE_SCHEDULE = "/api/dateschedule/resourcelocationid"
     API_REACHABLE_RESOURCES = "/api/reachableresources/resourcelocationid"
+
+    # ``mapLinkAvailabilities`` per-day status codes, decoded empirically against
+    # the live API across future/past/winter/beyond-window dates (the Angular
+    # enum is inlined in the bundle and not statically recoverable):
+    #   1 = available   2 = unavailable (booked / closed / past)
+    #   6 = not yet released (booking window not open)
+    # Anything else is treated as UNKNOWN so a new code can't be misread as free.
+    AVAILABILITY_AVAILABLE_CODE = 1
 
     # ------------------------------------------------------------------
     # JSON API access (the catalog + availability read path)
@@ -217,6 +236,168 @@ class BaseCamisAdapter(BaseAdapter):
         except Exception as exc:
             logger.error("failed to load Camis catalog %s: %s", path, exc)
             return {}
+
+    def _park_by_resource_location_id(self, resource_location_id: int) -> dict | None:
+        """Look up a catalog park entry by its ``resource_location_id``."""
+        for park in self._load_catalog().get("parks") or []:
+            if park.get("resource_location_id") == resource_location_id:
+                return park
+        return None
+
+    def _default_booking_category_id(self) -> int | None:
+        """First booking-category id from the catalog, or ``None`` if unknown."""
+        cats = self._load_catalog().get("booking_categories") or []
+        return cats[0].get("booking_category_id") if cats else None
+
+    # ------------------------------------------------------------------
+    # Search + availability detection (HH-99)
+    #
+    # Camis availability is JSON, not DOM — ``GET /api/availability/map``
+    # returns per-day status arrays keyed by resourceLocationId. So
+    # ``detect_availability`` reads the API directly rather than scraping the
+    # page; ``fill_form`` just warms the browser context (Queue-it / WAF pass)
+    # and takes a search snapshot for debugging like the DOC adapters do.
+    # ------------------------------------------------------------------
+
+    def _build_availability_query(self, params: dict) -> dict:
+        """Build the ``/api/availability/map`` query dict from job params.
+
+        Reads these params (a subclass may override to remap its own keys):
+          - ``resource_location_id`` (int, required)
+          - ``map_id`` (int; falls back to the park's ``rootMapId`` in the catalog)
+          - ``booking_category_id`` (int; falls back to the catalog's first)
+          - ``date`` ("DD/MM/YYYY", required) and ``nights`` (int, default 1)
+
+        Raises ``ValueError`` when a required field is missing/unresolvable.
+        """
+        rl_id = params.get("resource_location_id")
+        if rl_id is None:
+            raise ValueError("availability query requires `resource_location_id`")
+        rl_id = int(rl_id)
+
+        map_id = params.get("map_id")
+        if map_id is None:
+            park = self._park_by_resource_location_id(rl_id)
+            map_id = (park or {}).get("root_map_id") or (park or {}).get("map_id")
+        if map_id is None:
+            raise ValueError(
+                f"could not resolve map_id for resource_location_id={rl_id} "
+                "(pass `map_id` or ensure the catalog has root_map_id)"
+            )
+
+        category_id = params.get("booking_category_id")
+        if category_id is None:
+            category_id = self._default_booking_category_id()
+        if category_id is None:
+            raise ValueError("availability query requires `booking_category_id`")
+
+        date_str = params.get("date")
+        if not date_str:
+            raise ValueError("availability query requires `date` (DD/MM/YYYY)")
+        nights = int(params.get("nights", 1) or 1)
+        start_iso = self._to_iso_date(date_str)
+        # /api/availability/map returns one status per day in [start, end]
+        # inclusive, so N nights → end = start + (N-1).
+        end_iso = self._generate_night_dates(date_str, nights)[-1]
+
+        return {
+            "resourceLocationId": int(rl_id),
+            "mapId": int(map_id),
+            "bookingCategoryId": int(category_id),
+            "startDate": start_iso,
+            "endDate": end_iso,
+            "getDailyAvailability": "true",
+        }
+
+    async def _get_map_availability(self, page: Page | None, query: dict) -> dict:
+        """GET ``/api/availability/map``.
+
+        Prefers the Playwright browser context (``page.context.request``) so the
+        call carries the same cookies / Queue-it pass and TLS fingerprint as the
+        warmed page — the most WAF-resilient path. Falls back to ``fetch_json``
+        (httpx) when no page is supplied, e.g. in unit tests.
+        """
+        if page is not None:
+            response = await page.context.request.get(
+                self.api_url(self.API_AVAILABILITY_MAP), params=query
+            )
+            if not response.ok:
+                raise RuntimeError(
+                    f"availability/map returned HTTP {response.status} for {query}"
+                )
+            return await response.json()
+        return await self.fetch_json(self.API_AVAILABILITY_MAP, params=query)
+
+    def _classify_daily_statuses(self, statuses: list[int], site: str) -> AvailabilityResult:
+        """Map a per-day ``mapLinkAvailabilities`` array to an ``AvailabilityResult``.
+
+        - all days available → AVAILABLE
+        - some days available → PARTIALLY_AVAILABLE (e.g. a 3-night stay with one
+          night booked)
+        - no days available → UNAVAILABLE
+        - empty/malformed → UNKNOWN
+        """
+        if not statuses:
+            return AvailabilityResult(
+                site=site,
+                status=AvailabilityStatus.UNKNOWN,
+                evidence="no per-day availability returned for this resource location",
+            )
+        available_days = [s == self.AVAILABILITY_AVAILABLE_CODE for s in statuses]
+        n_avail = sum(available_days)
+        if all(available_days):
+            status = AvailabilityStatus.AVAILABLE
+        elif n_avail > 0:
+            status = AvailabilityStatus.PARTIALLY_AVAILABLE
+        else:
+            status = AvailabilityStatus.UNAVAILABLE
+        return AvailabilityResult(
+            site=site,
+            status=status,
+            evidence=f"daily status codes={statuses} (1=available)",
+            total_available=n_avail,
+        )
+
+    async def fill_form(self, page: Page, params: dict) -> None:
+        """Warm the browser context and snapshot the search page.
+
+        Availability itself comes from the JSON API in ``detect_availability``;
+        this navigates to the site (clearing Queue-it if present) so the context
+        carries valid cookies for the subsequent API call, and captures a
+        snapshot for debugging.
+        """
+        await page.goto(self.base_url, wait_until="domcontentloaded", timeout=60_000)
+        await self._pass_queue_it(page)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=15_000)
+        except PlaywrightTimeoutError:
+            pass
+        await self.snapshot(page, "camis_search")
+
+    async def detect_availability(
+        self, page: Page | None, params: dict
+    ) -> list[AvailabilityResult]:
+        """Read park-level availability for the requested dates from the JSON API.
+
+        One watch job → one park (resource location). Returns a single-element
+        list to match ``BaseAdapter``'s contract; callers already handle the
+        all/any/partial cases generically.
+        """
+        park = self._park_by_resource_location_id(int(params["resource_location_id"])) \
+            if params.get("resource_location_id") is not None else None
+        site_name = (park or {}).get("full_name") or str(params.get("resource_location_id", "(unknown park)"))
+
+        try:
+            query = self._build_availability_query(params)
+        except (ValueError, KeyError) as e:
+            return [AvailabilityResult(
+                site=site_name, status=AvailabilityStatus.UNKNOWN, evidence=str(e),
+            )]
+
+        data = await self._get_map_availability(page, query)
+        link_avail = (data or {}).get("mapLinkAvailabilities") or {}
+        statuses = link_avail.get(str(query["resourceLocationId"])) or []
+        return [self._classify_daily_statuses(statuses, site_name)]
 
     # ------------------------------------------------------------------
     # Queue-it waiting room
