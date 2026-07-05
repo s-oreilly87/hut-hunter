@@ -112,12 +112,13 @@ def test_date_helpers():
 
 
 def test_registry_unaffected_by_scaffold():
-    # The scaffold must not register itself — no concrete province adapter yet.
+    # The base/stub must not register itself — only concrete province
+    # adapters (camis_bc_parks since HH-102) appear in the registry.
     from app.adapters import list_adapters
 
     ids = {a["adapter_id"] for a in list_adapters()}
     assert "camis_stub" not in ids
-    assert {"doc_great_walk", "doc_standard_hut"} <= ids
+    assert {"doc_great_walk", "doc_standard_hut", "camis_bc_parks"} <= ids
 
 
 # ---------------------------------------------------------------------------
@@ -149,29 +150,55 @@ def _catalog_adapter(tmp_path):
     return _WithCatalog()
 
 
-def test_classify_all_available():
-    r = _StubCamisAdapter()._classify_daily_statuses([1, 1, 1], "Park")
+def test_available_code_is_zero():
+    # Decoded empirically in HH-102 (BC Day weekend vs quiet September
+    # weekday): 0 = available. HH-99 shipped 1, which is "booked" — inverted.
+    assert BaseCamisAdapter.AVAILABILITY_AVAILABLE_CODE == 0
+
+
+def test_classify_full_stay_site_available():
+    # Two sites free every night, one booked → AVAILABLE, count = full-stay sites.
+    r = _StubCamisAdapter()._classify_site_days(
+        {"-1": [0, 0, 0], "-2": [0, 0, 0], "-3": [1, 1, 1]}, "Park"
+    )
     assert r.status == AvailabilityStatus.AVAILABLE
-    assert r.total_available == 3
-
-
-def test_classify_partially_available():
-    r = _StubCamisAdapter()._classify_daily_statuses([1, 2, 1], "Park")
-    assert r.status == AvailabilityStatus.PARTIALLY_AVAILABLE
     assert r.total_available == 2
 
 
-@pytest.mark.parametrize("codes", [[2, 2], [6, 6], [2, 6]])
-def test_classify_unavailable_codes(codes):
-    # 2 (closed/booked/past) and 6 (not yet released) are both "not bookable".
-    r = _StubCamisAdapter()._classify_daily_statuses(codes, "Park")
+def test_classify_no_single_site_covers_stay_is_partial():
+    # Free nights exist but no one site covers the whole stay — a booking is
+    # impossible, so this must NOT read as AVAILABLE.
+    r = _StubCamisAdapter()._classify_site_days(
+        {"-1": [0, 1], "-2": [1, 0]}, "Park"
+    )
+    assert r.status == AvailabilityStatus.PARTIALLY_AVAILABLE
+    assert r.total_available == 0
+
+
+@pytest.mark.parametrize("codes", [[1, 1], [3, 3], [1, 3], [2, 6]])
+def test_classify_unavailable_site_codes(codes):
+    # 1 (booked), 3 (non-reservable/filter mismatch), 2/6 (closed / not
+    # released) — and any unknown code — are all "not bookable".
+    r = _StubCamisAdapter()._classify_site_days({"-1": codes}, "Park")
     assert r.status == AvailabilityStatus.UNAVAILABLE
     assert r.total_available == 0
 
 
 def test_classify_empty_is_unknown():
-    r = _StubCamisAdapter()._classify_daily_statuses([], "Park")
+    r = _StubCamisAdapter()._classify_site_days({}, "Park")
     assert r.status == AvailabilityStatus.UNKNOWN
+
+
+def test_extract_site_days_tolerates_shapes():
+    data = {
+        "resourceAvailabilities": {
+            "-10": [{"availability": 0, "remainingQuota": None}, {"availability": 1}],
+            "-11": [0, 1],          # bare ints
+            "-12": [{"availability": None}],  # unreadable → never available
+        }
+    }
+    out = BaseCamisAdapter._extract_site_days(data)
+    assert out == {"-10": [0, 1], "-11": [0, 1], "-12": [-1]}
 
 
 def test_build_query_resolves_map_id_and_category_from_catalog(tmp_path):
@@ -222,20 +249,59 @@ def test_build_query_unresolvable_map_id_raises(tmp_path):
         )
 
 
-async def test_detect_availability_orchestration(tmp_path):
+async def test_detect_availability_drills_open_loops(tmp_path):
+    """Park query returns loop aggregates; open loops are drilled for sites."""
     adapter = _catalog_adapter(tmp_path)
+    calls: list[int] = []
 
     async def fake_get(page, query):
-        assert query["resourceLocationId"] == -100
-        return {"mapLinkAvailabilities": {"-100": [1, 1, 2]}}
+        calls.append(query["mapId"])
+        if query["mapId"] == -900:  # park root map (from catalog)
+            return {"mapLinkAvailabilities": {"-901": [0, 0, 0], "-902": [1, 1, 1]}}
+        assert query["mapId"] == -901  # only the open loop is drilled
+        return {"resourceAvailabilities": {
+            "-50": [{"availability": 0}, {"availability": 0}, {"availability": 0}],
+            "-51": [{"availability": 1}, {"availability": 1}, {"availability": 1}],
+        }}
 
     adapter._get_map_availability = fake_get  # type: ignore[method-assign]
     results = await adapter.detect_availability(
         None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
     )
+    assert calls == [-900, -901]  # fully-booked loop -902 is never queried
     assert len(results) == 1
     assert results[0].site == "Alice Lake Provincial Park"  # name from catalog
-    assert results[0].status == AvailabilityStatus.PARTIALLY_AVAILABLE
+    assert results[0].status == AvailabilityStatus.AVAILABLE
+    assert results[0].total_available == 1  # only -50 covers the full stay
+
+
+async def test_detect_availability_all_loops_booked_short_circuits(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    calls: list[int] = []
+
+    async def fake_get(page, query):
+        calls.append(query["mapId"])
+        return {"mapLinkAvailabilities": {"-901": [1, 1], "-902": [2, 6]}}
+
+    adapter._get_map_availability = fake_get  # type: ignore[method-assign]
+    results = await adapter.detect_availability(
+        None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 2}
+    )
+    assert calls == [-900]  # no drilling — nothing open
+    assert results[0].status == AvailabilityStatus.UNAVAILABLE
+
+
+async def test_detect_availability_empty_response_is_unknown(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_get(page, query):
+        return {"mapLinkAvailabilities": {}, "resourceAvailabilities": {}}
+
+    adapter._get_map_availability = fake_get  # type: ignore[method-assign]
+    results = await adapter.detect_availability(
+        None, {"resource_location_id": -100, "date": "01/08/2026"}
+    )
+    assert results[0].status == AvailabilityStatus.UNKNOWN
 
 
 async def test_detect_availability_bad_params_returns_unknown(tmp_path):

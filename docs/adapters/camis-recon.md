@@ -85,16 +85,28 @@ The live availability read is **`GET /api/availability/map`** (verified on BC + 
 
 Query params: `resourceLocationId`, `mapId` (the park's `rootMapId` from `/api/resourcelocation`), `bookingCategoryId`, `startDate`, `endDate` (ISO, inclusive), `getDailyAvailability=true`.
 
-Response: `mapLinkAvailabilities` is an object keyed by `resourceLocationId` whose value is a **per-day status-code array** over `[startDate, endDate]`. Status codes, decoded empirically (the Angular enum is inlined and not statically recoverable):
+Response shape (**corrected in HH-102** — the HH-99 decode below was wrong on both the keying and the code values):
 
-| Code | Meaning | Adapter mapping |
+- `mapLinkAvailabilities` — keyed by **child map id** (campground loop) of the *queried map*, not by `resourceLocationId`. Values are **per-day aggregate** status arrays over `[startDate, endDate]`.
+- `mapAvailabilities` — the same per-day aggregate for the queried map itself.
+- `resourceAvailabilities` — present on **leaf (loop) maps**: keyed by site resource id, values are per-day `{availability, remainingQuota}` objects.
+
+Status codes, decoded empirically in HH-102 by cross-checking the live BC API on a fully-booked long weekend (BC Day at Golden Ears), a quiet mid-September weekday, next-day, and beyond-window dates:
+
+| Code | Site level (`resourceAvailabilities`) | Link/map level (aggregate) |
 |---|---|---|
-| `1` | available | AVAILABLE |
-| `2` | unavailable (booked / closed / past date) | UNAVAILABLE |
-| `6` | not yet released (booking window not open) | UNAVAILABLE |
-| other | unknown | UNKNOWN (never treated as free) |
+| `0` | **available** | some site available that day |
+| `1` | booked / unavailable | no site available that day |
+| `2` | — | closed |
+| `3` | non-reservable / does not match search filters | — |
+| `6` | — | not yet released (booking window not open) |
+| other | never treated as free | never treated as free |
 
-A per-day *mix* of codes over a multi-night stay maps to **PARTIALLY_AVAILABLE**. This is park-level detection (any bookable site in the park); per-individual-site detail lives in `resourceAvailabilities` / `getResourceDailyAvailability` and is only needed for the hold flow (HH-100).
+> ⚠️ HH-99 shipped `1 = available` — **inverted** (it read a fully-booked park as AVAILABLE) — and read `mapLinkAvailabilities[resourceLocationId]`, which never matches on a park map. Corrected in `BaseCamisAdapter` under HH-102.
+
+Detection semantics: a stay is only bookable if a **single site** is free (code `0`) every night — day-wise aggregates can read "available every day" when no one site covers the whole stay. `detect_availability` therefore short-circuits to UNAVAILABLE when no loop shows an open day, and otherwise drills into the open loops (bounded) and classifies per site: ≥1 full-stay site → AVAILABLE; free nights but no full-stay site → PARTIALLY_AVAILABLE.
+
+Beyond-window dates can still show site-level `0` — the window gate lives in `/api/dateschedule`, not in the availability codes. Poll gating must use the season calendar (or `is_expired`), not availability alone.
 
 Note: `/api/dateschedule/resourcelocationid` is the operating-**season** calendar (reservable date ranges, go-live dates, min/max stay, check-in/out times) — useful for gating polling to the open booking window, **not** live availability.
 
@@ -145,7 +157,7 @@ Note: `/api/dateschedule/resourcelocationid` is the operating-**season** calenda
 | `param_fields()` | built from `/api/searchcriteriatabs` + `bookingcategories` + `equipment` + `capacitycategories` + catalog JSON |
 | `occupant_fields()` | **OPEN** — capture from `/create-booking/partyinfo` in M2 |
 | `fill_form()` | drive search (or hit search API) for the selected park/date/party |
-| `detect_availability()` | prefer JSON `/api/dateschedule/resourcelocationid` over DOM scraping |
+| `detect_availability()` | JSON `/api/availability/map` per-site drill (see §3; corrected in HH-102) |
 | `attempt_hold()` | add-to-cart → `/create-booking/*` → park on `/create-booking/payment` for noVNC, mirroring `BaseDOCAdapter._persist_cart_session()` |
 | `is_expired()` | default cutoff logic with per-province timezone |
 
