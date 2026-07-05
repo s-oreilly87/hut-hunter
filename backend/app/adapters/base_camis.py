@@ -67,6 +67,7 @@ from app.adapters.base import (
     BaseAdapter,
     BookingResult,
     OccupantField,
+    ParamField,
 )
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -92,6 +93,22 @@ DEFAULT_USER_AGENT = (
 # People/party options offered by default; a subclass can narrow this from the
 # capacity-category taxonomy once HH-99 wires the search form.
 PEOPLE_OPTIONS = [str(i) for i in range(1, 26)]  # "1" … "25"
+
+# Park option strings embed the resource_location_id in a trailing "(id)" —
+# DOC-standard-hut convention: self-describing at submit time, e.g.
+# "Bamberton Provincial Park (-2147483646)". The name group is greedy so park
+# names containing parentheses still parse.
+_PARK_OPTION_RE = re.compile(r"^(?P<name>.+)\s\((?P<rl_id>-?\d+)\)$")
+
+
+def _format_park_option(park: dict) -> str:
+    return f"{park['full_name']} ({park['resource_location_id']})"
+
+
+def _parse_park_option(value: str) -> int | None:
+    """Return the embedded resource_location_id, or None if unparseable."""
+    m = _PARK_OPTION_RE.match(value.strip())
+    return int(m.group("rl_id")) if m else None
 
 
 class BaseCamisAdapter(BaseAdapter):
@@ -278,6 +295,118 @@ class BaseCamisAdapter(BaseAdapter):
         """First booking-category id from the catalog, or ``None`` if unknown."""
         cats = self._load_catalog().get("booking_categories") or []
         return cats[0].get("booking_category_id") if cats else None
+
+    # ------------------------------------------------------------------
+    # Params schema + resolution (hoisted from the BC adapter in HH-104 —
+    # entirely catalog-driven, so every Camis subclass shares it and a new
+    # province is pure configuration)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _catalog(cls) -> dict:
+        """Class-level catalog read for ``param_fields`` (no instance needed)."""
+        # _load_catalog is an instance method for subclass override symmetry;
+        # instantiate cheaply here.
+        return cls()._load_catalog()
+
+    @classmethod
+    def param_fields(cls) -> list[ParamField]:
+        catalog = cls._catalog()
+        parks = sorted(
+            catalog.get("parks") or [],
+            key=lambda p: (p.get("full_name") or "").lower(),
+        )
+        park_options = [_format_park_option(p) for p in parks if p.get("full_name")]
+        categories = catalog.get("booking_categories") or []
+        category_options = [c["name"] for c in categories if c.get("name")]
+        default_category = (
+            "Campsite" if "Campsite" in category_options
+            else (category_options[0] if category_options else "")
+        )
+
+        return [
+            ParamField(
+                key="park",
+                label="Park",
+                type="select",
+                options=park_options,
+                default=park_options[0] if park_options else "",
+                required=True,
+            ),
+            ParamField(
+                key="booking_category",
+                label="Booking Type",
+                type="select",
+                options=category_options,
+                default=default_category,
+                required=True,
+            ),
+            ParamField(
+                key="date",
+                label="Start Date",
+                type="date",
+                required=True,
+            ),
+            ParamField(
+                key="nights",
+                label="Nights",
+                type="number",
+                default=1,
+                min=1,
+            ),
+            ParamField(
+                key="people",
+                label="People",
+                type="number",
+                default=2,
+                min=1,
+                max=len(PEOPLE_OPTIONS),
+            ),
+            # Renders the camper picker in the job wizard (the frontend
+            # special-cases key == "occupants") and gates auto-book: the poll
+            # worker only enqueues a hold when params.occupants is non-empty.
+            # Camis needs just a permit holder at checkout, so one camper with
+            # the permit_holder occupant field filled is enough. Optional for
+            # availability-only hunts. (Found in HH-103: without this field
+            # the wizard could never enable auto-book for Camis jobs.)
+            ParamField(
+                key="occupants",
+                label="Campers",
+                type="text",
+                default="[]",
+                required=False,
+            ),
+        ]
+
+    def _resolve_params(self, params: dict) -> dict:
+        """Return a copy of ``params`` with the Camis IDs filled in.
+
+        The query builder wants ``resource_location_id`` /
+        ``booking_category_id``; the frontend submits the human-readable
+        ``park`` / ``booking_category`` option strings. Explicit IDs in the
+        params always win (that's what tests and power users pass).
+        Idempotent, so wrappers can call it defensively.
+        """
+        resolved = dict(params)
+
+        if resolved.get("resource_location_id") is None and resolved.get("park"):
+            rl_id = _parse_park_option(str(resolved["park"]))
+            if rl_id is not None:
+                resolved["resource_location_id"] = rl_id
+            else:
+                logger.warning(
+                    "could not parse park option %r — expected 'Name (id)'",
+                    resolved["park"],
+                )
+
+        if resolved.get("booking_category_id") is None and resolved.get("booking_category"):
+            wanted = str(resolved["booking_category"]).strip().lower()
+            for cat in self._load_catalog().get("booking_categories") or []:
+                if (cat.get("name") or "").strip().lower() == wanted:
+                    resolved["booking_category_id"] = cat.get("booking_category_id")
+                    break
+
+        return resolved
 
     # ------------------------------------------------------------------
     # Search + availability detection (HH-99, corrected in HH-102)
@@ -500,6 +629,7 @@ class BaseCamisAdapter(BaseAdapter):
         whole stay). Returns a single-element list to match ``BaseAdapter``'s
         contract; callers already handle the all/any/partial cases generically.
         """
+        params = self._resolve_params(params)
         park = self._park_by_resource_location_id(int(params["resource_location_id"])) \
             if params.get("resource_location_id") is not None else None
         site_name = (park or {}).get("full_name") or str(params.get("resource_location_id", "(unknown park)"))
@@ -634,6 +764,7 @@ class BaseCamisAdapter(BaseAdapter):
         shows a held item on the /cart page — so the hold worker never reports a
         hold that didn't happen.
         """
+        params = self._resolve_params(params)
         job_id = params.get("_job_id", "unknown")
         try:
             query = self._build_availability_query(params)

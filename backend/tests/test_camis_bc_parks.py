@@ -11,12 +11,12 @@ from __future__ import annotations
 import pytest
 
 from app.adapters import adapter_requires_credentials, get_adapter, list_adapters
-from app.adapters.base_camis import BaseCamisAdapter
-from app.adapters.camis_bc_parks import (
-    CamisBcParksAdapter,
+from app.adapters.base_camis import (
+    BaseCamisAdapter,
     _format_park_option,
     _parse_park_option,
 )
+from app.adapters.camis_bc_parks import CamisBcParksAdapter
 
 
 # ---------------------------------------------------------------------------
