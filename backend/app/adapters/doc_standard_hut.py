@@ -256,7 +256,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 type="select",
                 options=flat_options,
                 options_tree=options_tree,
-                default="",
+                default=default_facility,
                 required=True,
             ),
             ParamField(

@@ -8,7 +8,6 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.core.notification_settings import upsert_user_notification_settings
 from app.core.security import ALGORITHM, create_access_token, hash_password, verify_password
 from app.models.user import AppUser, UserLogin, UserRead, UserRegister
 
@@ -108,18 +107,6 @@ async def register(
     session.add(user)
     await session.commit()
     await session.refresh(user)
-
-    # Seed notification settings with the account email enabled by default so
-    # new users receive alerts without any manual configuration step.
-    await upsert_user_notification_settings(
-        session,
-        user_id=user.id,
-        email_enabled=True,
-        email_address=email,
-        gotify_enabled=None,
-        gotify_url=None,
-        gotify_token=None,
-    )
 
     _set_auth_cookie(response, user.id)
     return UserRead.from_db(user)
