@@ -14,3 +14,4 @@ frontend/dist/
 /backend/artifacts/
 /backend/scripts/artifacts
 .junie
+.claude/

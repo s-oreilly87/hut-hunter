@@ -41,8 +41,8 @@ def test_bc_config():
     assert adapter.culture == "en-CA"
     assert adapter.booking_timezone == "America/Vancouver"
     assert adapter.catalog_path is not None and adapter.catalog_path.name == "bc_parks.json"
-    # Hold window is still measured in HH-103 — must not be guessed here.
-    assert adapter.cart_hold_minutes is None
+    # Hold window measured on live BC in HH-103 (~15.9 min → 15).
+    assert adapter.cart_hold_minutes == 15
 
 
 def test_list_adapters_exposes_expiry_metadata():
@@ -57,7 +57,11 @@ def test_list_adapters_exposes_expiry_metadata():
 
 def test_param_fields_schema():
     fields = {f.key: f for f in CamisBcParksAdapter.param_fields()}
-    assert set(fields) == {"park", "booking_category", "date", "nights", "people"}
+    assert set(fields) == {"park", "booking_category", "date", "nights", "people", "occupants"}
+
+    # The camper picker + auto-book gate both key off an `occupants` param
+    # field existing (HH-103); optional so availability-only hunts work.
+    assert fields["occupants"].required is False
 
     park = fields["park"]
     assert park.type == "select"
@@ -153,6 +157,6 @@ def test_resolved_params_build_a_valid_availability_query():
     assert query["resourceLocationId"] == resolved["resource_location_id"]
     assert query["bookingCategoryId"] == 0
     assert query["startDate"] == "2026-08-01"
-    assert query["endDate"] == "2026-08-02"  # 2 nights → end = start + 1
+    assert query["endDate"] == "2026-08-03"  # checkout date = start + nights
     # map_id came from the catalog's root_map_id for that park.
     assert isinstance(query["mapId"], int)

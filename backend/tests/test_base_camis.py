@@ -42,8 +42,9 @@ def test_platform_defaults():
     assert adapter.requires_credentials is True
     # Culture defaults to en-CA; Ontario overrides to bilingual handling.
     assert adapter.culture == "en-CA"
-    # Hold timing is intentionally OPEN — must NOT silently equal DOC's 25 min.
-    assert adapter.cart_hold_minutes is None
+    # Hold timing measured on live BC in HH-103 (~15.9 min → 15). Must NOT be
+    # DOC's 25 min, and must no longer be the unmeasured None it was in HH-100.
+    assert adapter.cart_hold_minutes == 15
 
 
 def test_api_url_joins_cleanly():
@@ -157,19 +158,27 @@ def test_available_code_is_zero():
 
 
 def test_classify_full_stay_site_available():
-    # Two sites free every night, one booked → AVAILABLE, count = full-stay sites.
+    # Two sites free every night, one booked → AVAILABLE, count = full-stay
+    # sites. Arrays include the checkout-day code (3 nights → 4 entries).
     r = _StubCamisAdapter()._classify_site_days(
-        {"-1": [0, 0, 0], "-2": [0, 0, 0], "-3": [1, 1, 1]}, "Park"
+        {"-1": [0, 0, 0, 1], "-2": [0, 0, 0, 0], "-3": [1, 1, 1, 0]}, "Park", 3
     )
     assert r.status == AvailabilityStatus.AVAILABLE
     assert r.total_available == 2
+
+
+def test_classify_checkout_day_code_is_ignored():
+    # A site free ONLY on the checkout day is not bookable for the stay.
+    r = _StubCamisAdapter()._classify_site_days({"-1": [1, 1, 0]}, "Park", 2)
+    assert r.status == AvailabilityStatus.UNAVAILABLE
+    assert r.total_available == 0
 
 
 def test_classify_no_single_site_covers_stay_is_partial():
     # Free nights exist but no one site covers the whole stay — a booking is
     # impossible, so this must NOT read as AVAILABLE.
     r = _StubCamisAdapter()._classify_site_days(
-        {"-1": [0, 1], "-2": [1, 0]}, "Park"
+        {"-1": [0, 1, 1], "-2": [1, 0, 1]}, "Park", 2
     )
     assert r.status == AvailabilityStatus.PARTIALLY_AVAILABLE
     assert r.total_available == 0
@@ -179,13 +188,13 @@ def test_classify_no_single_site_covers_stay_is_partial():
 def test_classify_unavailable_site_codes(codes):
     # 1 (booked), 3 (non-reservable/filter mismatch), 2/6 (closed / not
     # released) — and any unknown code — are all "not bookable".
-    r = _StubCamisAdapter()._classify_site_days({"-1": codes}, "Park")
+    r = _StubCamisAdapter()._classify_site_days({"-1": codes}, "Park", 2)
     assert r.status == AvailabilityStatus.UNAVAILABLE
     assert r.total_available == 0
 
 
 def test_classify_empty_is_unknown():
-    r = _StubCamisAdapter()._classify_site_days({}, "Park")
+    r = _StubCamisAdapter()._classify_site_days({}, "Park", 1)
     assert r.status == AvailabilityStatus.UNKNOWN
 
 
@@ -211,7 +220,7 @@ def test_build_query_resolves_map_id_and_category_from_catalog(tmp_path):
         "mapId": -900,  # resolved from catalog root_map_id
         "bookingCategoryId": 0,  # resolved from catalog first booking category
         "startDate": "2026-08-01",
-        "endDate": "2026-08-03",  # N nights inclusive → start + (N-1)
+        "endDate": "2026-08-04",  # checkout date = start + nights
         "getDailyAvailability": "true",
     }
 
@@ -229,7 +238,10 @@ def test_build_query_explicit_values_win(tmp_path):
     )
     assert query["mapId"] == -555
     assert query["bookingCategoryId"] == 4
-    assert query["startDate"] == query["endDate"] == "2026-09-15"
+    # 1 night: endDate is the CHECKOUT day — startDate == endDate is an
+    # HTTP 400 on the live API (hit by the first 1-night watch job, HH-103).
+    assert query["startDate"] == "2026-09-15"
+    assert query["endDate"] == "2026-09-16"
 
 
 def test_build_query_missing_fields_raise(tmp_path):
@@ -328,14 +340,43 @@ def test_occupant_fields_permit_holder():
     assert fields[0].required is True
 
 
-def test_cart_hold_minutes_still_unset():
-    # HH-100 could not observe a pre-payment timer; must NOT be silently set.
-    assert _StubCamisAdapter().cart_hold_minutes is None
-
-
 async def test_attempt_hold_bad_params_never_claims_hold(tmp_path):
     # Missing date → cannot build a query → must fail closed, not claim a hold.
     adapter = _catalog_adapter(tmp_path)
     result = await adapter.attempt_hold(None, {"resource_location_id": -100})
     assert result.held is False
     assert result.success is False
+
+
+# ---------------------------------------------------------------------------
+# HH-103 — E2E hold hardening: honest cart-badge verification
+# ---------------------------------------------------------------------------
+
+class _FakePage:
+    """Minimal Page stand-in exposing only evaluate() for the cart badge."""
+    def __init__(self, badge_text: str):
+        self._badge = badge_text
+
+    async def evaluate(self, _script: str):
+        return self._badge
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("1 Item\nCart", 1),
+    ("2 Items\nCart", 2),
+    ("Cart", 0),        # no item → not held
+    ("", 0),
+    ("11 Items", 11),
+])
+async def test_cart_item_count_parses_badge(text, expected):
+    # The cart badge is the source of truth for a held cart — HH-100's URL
+    # substring check was the false-positive bug this replaces.
+    assert await _StubCamisAdapter()._cart_item_count(_FakePage(text)) == expected
+
+
+def test_default_equipment_matches_one_tent():
+    # Camis blocks Reserve until equipment is chosen; the auto-default must hit
+    # the "1 Tent" option (discovered live in HH-103).
+    assert _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("1 Tent")
+    assert _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("1 tent")
+    assert not _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("Van/Camper")

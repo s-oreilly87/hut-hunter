@@ -35,7 +35,7 @@ Contract mapping (how each ``BaseAdapter`` member is satisfied for Camis):
 ``base_url``            per-subclass host, e.g. ``https://camping.bcparks.ca``
 ``requires_credentials````True`` — Camis is account-based
 ``booking_timezone``    per-subclass (``America/Vancouver`` / ``America/Toronto``)
-``cart_hold_minutes``   **OPEN** — measured with a live hold in HH-100
+``cart_hold_minutes``   15 — measured on a live BC hold in HH-103 (~15.9 min)
 ``param_fields()``      subclass builds from the catalog JSON + ``/api``
                         taxonomy (``_load_catalog`` / ``fetch_json`` here)
 ``occupant_fields()``   **OPEN** — captured from ``/create-booking/partyinfo``
@@ -125,14 +125,17 @@ class BaseCamisAdapter(BaseAdapter):
     booking_timezone: str | None = None
     booking_cutoff_time: time = time(23, 59)
 
-    # Cart hold / expiry timing. Still OPEN after HH-100: no countdown timer was
-    # observable before the payment step, so the real window must be measured
-    # during a live E2E hold (HH-103). Deliberately NOT defaulted to DOC's 25
-    # min (recon §5); left ``None`` so nothing downstream assumes a wrong window
-    # (``_persist_cart_session`` warns and falls back to 25 until it's set).
-    cart_hold_minutes: int | None = None
-    cart_inactive_after_minutes: int | None = None
-    cart_keepalive_interval_minutes: int | None = None
+    # Cart hold / expiry timing. MEASURED on live BC Parks in HH-103: a real
+    # committed hold auto-released at ~15.9 min of (poll-only) inactivity — so
+    # the window is ~15 min, NOT DOC's 25 (recon §5). No countdown timer surfaces
+    # before the payment step, so this had to be measured, not read. Rounded down
+    # to 15 so the /pay page never tells the user they have more time than they
+    # do. Camis is one platform, so Ontario inherits this pending its own
+    # confirmation in HH-105. A keepalive touch every 10 min keeps the parked
+    # noVNC session warm within the window.
+    cart_hold_minutes: int | None = 15
+    cart_inactive_after_minutes: int | None = 15
+    cart_keepalive_interval_minutes: int | None = 10
 
     # ------------------------------------------------------------------
     # Known Camis JSON API endpoints (verified unauthenticated — recon §2)
@@ -325,9 +328,17 @@ class BaseCamisAdapter(BaseAdapter):
             raise ValueError("availability query requires `date` (DD/MM/YYYY)")
         nights = int(params.get("nights", 1) or 1)
         start_iso = self._to_iso_date(date_str)
-        # /api/availability/map returns one status per day in [start, end]
-        # inclusive, so N nights → end = start + (N-1).
-        end_iso = self._generate_night_dates(date_str, nights)[-1]
+        # Camis uses check-in/check-out semantics: endDate is the CHECKOUT day
+        # (start + nights), matching the Angular funnel's own
+        # /create-booking/results URLs. startDate == endDate is rejected with
+        # HTTP 400 — hit live by the first 1-night watch job in HH-103 (the
+        # HH-99/102 probes all used ≥2 nights, which masked it). The response
+        # arrays span [start, end] inclusive, so only the first ``nights``
+        # entries describe the stay — ``_open_link_ids`` /
+        # ``_classify_site_days`` slice accordingly.
+        end_iso = (
+            datetime.strptime(date_str, "%d/%m/%Y") + timedelta(days=nights)
+        ).strftime("%Y-%m-%d")
 
         return {
             "resourceLocationId": int(rl_id),
@@ -376,17 +387,22 @@ class BaseCamisAdapter(BaseAdapter):
             out[str(rid)] = codes
         return out
 
-    def _open_link_ids(self, data: Any) -> list[str]:
-        """Child map ids from ``mapLinkAvailabilities`` with ≥1 available day."""
+    def _open_link_ids(self, data: Any, nights: int) -> list[str]:
+        """Child map ids from ``mapLinkAvailabilities`` with ≥1 available night.
+
+        Day arrays span check-in through checkout inclusive; only the first
+        ``nights`` entries are stay nights, so the trailing checkout-day code
+        is ignored (a loop free only on the checkout day is not bookable).
+        """
         links = (data or {}).get("mapLinkAvailabilities") or {}
         return [
             link_id
             for link_id, days in links.items()
-            if any(c == self.AVAILABILITY_AVAILABLE_CODE for c in (days or []))
+            if any(c == self.AVAILABILITY_AVAILABLE_CODE for c in (days or [])[:nights])
         ]
 
     async def _collect_site_days(
-        self, page: Page | None, query: dict, data: Any
+        self, page: Page | None, query: dict, data: Any, nights: int
     ) -> dict[str, list[int]]:
         """Gather per-site day codes for a park, drilling into loop maps.
 
@@ -398,7 +414,7 @@ class BaseCamisAdapter(BaseAdapter):
         skipped — their sites can't contribute a bookable stay.
         """
         sites = self._extract_site_days(data)
-        queue = self._open_link_ids(data)
+        queue = self._open_link_ids(data, nights)
         requests = 0
         while queue and requests < self._MAX_DRILL_REQUESTS:
             link_id = queue.pop(0)
@@ -407,15 +423,17 @@ class BaseCamisAdapter(BaseAdapter):
             )
             requests += 1
             sites.update(self._extract_site_days(sub))
-            queue.extend(self._open_link_ids(sub))
+            queue.extend(self._open_link_ids(sub, nights))
         return sites
 
     def _classify_site_days(
-        self, site_days: dict[str, list[int]], site: str
+        self, site_days: dict[str, list[int]], site: str, nights: int
     ) -> AvailabilityResult:
         """Map per-site day codes to an ``AvailabilityResult``.
 
-        A stay is only bookable on a single site, so:
+        Only the first ``nights`` codes of each array are stay nights (the
+        response includes the checkout day). A stay is only bookable on a
+        single site, so:
         - ≥1 site available (code 0) every night → AVAILABLE (count = such sites)
         - no full-stay site but some site/night available → PARTIALLY_AVAILABLE
           (e.g. different sites free on different nights, or part of the stay)
@@ -429,12 +447,13 @@ class BaseCamisAdapter(BaseAdapter):
                 evidence="no per-site availability returned for this resource location",
             )
         ok = self.AVAILABILITY_AVAILABLE_CODE
+        stay = {rid: codes[:nights] for rid, codes in site_days.items()}
         full_stay = [
-            rid for rid, codes in site_days.items()
+            rid for rid, codes in stay.items()
             if codes and all(c == ok for c in codes)
         ]
         any_night = sum(
-            1 for codes in site_days.values() if any(c == ok for c in codes)
+            1 for codes in stay.values() if any(c == ok for c in codes)
         )
         if full_stay:
             status = AvailabilityStatus.AVAILABLE
@@ -492,6 +511,7 @@ class BaseCamisAdapter(BaseAdapter):
                 site=site_name, status=AvailabilityStatus.UNKNOWN, evidence=str(e),
             )]
 
+        nights = int(params.get("nights", 1) or 1)
         data = await self._get_map_availability(page, query)
         links = (data or {}).get("mapLinkAvailabilities") or {}
         has_sites = bool((data or {}).get("resourceAvailabilities"))
@@ -501,42 +521,49 @@ class BaseCamisAdapter(BaseAdapter):
                 status=AvailabilityStatus.UNKNOWN,
                 evidence="availability/map returned no links or site data for this park",
             )]
-        # Fast path — every loop reports zero available days, so there is
+        # Fast path — every loop reports zero available nights, so there is
         # nothing to drill into (the common polling case).
-        if not has_sites and not self._open_link_ids(data):
+        if not has_sites and not self._open_link_ids(data, nights):
             return [AvailabilityResult(
                 site=site_name,
                 status=AvailabilityStatus.UNAVAILABLE,
-                evidence=f"all campground loops report no available days: {links}",
+                evidence=f"all campground loops report no available nights: {links}",
                 total_available=0,
             )]
 
-        site_days = await self._collect_site_days(page, query, data)
-        return [self._classify_site_days(site_days, site_name)]
+        site_days = await self._collect_site_days(page, query, data, nights)
+        return [self._classify_site_days(site_days, site_name, nights)]
 
     # ------------------------------------------------------------------
-    # Cart / hold flow (HH-100)
+    # Cart / hold flow — funnel confirmed end-to-end on live BC Parks (HH-103)
     #
-    # Verified funnel (live BC Parks): login → /create-booking/results for the
-    # park → drill into a map loop (Leaflet, needs force-click) → the site grid
-    # renders each site/date cell as a <button> whose aria-label states its
-    # availability → click an "Available for all selected dates" cell → the
-    # Shopping Cart → "Proceed to checkout" → occupant/party → payment (the
-    # noVNC hand-off). ``_persist_cart_session`` parks the cart for the user.
+    #   login → /create-booking/results for the park at an OPEN LOOP's mapId
+    #   (JSON-first: pick a loop that detect_availability found available, so we
+    #   land on the per-site list, not the park's loop overview) → set the
+    #   search-form Equipment dropdown (a site refuses to reserve until an
+    #   equipment type is chosen) → switch to LIST view (a Material expansion
+    #   panel per site — far more automatable than the Leaflet map, which has no
+    #   semantic per-site markers) → expand the first available site → Reserve
+    #   (``POST /api/cart/commit``) → the "Review Reservation Details" page
+    #   (/create-booking/reservationmessages): tick the acknowledgement
+    #   checkboxes → "Confirm reservation details" (#confirmReservationDetails)
+    #   → /cart with the item held → "Proceed to checkout" (#proceedToCheckout)
+    #   → payment (the noVNC hand-off). ``_persist_cart_session`` parks it.
     #
-    # The interactive tail (site-config dialog → checkout → occupant form →
-    # payment page) still needs live hardening under E2E (HH-103); no cart hold
-    # timer was observable before the payment step, so ``cart_hold_minutes``
-    # stays ``None`` (measure it during HH-103, do not guess).
+    # HH-100's implementation was a false positive: its "available cell" selector
+    # ("Available for all selected dates") actually matched the availability
+    # LEGEND's tooltip trigger, so it clicked nothing, and its success check was
+    # a URL substring (``create-booking``) that the results URL satisfies
+    # trivially — so it reported held=True with an empty cart. HH-103 replaces
+    # both: real site selection via the list panel, and hold verification via
+    # the DOM cart badge (``/api/cart`` reads empty from a fresh request context
+    # because the cart lives in the Angular app's session store).
     # ------------------------------------------------------------------
 
-    # Site-grid cell aria-labels (observed live). Only the first is bookable.
-    _CELL_AVAILABLE = "Available for all selected dates"
-    _CELL_UNAVAILABLE_LABELS = (
-        "Not available for selected dates",
-        "Closed during selected dates",
-        "Does not match all search filters",
-    )
+    # First allowed-equipment option to auto-select when the job doesn't specify
+    # one. Camis blocks Reserve until equipment is chosen; "1 Tent" is the
+    # least-constrained frontcountry option and valid for every campsite.
+    _DEFAULT_EQUIPMENT_RE = re.compile(r"1 tent", re.I)
 
     @classmethod
     def occupant_fields(cls) -> list[OccupantField]:
@@ -544,8 +571,8 @@ class BaseCamisAdapter(BaseAdapter):
 
         Unlike the DOC flow (per-person name/age/category), Camis takes party
         size and equipment during search and a single **permit holder** name at
-        checkout. Exposed minimally here; the full checkout occupant form is
-        finalized under E2E (HH-103).
+        checkout (confirmed on the Review Reservation Details page, which shows
+        the account's occupant as the named permit holder).
         """
         return [
             OccupantField(
@@ -556,87 +583,150 @@ class BaseCamisAdapter(BaseAdapter):
             ),
         ]
 
+    async def _cart_item_count(self, page: Page) -> int:
+        """Read the header cart badge ("N Item(s)") — the source of truth for a
+        held cart. ``/api/cart`` can't be used: fetched from a fresh request
+        context it returns an empty cart because the committed booking lives in
+        the Angular app's in-memory session, not the REST cart snapshot."""
+        txt = await page.evaluate(
+            "() => (document.querySelector('#viewShoppingCartButton, #viewShoppingCart')"
+            " || {}).innerText || ''"
+        )
+        m = re.search(r"(\d+)\s*Item", txt or "")
+        return int(m.group(1)) if m else 0
+
+    async def _open_loop_map_id(self, page: Page | None, query: dict, nights: int) -> int:
+        """Return a loop (child map) id under the park that has an available
+        night, or the park map id if none can be resolved. Reuses the same
+        availability read as detect_availability so the hold lands directly on
+        a site list instead of the park's loop overview."""
+        try:
+            data = await self._get_map_availability(page, query)
+        except Exception:
+            return query["mapId"]
+        open_loops = self._open_link_ids(data, nights)
+        return int(open_loops[0]) if open_loops else query["mapId"]
+
+    async def _select_equipment(self, page: Page) -> None:
+        """Choose an allowed-equipment type in the search form (required before a
+        site can be reserved). Prefers "1 Tent"; falls back to the first option."""
+        field = page.locator("#equipment-field")
+        if await field.count() == 0:
+            return
+        await field.first.click()
+        await page.wait_for_timeout(1_200)
+        opt = page.get_by_role("option", name=self._DEFAULT_EQUIPMENT_RE)
+        if await opt.count() == 0:
+            opt = page.get_by_role("option")
+        await opt.first.click()
+        await page.wait_for_timeout(800)
+        search = page.locator("#actionSearch")
+        if await search.count():
+            await search.first.click(force=True)
+            await page.wait_for_timeout(5_000)
+
     async def attempt_hold(self, page: Page, params: dict) -> BookingResult:
-        """Drive the Camis funnel to place a cart hold and park it for payment.
+        """Drive the confirmed Camis funnel to place a real cart hold, verify it
+        via the cart badge, and park the session for the noVNC payment hand-off.
 
-        Implements the verified steps (login → results → loop drill → select an
-        available site cell → proceed to checkout) and, on reaching a checkout /
-        payment URL, persists the cart session so the noVNC hand-off works like
-        the DOC adapters. Conservative by design: it returns ``held=False`` with
-        a snapshot whenever it cannot confirm it reached checkout, so the hold
-        worker never reports a hold that didn't happen.
-
-        The site-config/occupant/payment tail needs live hardening (HH-103).
+        Fails closed: returns ``held=False`` with a snapshot at every step it
+        can't confirm, and only reports ``held=True`` once the header cart badge
+        shows a held item on the /cart page — so the hold worker never reports a
+        hold that didn't happen.
         """
         job_id = params.get("_job_id", "unknown")
         try:
             query = self._build_availability_query(params)
         except (ValueError, KeyError) as e:
             return BookingResult(success=False, held=False, message=str(e))
+        nights = int(params.get("nights", 1) or 1)
 
         park = self._park_by_resource_location_id(query["resourceLocationId"])
         site_name = (park or {}).get("full_name") or str(query["resourceLocationId"])
 
-        # 1. Authenticate (cart is account-scoped).
+        # 1. Authenticate (the cart is account-scoped).
         try:
             await self._login(page)
         except RuntimeError as e:
             return BookingResult(success=False, held=False, message=str(e))
 
-        # 2. Open the booking results for the park + dates.
+        # 2. Open the results page at an available loop map so the per-site list
+        #    renders directly (JSON-first — skips the flaky Leaflet loop drill).
+        loop_map_id = await self._open_loop_map_id(page, query, nights)
         results_url = (
             f"{self.base_url}/create-booking/results"
-            f"?resourceLocationId={query['resourceLocationId']}&mapId={query['mapId']}"
+            f"?resourceLocationId={query['resourceLocationId']}&mapId={loop_map_id}"
             f"&bookingCategoryId={query['bookingCategoryId']}"
             f"&startDate={query['startDate']}&endDate={query['endDate']}"
         )
         await page.goto(results_url, wait_until="domcontentloaded", timeout=60_000)
         await self._pass_queue_it(page)
-        await page.wait_for_timeout(5_000)
+        await page.wait_for_timeout(6_000)
         await self.snapshot(page, "camis_results")
 
-        # 3. Find and click an available site cell. On the park root map the
-        #    grid may be one loop-drill deep; click a loop area first if no
-        #    available cell is visible yet.
-        cell = page.get_by_role("button", name=re.compile(re.escape(self._CELL_AVAILABLE), re.I))
-        if await cell.count() == 0:
-            loop = page.locator("path[class*='mapLinkArea']").first
-            if await loop.count() > 0:
-                await loop.click(force=True)
-                await page.wait_for_timeout(5_000)
-                cell = page.get_by_role("button", name=re.compile(re.escape(self._CELL_AVAILABLE), re.I))
+        # 3. Pick equipment (required) and switch to the list view.
+        await self._select_equipment(page)
+        list_toggle = page.locator("[aria-label='List view of results']")
+        if await list_toggle.count():
+            await list_toggle.first.click(force=True)
+            await page.wait_for_timeout(4_000)
 
-        if await cell.count() == 0:
-            await self.snapshot(page, "camis_no_available_cell")
+        # 4. Expand the first available site and Reserve it. Available rows carry
+        #    a `.resource-availability .icon-available` marker; each has a
+        #    `#details-N` expander and, once open, a `[id^=reserveButton]`.
+        if await page.locator(".resource-availability .icon-available").count() == 0:
+            await self.snapshot(page, "camis_no_available_site")
             return BookingResult(
                 success=False, held=False,
-                message=f"No bookable site cell found for {site_name} on {params.get('date')}",
+                message=f"No bookable site found for {site_name} on {params.get('date')}",
             )
-        await cell.first.click(force=True)
+        await page.locator("#details-0").first.click(force=True)
         await page.wait_for_timeout(3_000)
-
-        # 4. Proceed to checkout (this is where Camis creates the reservation
-        #    transaction + hold timer — see class note).
-        proceed = page.locator("#proceedToCheckout")
-        if await proceed.count() == 0:
-            proceed = page.get_by_role("button", name=re.compile(r"proceed to checkout", re.I))
-        if await proceed.count() == 0:
-            await self.snapshot(page, "camis_no_checkout_button")
+        reserve = page.locator("mat-expansion-panel.mat-expanded [id^=reserveButton]")
+        if await reserve.count() == 0:
+            await self.snapshot(page, "camis_no_reserve_button")
             return BookingResult(
                 success=False, held=False,
-                message="Selected a site but could not find the Proceed to Checkout control",
+                message="Expanded a site but found no Reserve control (equipment not set?)",
             )
+        await reserve.first.click(force=True)
+        await page.wait_for_timeout(6_000)
+        await self.snapshot(page, "camis_reservation_messages")
+
+        # 5. Review Reservation Details: accept acknowledgements, confirm.
+        for checkbox in await page.locator("input[type=checkbox]").all():
+            try:
+                if await checkbox.is_visible():
+                    await checkbox.click(force=True)
+            except PlaywrightTimeoutError:
+                continue
+        confirm = page.locator("#confirmReservationDetails")
+        if await confirm.count() == 0:
+            confirm = page.get_by_role("button", name=re.compile(r"confirm reservation", re.I))
+        if await confirm.count() == 0:
+            await self.snapshot(page, "camis_no_confirm_button")
+            return BookingResult(
+                success=False, held=False,
+                message="Reserved a site but could not confirm the reservation details",
+            )
+        await confirm.first.click(force=True)
+        await page.wait_for_timeout(6_000)
+        await self.snapshot(page, "camis_cart")
+
+        # 6. Verify a real hold before proceeding: the cart badge must show an
+        #    item and the /cart page must expose Proceed to Checkout.
+        proceed = page.locator("#proceedToCheckout")
+        if await self._cart_item_count(page) < 1 or await proceed.count() == 0:
+            await self.snapshot(page, "camis_hold_not_confirmed")
+            return BookingResult(
+                success=False, held=False,
+                message="Reservation did not land in the cart — availability may have dropped",
+            )
+
+        # 7. Proceed to the payment page (the noVNC hand-off point) and park it.
         await proceed.first.click()
         await page.wait_for_timeout(6_000)
         await self.snapshot(page, "camis_checkout")
-
-        # 5. Confirm we reached a checkout/payment step before claiming a hold.
-        if not re.search(r"create-booking|checkout|payment|cart", page.url, re.I):
-            await self.snapshot(page, "camis_checkout_not_reached")
-            return BookingResult(
-                success=False, held=False,
-                message="Did not reach the Camis checkout after selecting a site",
-            )
 
         resume_url = await self._persist_cart_session(page, job_id, page.url)
         return BookingResult(
@@ -800,9 +890,9 @@ class BaseCamisAdapter(BaseAdapter):
         ``job_id`` first. Returns the ``/pay/{job_id}`` URL to surface to the
         user.
 
-        The hold duration falls back to 25 minutes only if a subclass hasn't
-        set ``cart_hold_minutes`` yet — HH-100 must replace this with the real
-        Camis window once measured (recon §5).
+        Uses the measured Camis hold window (``cart_hold_minutes`` = 15,
+        HH-103). The 25-minute fallback only fires if a subclass explicitly
+        clears it back to ``None``.
         """
         from app.core.crypto import encrypt
         from app.models.session import CartSession
@@ -810,8 +900,7 @@ class BaseCamisAdapter(BaseAdapter):
 
         if self.cart_hold_minutes is None:
             logger.warning(
-                "cart_hold_minutes is unset for %s — defaulting to 25 min. "
-                "HH-100 must set the measured Camis hold window.",
+                "cart_hold_minutes is unset for %s — defaulting to 25 min.",
                 type(self).__name__,
             )
         hold_duration_minutes = self.cart_hold_minutes or 25
