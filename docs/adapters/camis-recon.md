@@ -77,6 +77,25 @@ Flow shape: **search → results → add to cart → `/create-booking/*` multi-s
 
 **Login model:** account-based (`/login`, `/logout`, `/account/*`), so `requires_credentials = True` for both provinces (matches the DOC adapters). Whether login is required *before* holding a cart or only *at* checkout is **OPEN** — confirm in M2.
 
+### Availability endpoint (resolved in HH-99)
+
+The live availability read is **`GET /api/availability/map`** (verified on BC + Ontario, unauthenticated). It is *not* in the static endpoint list because the results-page bundle builds it dynamically; recovered from the bundle's `availabilityService.getMapAvailabilityByMapId({...})` call.
+
+Query params: `resourceLocationId`, `mapId` (the park's `rootMapId` from `/api/resourcelocation`), `bookingCategoryId`, `startDate`, `endDate` (ISO, inclusive), `getDailyAvailability=true`.
+
+Response: `mapLinkAvailabilities` is an object keyed by `resourceLocationId` whose value is a **per-day status-code array** over `[startDate, endDate]`. Status codes, decoded empirically (the Angular enum is inlined and not statically recoverable):
+
+| Code | Meaning | Adapter mapping |
+|---|---|---|
+| `1` | available | AVAILABLE |
+| `2` | unavailable (booked / closed / past date) | UNAVAILABLE |
+| `6` | not yet released (booking window not open) | UNAVAILABLE |
+| other | unknown | UNKNOWN (never treated as free) |
+
+A per-day *mix* of codes over a multi-night stay maps to **PARTIALLY_AVAILABLE**. This is park-level detection (any bookable site in the park); per-individual-site detail lives in `resourceAvailabilities` / `getResourceDailyAvailability` and is only needed for the hold flow (HH-100).
+
+Note: `/api/dateschedule/resourcelocationid` is the operating-**season** calendar (reservable date ranges, go-live dates, min/max stay, check-in/out times) — useful for gating polling to the open booking window, **not** live availability.
+
 ---
 
 ## 4. BC vs Ontario diff (HH-96)
@@ -135,6 +154,6 @@ Flow shape: **search → results → add to cart → `/create-booking/*` multi-s
 1. Exact **cart hold / expiry duration** per province (HH-100) — measure with a live hold.
 2. **Occupant field** requirements from `/create-booking/partyinfo` + `/permitholder` (HH-100).
 3. Whether **login is required pre-hold or only at checkout** (HH-98/100).
-4. Exact **query params** for `/api/dateschedule/resourcelocationid` and `/api/reachableresources/resourcelocationid` (HH-99/101).
-5. Confirm the **map-tree traversal** (`childMapId` vs `resourceLocationId`) needed to enumerate all bookable parks for the scraper (HH-101).
-6. Behaviour of the **Queue-it handshake** under Playwright, headless vs headed (HH-97 follow-through in M2).
+4. ~~Exact query params for the availability endpoint~~ — **RESOLVED (HH-99):** `GET /api/availability/map` (see §3). `/api/dateschedule` turned out to be season metadata, not live availability.
+5. ~~Map-tree traversal to enumerate parks~~ — **RESOLVED (HH-101):** the visual `/api/maps` tree dead-ends; use the flat `GET /api/resourcelocation` instead.
+6. Behaviour of the **Queue-it handshake** under Playwright, headless vs headed (HH-97 follow-through in M2) — `fill_form` now calls `_pass_queue_it`; still to be exercised against a live queue.

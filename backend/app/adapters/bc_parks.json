@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-05T19:27:19Z",
+  "scraped_at": "2026-07-05T19:44:38Z",
   "source": "camping.bcparks.ca",
   "base_url": "https://camping.bcparks.ca",
   "culture": "en-CA",
@@ -63,6 +63,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483648,
+      "root_map_id": -2147483361,
       "resource_category_ids": [
         -2147483641
       ]
@@ -74,6 +75,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483647,
+      "root_map_id": -2147483648,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -86,6 +88,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483434,
+      "root_map_id": -2147483306,
       "resource_category_ids": [
         -2147483648
       ]
@@ -97,6 +100,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483645,
+      "root_map_id": -2147483643,
       "resource_category_ids": [
         -2147483648
       ]
@@ -108,6 +112,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483644,
+      "root_map_id": -2147483641,
       "resource_category_ids": [
         -2147483648,
         -2147483647
@@ -120,6 +125,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483643,
+      "root_map_id": -2147483637,
       "resource_category_ids": [
         -2147483648,
         -2147483640
@@ -132,6 +138,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483642,
+      "root_map_id": -2147483636,
       "resource_category_ids": [
         -2147483648
       ]
@@ -143,6 +150,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483433,
+      "root_map_id": -2147483271,
       "resource_category_ids": [
         -2147483648
       ]
@@ -154,6 +162,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483641,
+      "root_map_id": -2147483635,
       "resource_category_ids": [
         -2147483642
       ]
@@ -165,6 +174,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483640,
+      "root_map_id": -2147483634,
       "resource_category_ids": [
         -2147483648
       ]
@@ -176,6 +186,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483639,
+      "root_map_id": -2147483631,
       "resource_category_ids": [
         -2147483648
       ]
@@ -187,6 +198,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483638,
+      "root_map_id": -2147483630,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -199,6 +211,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483637,
+      "root_map_id": -2147483362,
       "resource_category_ids": [
         -2147483648,
         -2147483632,
@@ -212,6 +225,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483635,
+      "root_map_id": -2147483624,
       "resource_category_ids": [
         -2147483648
       ]
@@ -223,6 +237,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483634,
+      "root_map_id": -2147483360,
       "resource_category_ids": [
         -2147483641
       ]
@@ -234,6 +249,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483632,
+      "root_map_id": -2147483367,
       "resource_category_ids": [
         -2147483641
       ]
@@ -245,6 +261,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483626,
+      "root_map_id": -2147483623,
       "resource_category_ids": [
         -2147483648,
         -2147483645
@@ -257,6 +274,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483624,
+      "root_map_id": -2147483276,
       "resource_category_ids": [
         -2147483642,
         -2147483641
@@ -269,6 +287,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483623,
+      "root_map_id": -2147483622,
       "resource_category_ids": [
         -2147483648
       ]
@@ -280,6 +299,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483622,
+      "root_map_id": -2147483620,
       "resource_category_ids": [
         -2147483648,
         -2147483640
@@ -292,6 +312,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483620,
+      "root_map_id": -2147483613,
       "resource_category_ids": [
         -2147483644
       ]
@@ -303,6 +324,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483619,
+      "root_map_id": -2147483612,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -315,6 +337,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483618,
+      "root_map_id": -2147483611,
       "resource_category_ids": [
         -2147483648
       ]
@@ -326,6 +349,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483617,
+      "root_map_id": -2147483610,
       "resource_category_ids": [
         -2147483648,
         -2147483645,
@@ -339,6 +363,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483616,
+      "root_map_id": -2147483356,
       "resource_category_ids": [
         -2147483641
       ]
@@ -350,6 +375,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483614,
+      "root_map_id": -2147483355,
       "resource_category_ids": [
         -2147483641
       ]
@@ -361,6 +387,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483613,
+      "root_map_id": -2147483354,
       "resource_category_ids": [
         -2147483641
       ]
@@ -372,6 +399,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483612,
+      "root_map_id": -2147483603,
       "resource_category_ids": [
         -2147483648
       ]
@@ -383,6 +411,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483611,
+      "root_map_id": -2147483601,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -398,6 +427,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483610,
+      "root_map_id": -2147483593,
       "resource_category_ids": [
         -2147483648
       ]
@@ -409,6 +439,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483609,
+      "root_map_id": -2147483352,
       "resource_category_ids": [
         -2147483641
       ]
@@ -420,6 +451,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483608,
+      "root_map_id": -2147483591,
       "resource_category_ids": [
         -2147483648
       ]
@@ -431,6 +463,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483607,
+      "root_map_id": -2147483589,
       "resource_category_ids": [
         -2147483648
       ]
@@ -442,6 +475,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483606,
+      "root_map_id": -2147483588,
       "resource_category_ids": [
         -2147483648
       ]
@@ -453,6 +487,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483605,
+      "root_map_id": -2147483586,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -465,6 +500,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483603,
+      "root_map_id": -2147483581,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -477,6 +513,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483602,
+      "root_map_id": -2147483578,
       "resource_category_ids": [
         -2147483642,
         -2147483639,
@@ -490,6 +527,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483600,
+      "root_map_id": -2147483577,
       "resource_category_ids": [
         -2147483648
       ]
@@ -501,6 +539,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483599,
+      "root_map_id": -2147483326,
       "resource_category_ids": [
         -2147483642,
         -2147483641
@@ -513,6 +552,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483599,
+      "root_map_id": -2147483576,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -525,6 +565,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483598,
+      "root_map_id": -2147483570,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -537,6 +578,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483597,
+      "root_map_id": -2147483566,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -550,6 +592,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483596,
+      "root_map_id": -2147483562,
       "resource_category_ids": [
         -2147483648,
         -2147483644,
@@ -563,6 +606,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483435,
+      "root_map_id": -2147483302,
       "resource_category_ids": [
         -2147483648
       ]
@@ -574,6 +618,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483595,
+      "root_map_id": -2147483350,
       "resource_category_ids": [
         -2147483641
       ]
@@ -585,6 +630,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483593,
+      "root_map_id": -2147483557,
       "resource_category_ids": [
         -2147483648
       ]
@@ -596,6 +642,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483592,
+      "root_map_id": -2147483555,
       "resource_category_ids": [
         -2147483648
       ]
@@ -607,6 +654,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483591,
+      "root_map_id": -2147483554,
       "resource_category_ids": [
         -2147483648,
         -2147483641
@@ -619,6 +667,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483589,
+      "root_map_id": -2147483348,
       "resource_category_ids": [
         -2147483641
       ]
@@ -630,6 +679,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483440,
+      "root_map_id": -2147483311,
       "resource_category_ids": [
         -2147483648
       ]
@@ -641,6 +691,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483588,
+      "root_map_id": -2147483548,
       "resource_category_ids": [
         -2147483642
       ]
@@ -652,6 +703,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483587,
+      "root_map_id": -2147483547,
       "resource_category_ids": [
         -2147483648,
         -2147483641
@@ -664,6 +716,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483586,
+      "root_map_id": -2147483545,
       "resource_category_ids": [
         -2147483648
       ]
@@ -675,6 +728,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483585,
+      "root_map_id": -2147483542,
       "resource_category_ids": [
         -2147483648
       ]
@@ -686,6 +740,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483584,
+      "root_map_id": -2147483541,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -698,6 +753,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483583,
+      "root_map_id": -2147483538,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -710,6 +766,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483582,
+      "root_map_id": -2147483534,
       "resource_category_ids": [
         -2147483648,
         -2147483645,
@@ -723,6 +780,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483581,
+      "root_map_id": -2147483529,
       "resource_category_ids": [
         -2147483648
       ]
@@ -734,6 +792,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483580,
+      "root_map_id": -2147483528,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -747,6 +806,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483579,
+      "root_map_id": -2147483346,
       "resource_category_ids": [
         -2147483641
       ]
@@ -758,6 +818,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483572,
+      "root_map_id": -2147483279,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -770,6 +831,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483571,
+      "root_map_id": -2147483518,
       "resource_category_ids": [
         -2147483648,
         -2147483640
@@ -782,6 +844,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483570,
+      "root_map_id": -2147483516,
       "resource_category_ids": [
         -2147483648
       ]
@@ -793,6 +856,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483569,
+      "root_map_id": -2147483515,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -805,6 +869,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483568,
+      "root_map_id": -2147483511,
       "resource_category_ids": [
         -2147483648,
         -2147483647
@@ -817,6 +882,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483567,
+      "root_map_id": -2147483510,
       "resource_category_ids": [
         -2147483648
       ]
@@ -828,6 +894,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483439,
+      "root_map_id": -2147483309,
       "resource_category_ids": [
         -2147483648
       ]
@@ -839,6 +906,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483566,
+      "root_map_id": -2147483507,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -851,6 +919,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483560,
+      "root_map_id": -2147483506,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -863,6 +932,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483559,
+      "root_map_id": -2147483345,
       "resource_category_ids": [
         -2147483641
       ]
@@ -874,6 +944,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483558,
+      "root_map_id": -2147483502,
       "resource_category_ids": [
         -2147483648,
         -2147483640
@@ -886,6 +957,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483557,
+      "root_map_id": -2147483499,
       "resource_category_ids": [
         -2147483648
       ]
@@ -897,6 +969,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483556,
+      "root_map_id": -2147483495,
       "resource_category_ids": [
         -2147483648
       ]
@@ -908,6 +981,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483555,
+      "root_map_id": -2147483492,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -922,6 +996,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483554,
+      "root_map_id": -2147483487,
       "resource_category_ids": [
         -2147483648,
         -2147483640
@@ -934,6 +1009,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483553,
+      "root_map_id": -2147483344,
       "resource_category_ids": [
         -2147483641
       ]
@@ -945,6 +1021,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483552,
+      "root_map_id": -2147483486,
       "resource_category_ids": [
         -2147483648,
         -2147483647
@@ -957,6 +1034,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483551,
+      "root_map_id": -2147483482,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -970,6 +1048,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483550,
+      "root_map_id": -2147483481,
       "resource_category_ids": [
         -2147483648
       ]
@@ -981,6 +1060,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483549,
+      "root_map_id": -2147483480,
       "resource_category_ids": [
         -2147483642,
         -2147483641
@@ -993,6 +1073,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483548,
+      "root_map_id": -2147483479,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1004,6 +1085,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483547,
+      "root_map_id": -2147483478,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -1016,6 +1098,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483546,
+      "root_map_id": -2147483474,
       "resource_category_ids": [
         -2147483644
       ]
@@ -1027,6 +1110,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483545,
+      "root_map_id": -2147483473,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1038,6 +1122,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483437,
+      "root_map_id": -2147483305,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1049,6 +1134,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483544,
+      "root_map_id": -2147483471,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1060,6 +1146,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483441,
+      "root_map_id": -2147483313,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1071,6 +1158,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483542,
+      "root_map_id": -2147483468,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1082,6 +1170,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483535,
+      "root_map_id": -2147483464,
       "resource_category_ids": [
         -2147483648,
         -2147483647
@@ -1094,6 +1183,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483534,
+      "root_map_id": -2147483463,
       "resource_category_ids": [
         -2147483648,
         -2147483647
@@ -1106,6 +1196,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483530,
+      "root_map_id": -2147483459,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1117,6 +1208,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483529,
+      "root_map_id": -2147483458,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1128,6 +1220,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483528,
+      "root_map_id": -2147483457,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -1140,6 +1233,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483522,
+      "root_map_id": -2147483454,
       "resource_category_ids": [
         -2147483640
       ]
@@ -1151,6 +1245,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483521,
+      "root_map_id": -2147483343,
       "resource_category_ids": [
         -2147483641
       ]
@@ -1162,6 +1257,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483519,
+      "root_map_id": -2147483342,
       "resource_category_ids": [
         -2147483641
       ]
@@ -1173,6 +1269,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483518,
+      "root_map_id": -2147483453,
       "resource_category_ids": [
         -2147483640
       ]
@@ -1184,6 +1281,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483517,
+      "root_map_id": -2147483452,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -1198,6 +1296,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483516,
+      "root_map_id": -2147483449,
       "resource_category_ids": [
         -2147483648,
         -2147483647
@@ -1210,6 +1309,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483515,
+      "root_map_id": -2147483444,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1221,6 +1321,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483514,
+      "root_map_id": -2147483441,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1232,6 +1333,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483513,
+      "root_map_id": -2147483439,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1243,6 +1345,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483512,
+      "root_map_id": -2147483341,
       "resource_category_ids": [
         -2147483641
       ]
@@ -1254,6 +1357,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483511,
+      "root_map_id": -2147483437,
       "resource_category_ids": [
         -2147483648,
         -2147483644,
@@ -1267,6 +1371,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483510,
+      "root_map_id": -2147483431,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1278,6 +1383,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483509,
+      "root_map_id": -2147483430,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1289,6 +1395,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483508,
+      "root_map_id": -2147483428,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1300,6 +1407,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483507,
+      "root_map_id": -2147483426,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -1313,6 +1421,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483506,
+      "root_map_id": -2147483422,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1324,6 +1433,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483505,
+      "root_map_id": -2147483420,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -1336,6 +1446,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483543,
+      "root_map_id": -2147483470,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -1349,6 +1460,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483502,
+      "root_map_id": -2147483414,
       "resource_category_ids": [
         -2147483648,
         -2147483647,
@@ -1362,6 +1474,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483501,
+      "root_map_id": -2147483410,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1373,6 +1486,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483500,
+      "root_map_id": -2147483368,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -1385,6 +1499,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483430,
+      "root_map_id": -2147483236,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1396,6 +1511,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483495,
+      "root_map_id": -2147483404,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1407,6 +1523,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483488,
+      "root_map_id": -2147483403,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1418,6 +1535,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483487,
+      "root_map_id": -2147483402,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1429,6 +1547,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483486,
+      "root_map_id": -2147483401,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1440,6 +1559,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483429,
+      "root_map_id": -2147483234,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1451,6 +1571,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483484,
+      "root_map_id": -2147483400,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1462,6 +1583,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483482,
+      "root_map_id": -2147483255,
       "resource_category_ids": [
         -2147483641
       ]
@@ -1473,6 +1595,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483483,
+      "root_map_id": -2147483399,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -1485,6 +1608,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483481,
+      "root_map_id": -2147483395,
       "resource_category_ids": [
         -2147483648,
         -2147483640
@@ -1497,6 +1621,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483480,
+      "root_map_id": -2147483393,
       "resource_category_ids": [
         -2147483648,
         -2147483640
@@ -1509,6 +1634,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483478,
+      "root_map_id": -2147483466,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1520,6 +1646,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483621,
+      "root_map_id": -2147483619,
       "resource_category_ids": [
         -2147483648,
         -2147483641
@@ -1532,6 +1659,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483477,
+      "root_map_id": -2147483391,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -1544,6 +1672,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483479,
+      "root_map_id": -2147483558,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1555,6 +1684,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483476,
+      "root_map_id": -2147483386,
       "resource_category_ids": [
         -2147483644
       ]
@@ -1566,6 +1696,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483475,
+      "root_map_id": -2147483385,
       "resource_category_ids": [
         -2147483648,
         -2147483640
@@ -1578,6 +1709,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483467,
+      "root_map_id": -2147483339,
       "resource_category_ids": [
         -2147483641
       ]
@@ -1589,6 +1721,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483431,
+      "root_map_id": -2147483242,
       "resource_category_ids": [
         -2147483648,
         -2147483645
@@ -1601,6 +1734,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483465,
+      "root_map_id": -2147483381,
       "resource_category_ids": [
         -2147483648,
         -2147483641
@@ -1613,6 +1747,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483464,
+      "root_map_id": -2147483378,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -1625,6 +1760,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483636,
+      "root_map_id": -2147483626,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1636,6 +1772,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483458,
+      "root_map_id": -2147483337,
       "resource_category_ids": [
         -2147483641
       ]
@@ -1647,6 +1784,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483457,
+      "root_map_id": -2147483376,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1658,6 +1796,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483456,
+      "root_map_id": -2147483265,
       "resource_category_ids": [
         -2147483648,
         -2147483641
@@ -1670,6 +1809,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483456,
+      "root_map_id": -2147483374,
       "resource_category_ids": [
         -2147483648,
         -2147483644
@@ -1682,6 +1822,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483455,
+      "root_map_id": -2147483335,
       "resource_category_ids": [
         -2147483641
       ]
@@ -1693,6 +1834,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483446,
+      "root_map_id": -2147483371,
       "resource_category_ids": [
         -2147483640
       ]
@@ -1704,6 +1846,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483445,
+      "root_map_id": -2147483370,
       "resource_category_ids": [
         -2147483648
       ]
@@ -1715,6 +1858,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483444,
+      "root_map_id": -2147483334,
       "resource_category_ids": [
         -2147483648,
         -2147483641
@@ -1727,6 +1871,7 @@
       "region": null,
       "timezone": "America/Los_Angeles",
       "transaction_location_id": -2147483436,
+      "root_map_id": -2147483310,
       "resource_category_ids": [
         -2147483648
       ]

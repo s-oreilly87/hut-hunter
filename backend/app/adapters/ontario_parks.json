@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-05T19:27:20Z",
+  "scraped_at": "2026-07-05T19:44:38Z",
   "source": "reservations.ontarioparks.ca",
   "base_url": "https://reservations.ontarioparks.ca",
   "culture": "en-CA",
@@ -88,6 +88,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483648,
+      "root_map_id": -2147483648,
       "resource_category_ids": [
         -2147483643,
         -2147483636,
@@ -103,6 +104,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483647,
+      "root_map_id": -2147483644,
       "resource_category_ids": [
         -2147483585,
         -2147483648,
@@ -120,6 +122,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483482,
+      "root_map_id": -2147482995,
       "resource_category_ids": [
         -2147483585
       ]
@@ -131,6 +134,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483630,
+      "root_map_id": -2147483573,
       "resource_category_ids": [
         -2147483630,
         -2147483645,
@@ -145,6 +149,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483625,
+      "root_map_id": -2147483562,
       "resource_category_ids": [
         -2147483648,
         -2147483603
@@ -157,6 +162,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483504,
+      "root_map_id": -2147483053,
       "resource_category_ids": [
         -2147483582,
         -2147483583,
@@ -170,6 +176,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483503,
+      "root_map_id": -2147483054,
       "resource_category_ids": [
         -2147483585
       ]
@@ -181,6 +188,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483595,
+      "root_map_id": -2147483415,
       "resource_category_ids": [
         -2147483585,
         -2147483648,
@@ -194,6 +202,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483592,
+      "root_map_id": -2147483414,
       "resource_category_ids": [
         -2147483648,
         -2147483603
@@ -206,6 +215,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483581,
+      "root_map_id": -2147483378,
       "resource_category_ids": [
         -2147483622,
         -2147483646,
@@ -222,6 +232,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483563,
+      "root_map_id": -2147483317,
       "resource_category_ids": [
         -2147483603,
         -2147483648
@@ -234,6 +245,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483551,
+      "root_map_id": -2147483264,
       "resource_category_ids": [
         -2147483603,
         -2147483648
@@ -246,6 +258,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483512,
+      "root_map_id": -2147483049,
       "resource_category_ids": [
         -2147483585,
         -2147483586
@@ -258,6 +271,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483529,
+      "root_map_id": -2147483171,
       "resource_category_ids": [
         -2147483603,
         -2147483648
@@ -270,6 +284,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483587,
+      "root_map_id": -2147483048,
       "resource_category_ids": [
         -2147483585,
         -2147483586
@@ -282,6 +297,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483521,
+      "root_map_id": -2147483143,
       "resource_category_ids": [
         -2147483603,
         -2147483643
@@ -294,6 +310,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483644,
+      "root_map_id": -2147483636,
       "resource_category_ids": [
         -2147483637,
         -2147483645,
@@ -311,6 +328,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483645,
+      "root_map_id": -2147483013,
       "resource_category_ids": [
         -2147483603,
         -2147483636,
@@ -325,6 +343,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483641,
+      "root_map_id": -2147483122,
       "resource_category_ids": [
         -2147483630,
         -2147483648,
@@ -338,6 +357,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483640,
+      "root_map_id": -2147483630,
       "resource_category_ids": [
         -2147483626,
         -2147483627,
@@ -369,6 +389,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483638,
+      "root_map_id": -2147483623,
       "resource_category_ids": [
         -2147483645,
         -2147483582,
@@ -390,6 +411,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483637,
+      "root_map_id": -2147483614,
       "resource_category_ids": [
         -2147483583,
         -2147483636,
@@ -414,6 +436,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483636,
+      "root_map_id": -2147483602,
       "resource_category_ids": [
         -2147483603,
         -2147483586,
@@ -433,6 +456,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483505,
+      "root_map_id": -2147483056,
       "resource_category_ids": [
         -2147483636,
         -2147483596,
@@ -448,6 +472,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483634,
+      "root_map_id": -2147483595,
       "resource_category_ids": [
         -2147483636,
         -2147483583,
@@ -473,6 +498,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483633,
+      "root_map_id": -2147483590,
       "resource_category_ids": [
         -2147483641,
         -2147483645,
@@ -496,6 +522,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483632,
+      "root_map_id": -2147483577,
       "resource_category_ids": [
         -2147483583,
         -2147483580,
@@ -522,6 +549,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483629,
+      "root_map_id": -2147482993,
       "resource_category_ids": [
         -2147483648,
         -2147483603,
@@ -540,6 +568,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483629,
+      "root_map_id": -2147483566,
       "resource_category_ids": [
         -2147483583,
         -2147483582,
@@ -555,6 +584,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483627,
+      "root_map_id": -2147483565,
       "resource_category_ids": [
         -2147483585,
         -2147483630,
@@ -569,6 +599,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483623,
+      "root_map_id": -2147483558,
       "resource_category_ids": [
         -2147483643,
         -2147483602,
@@ -593,6 +624,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483622,
+      "root_map_id": -2147483551,
       "resource_category_ids": [
         -2147483643,
         -2147483648,
@@ -608,6 +640,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483621,
+      "root_map_id": -2147483546,
       "resource_category_ids": [
         -2147483636,
         -2147483586,
@@ -623,6 +656,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483620,
+      "root_map_id": -2147483540,
       "resource_category_ids": [
         -2147483583,
         -2147483622,
@@ -642,6 +676,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483618,
+      "root_map_id": -2147483535,
       "resource_category_ids": [
         -2147483643,
         -2147483602,
@@ -661,6 +696,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483617,
+      "root_map_id": -2147483531,
       "resource_category_ids": [
         -2147483593,
         -2147483642,
@@ -682,6 +718,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483616,
+      "root_map_id": -2147483518,
       "resource_category_ids": [
         -2147483643,
         -2147483642,
@@ -701,6 +738,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483615,
+      "root_map_id": -2147483511,
       "resource_category_ids": [
         -2147483602,
         -2147483642,
@@ -725,6 +763,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483614,
+      "root_map_id": -2147483505,
       "resource_category_ids": [
         -2147483648,
         -2147483585,
@@ -742,6 +781,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483613,
+      "root_map_id": -2147483502,
       "resource_category_ids": [
         -2147483648,
         -2147483594,
@@ -760,6 +800,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483612,
+      "root_map_id": -2147483499,
       "resource_category_ids": [
         -2147483644,
         -2147483603,
@@ -778,6 +819,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483611,
+      "root_map_id": -2147483493,
       "resource_category_ids": [
         -2147483587,
         -2147483599,
@@ -799,6 +841,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483507,
+      "root_map_id": -2147483062,
       "resource_category_ids": [
         -2147483583,
         -2147483611
@@ -811,6 +854,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483610,
+      "root_map_id": -2147482986,
       "resource_category_ids": [
         -2147483641
       ]
@@ -822,6 +866,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483609,
+      "root_map_id": -2147483489,
       "resource_category_ids": [
         -2147483622,
         -2147483585,
@@ -835,6 +880,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483608,
+      "root_map_id": -2147483488,
       "resource_category_ids": [
         -2147483592,
         -2147483630,
@@ -860,6 +906,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483607,
+      "root_map_id": -2147483483,
       "resource_category_ids": [
         -2147483591,
         -2147483641,
@@ -879,6 +926,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483606,
+      "root_map_id": -2147483470,
       "resource_category_ids": [
         -2147483585,
         -2147483602,
@@ -901,6 +949,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483603,
+      "root_map_id": -2147483458,
       "resource_category_ids": [
         -2147483585,
         -2147483603,
@@ -916,6 +965,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483602,
+      "root_map_id": -2147483453,
       "resource_category_ids": [
         -2147483596,
         -2147483592,
@@ -940,6 +990,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483601,
+      "root_map_id": -2147483446,
       "resource_category_ids": [
         -2147483585,
         -2147483583,
@@ -958,6 +1009,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483600,
+      "root_map_id": -2147483124,
       "resource_category_ids": [
         -2147483636,
         -2147483582,
@@ -974,6 +1026,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483599,
+      "root_map_id": -2147483441,
       "resource_category_ids": [
         -2147483641,
         -2147483579
@@ -986,6 +1039,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483598,
+      "root_map_id": -2147483440,
       "resource_category_ids": [
         -2147483602,
         -2147483642,
@@ -1016,6 +1070,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483597,
+      "root_map_id": -2147483434,
       "resource_category_ids": [
         -2147483645,
         -2147483641,
@@ -1034,6 +1089,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483596,
+      "root_map_id": -2147483428,
       "resource_category_ids": [
         -2147483586,
         -2147483643,
@@ -1053,6 +1109,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483496,
+      "root_map_id": -2147483031,
       "resource_category_ids": [
         -2147483583,
         -2147483579
@@ -1065,6 +1122,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483483,
+      "root_map_id": -2147483000,
       "resource_category_ids": [
         -2147483579
       ]
@@ -1076,6 +1134,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483591,
+      "root_map_id": -2147483410,
       "resource_category_ids": [
         -2147483585,
         -2147483602,
@@ -1093,6 +1152,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483646,
+      "root_map_id": -2147483643,
       "resource_category_ids": [
         -2147483585,
         -2147483639,
@@ -1120,6 +1180,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483589,
+      "root_map_id": -2147483408,
       "resource_category_ids": [
         -2147483648,
         -2147483591,
@@ -1135,6 +1196,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483588,
+      "root_map_id": -2147483404,
       "resource_category_ids": [
         -2147483645,
         -2147483585,
@@ -1158,6 +1220,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483517,
+      "root_map_id": -2147483090,
       "resource_category_ids": [
         -2147483630,
         -2147483648,
@@ -1171,6 +1234,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483585,
+      "root_map_id": -2147483390,
       "resource_category_ids": [
         -2147483583,
         -2147483589,
@@ -1187,6 +1251,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483495,
+      "root_map_id": -2147483034,
       "resource_category_ids": [
         -2147483579
       ]
@@ -1198,6 +1263,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483584,
+      "root_map_id": -2147483387,
       "resource_category_ids": [
         -2147483591,
         -2147483648,
@@ -1215,6 +1281,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483582,
+      "root_map_id": -2147483381,
       "resource_category_ids": [
         -2147483648,
         -2147483586,
@@ -1228,6 +1295,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483580,
+      "root_map_id": -2147483374,
       "resource_category_ids": [
         -2147483630,
         -2147483585,
@@ -1248,6 +1316,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483494,
+      "root_map_id": -2147483033,
       "resource_category_ids": [
         -2147483582,
         -2147483583,
@@ -1261,6 +1330,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483579,
+      "root_map_id": -2147483128,
       "resource_category_ids": [
         -2147483604,
         -2147483596,
@@ -1280,6 +1350,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483578,
+      "root_map_id": -2147483125,
       "resource_category_ids": [
         -2147483631
       ]
@@ -1291,6 +1362,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483577,
+      "root_map_id": -2147483368,
       "resource_category_ids": [
         -2147483639,
         -2147483640,
@@ -1305,6 +1377,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483506,
+      "root_map_id": -2147483059,
       "resource_category_ids": [
         -2147483611,
         -2147483583,
@@ -1318,6 +1391,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483576,
+      "root_map_id": -2147483364,
       "resource_category_ids": [
         -2147483648,
         -2147483585,
@@ -1338,6 +1412,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483575,
+      "root_map_id": -2147483359,
       "resource_category_ids": [
         -2147483603,
         -2147483596,
@@ -1363,6 +1438,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483574,
+      "root_map_id": -2147483355,
       "resource_category_ids": [
         -2147483648,
         -2147483630,
@@ -1382,6 +1458,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483573,
+      "root_map_id": -2147483039,
       "resource_category_ids": [
         -2147483583,
         -2147483582,
@@ -1396,6 +1473,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483572,
+      "root_map_id": -2147483351,
       "resource_category_ids": [
         -2147483593,
         -2147483592,
@@ -1418,6 +1496,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483569,
+      "root_map_id": -2147483131,
       "resource_category_ids": [
         -2147483643,
         -2147483630,
@@ -1433,6 +1512,7 @@
       "region": null,
       "timezone": null,
       "transaction_location_id": -2147483568,
+      "root_map_id": null,
       "resource_category_ids": []
     },
     {
@@ -1442,6 +1522,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483489,
+      "root_map_id": -2147482982,
       "resource_category_ids": [
         -2147483585,
         -2147483583
@@ -1454,6 +1535,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483493,
+      "root_map_id": -2147483032,
       "resource_category_ids": [
         -2147483579
       ]
@@ -1465,6 +1547,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483566,
+      "root_map_id": -2147483087,
       "resource_category_ids": [
         -2147483648,
         -2147483602,
@@ -1482,6 +1565,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483565,
+      "root_map_id": -2147483342,
       "resource_category_ids": [
         -2147483648,
         -2147483596,
@@ -1505,6 +1589,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483516,
+      "root_map_id": -2147482997,
       "resource_category_ids": [
         -2147483585,
         -2147483583,
@@ -1519,6 +1604,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483564,
+      "root_map_id": -2147483334,
       "resource_category_ids": [
         -2147483578,
         -2147483646,
@@ -1548,6 +1634,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483562,
+      "root_map_id": -2147483311,
       "resource_category_ids": [
         -2147483603,
         -2147483648,
@@ -1564,6 +1651,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483561,
+      "root_map_id": -2147483307,
       "resource_category_ids": [
         -2147483603,
         -2147483585,
@@ -1583,6 +1671,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483559,
+      "root_map_id": -2147483302,
       "resource_category_ids": [
         -2147483648,
         -2147483582,
@@ -1604,6 +1693,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483558,
+      "root_map_id": -2147483292,
       "resource_category_ids": [
         -2147483648,
         -2147483638,
@@ -1619,6 +1709,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483556,
+      "root_map_id": -2147483284,
       "resource_category_ids": [
         -2147483604,
         -2147483636,
@@ -1642,6 +1733,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483554,
+      "root_map_id": -2147483280,
       "resource_category_ids": [
         -2147483603,
         -2147483596,
@@ -1669,6 +1761,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483553,
+      "root_map_id": -2147483275,
       "resource_category_ids": [
         -2147483589,
         -2147483591,
@@ -1691,6 +1784,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483552,
+      "root_map_id": -2147483270,
       "resource_category_ids": [
         -2147483645,
         -2147483585,
@@ -1714,6 +1808,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483550,
+      "root_map_id": -2147483260,
       "resource_category_ids": [
         -2147483591,
         -2147483636,
@@ -1731,6 +1826,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483549,
+      "root_map_id": -2147483254,
       "resource_category_ids": [
         -2147483585,
         -2147483586,
@@ -1745,6 +1841,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483548,
+      "root_map_id": -2147483250,
       "resource_category_ids": [
         -2147483583,
         -2147483643,
@@ -1769,6 +1866,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483547,
+      "root_map_id": -2147483244,
       "resource_category_ids": [
         -2147483592,
         -2147483598,
@@ -1790,6 +1888,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483545,
+      "root_map_id": -2147483239,
       "resource_category_ids": [
         -2147483636,
         -2147483592,
@@ -1813,6 +1912,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483544,
+      "root_map_id": -2147483227,
       "resource_category_ids": [
         -2147483596,
         -2147483602,
@@ -1833,6 +1933,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483543,
+      "root_map_id": -2147483225,
       "resource_category_ids": [
         -2147483643,
         -2147483602,
@@ -1851,6 +1952,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483542,
+      "root_map_id": -2147483221,
       "resource_category_ids": [
         -2147483585,
         -2147483599,
@@ -1869,6 +1971,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483541,
+      "root_map_id": -2147483215,
       "resource_category_ids": [
         -2147483642,
         -2147483602,
@@ -1888,6 +1991,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483540,
+      "root_map_id": -2147483210,
       "resource_category_ids": [
         -2147483583,
         -2147483603,
@@ -1909,6 +2013,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483539,
+      "root_map_id": -2147483198,
       "resource_category_ids": [
         -2147483622,
         -2147483648,
@@ -1928,6 +2033,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483538,
+      "root_map_id": -2147483133,
       "resource_category_ids": [
         -2147483630,
         -2147483648,
@@ -1941,6 +2047,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483537,
+      "root_map_id": -2147483193,
       "resource_category_ids": [
         -2147483602,
         -2147483585,
@@ -1959,6 +2066,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483536,
+      "root_map_id": -2147483189,
       "resource_category_ids": [
         -2147483630,
         -2147483585,
@@ -1973,6 +2081,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483535,
+      "root_map_id": -2147483186,
       "resource_category_ids": [
         -2147483636,
         -2147483591,
@@ -1996,6 +2105,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483534,
+      "root_map_id": -2147483178,
       "resource_category_ids": [
         -2147483643,
         -2147483596,
@@ -2021,6 +2131,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483532,
+      "root_map_id": -2147483137,
       "resource_category_ids": [
         -2147483631
       ]
@@ -2032,6 +2143,7 @@
       "region": null,
       "timezone": null,
       "transaction_location_id": -2147483515,
+      "root_map_id": -2147483035,
       "resource_category_ids": [
         -2147483579
       ]
@@ -2043,6 +2155,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483531,
+      "root_map_id": -2147483172,
       "resource_category_ids": [
         -2147483644,
         -2147483592,
@@ -2063,6 +2176,7 @@
       "region": null,
       "timezone": null,
       "transaction_location_id": -2147483528,
+      "root_map_id": -2147482988,
       "resource_category_ids": [
         -2147483641
       ]
@@ -2074,6 +2188,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483583,
+      "root_map_id": -2147483382,
       "resource_category_ids": [
         -2147483585,
         -2147483591,
@@ -2088,6 +2203,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483511,
+      "root_map_id": -2147483072,
       "resource_category_ids": [
         -2147483631
       ]
@@ -2099,6 +2215,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483527,
+      "root_map_id": -2147483170,
       "resource_category_ids": [
         -2147483643,
         -2147483591,
@@ -2119,6 +2236,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483526,
+      "root_map_id": -2147483165,
       "resource_category_ids": [
         -2147483593,
         -2147483630,
@@ -2140,6 +2258,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483525,
+      "root_map_id": -2147483135,
       "resource_category_ids": [
         -2147483631
       ]
@@ -2151,6 +2270,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483524,
+      "root_map_id": -2147483159,
       "resource_category_ids": [
         -2147483646,
         -2147483574,
@@ -2173,6 +2293,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483514,
+      "root_map_id": -2147483025,
       "resource_category_ids": [
         -2147483586,
         -2147483585
@@ -2185,6 +2306,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483514,
+      "root_map_id": -2147483020,
       "resource_category_ids": [
         -2147483585,
         -2147483586
@@ -2197,6 +2319,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483514,
+      "root_map_id": -2147483021,
       "resource_category_ids": [
         -2147483586,
         -2147483585
@@ -2209,6 +2332,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483514,
+      "root_map_id": -2147483022,
       "resource_category_ids": [
         -2147483585,
         -2147483586
@@ -2221,6 +2345,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483604,
+      "root_map_id": null,
       "resource_category_ids": []
     },
     {
@@ -2230,6 +2355,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483523,
+      "root_map_id": -2147483154,
       "resource_category_ids": [
         -2147483603,
         -2147483648,
@@ -2246,6 +2372,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483522,
+      "root_map_id": -2147483148,
       "resource_category_ids": [
         -2147483642,
         -2147483602,
@@ -2270,6 +2397,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483520,
+      "root_map_id": -2147483142,
       "resource_category_ids": [
         -2147483646,
         -2147483588,
@@ -2293,6 +2421,7 @@
       "region": "Ontario",
       "timezone": null,
       "transaction_location_id": -2147483519,
+      "root_map_id": -2147483134,
       "resource_category_ids": [
         -2147483631
       ]

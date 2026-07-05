@@ -1,8 +1,8 @@
-"""Unit tests for the BaseCamisAdapter scaffold (HH-98).
+"""Unit tests for BaseCamisAdapter (HH-98 scaffold + HH-99 availability).
 
-Network- and browser-free: they exercise the config hooks, URL building,
-catalog loading, and date helpers only. The search / availability / cart flows
-land in HH-99 / HH-100 and are tested there.
+Network- and browser-free: config hooks, URL building, catalog loading, date
+helpers, plus the HH-99 availability query builder and status classifier. The
+cart/hold flow lands in HH-100 and is tested there.
 """
 
 from __future__ import annotations
@@ -11,12 +11,16 @@ import json
 
 import pytest
 
-from app.adapters.base import BaseAdapter
+from app.adapters.base import AvailabilityStatus, BaseAdapter
 from app.adapters.base_camis import BaseCamisAdapter
 
 
 class _StubCamisAdapter(BaseCamisAdapter):
-    """Minimal concrete subclass so the abstract base can be instantiated."""
+    """Minimal concrete subclass so the abstract base can be instantiated.
+
+    Only ``param_fields`` is still abstract on the base; ``fill_form`` and
+    ``detect_availability`` are implemented by the base and inherited here.
+    """
 
     adapter_id = "camis_stub"
     name = "Camis Stub"
@@ -25,12 +29,6 @@ class _StubCamisAdapter(BaseCamisAdapter):
 
     @classmethod
     def param_fields(cls):  # abstract in BaseAdapter
-        return []
-
-    async def fill_form(self, page, params):  # abstract in BaseAdapter
-        ...
-
-    async def detect_availability(self, page, params):  # abstract in BaseAdapter
         return []
 
 
@@ -120,3 +118,127 @@ def test_registry_unaffected_by_scaffold():
     ids = {a["adapter_id"] for a in list_adapters()}
     assert "camis_stub" not in ids
     assert {"doc_great_walk", "doc_standard_hut"} <= ids
+
+
+# ---------------------------------------------------------------------------
+# HH-99 — availability query builder + status classifier
+# ---------------------------------------------------------------------------
+
+_CATALOG = {
+    "parks": [
+        {
+            "resource_location_id": -100,
+            "full_name": "Alice Lake Provincial Park",
+            "root_map_id": -900,
+            "timezone": "America/Vancouver",
+        },
+    ],
+    "booking_categories": [
+        {"booking_category_id": 0, "booking_model": 0, "name": "Campsite"},
+    ],
+}
+
+
+def _catalog_adapter(tmp_path):
+    path = tmp_path / "bc_parks.json"
+    path.write_text(json.dumps(_CATALOG))
+
+    class _WithCatalog(_StubCamisAdapter):
+        catalog_path = path
+
+    return _WithCatalog()
+
+
+def test_classify_all_available():
+    r = _StubCamisAdapter()._classify_daily_statuses([1, 1, 1], "Park")
+    assert r.status == AvailabilityStatus.AVAILABLE
+    assert r.total_available == 3
+
+
+def test_classify_partially_available():
+    r = _StubCamisAdapter()._classify_daily_statuses([1, 2, 1], "Park")
+    assert r.status == AvailabilityStatus.PARTIALLY_AVAILABLE
+    assert r.total_available == 2
+
+
+@pytest.mark.parametrize("codes", [[2, 2], [6, 6], [2, 6]])
+def test_classify_unavailable_codes(codes):
+    # 2 (closed/booked/past) and 6 (not yet released) are both "not bookable".
+    r = _StubCamisAdapter()._classify_daily_statuses(codes, "Park")
+    assert r.status == AvailabilityStatus.UNAVAILABLE
+    assert r.total_available == 0
+
+
+def test_classify_empty_is_unknown():
+    r = _StubCamisAdapter()._classify_daily_statuses([], "Park")
+    assert r.status == AvailabilityStatus.UNKNOWN
+
+
+def test_build_query_resolves_map_id_and_category_from_catalog(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    query = adapter._build_availability_query(
+        {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
+    )
+    assert query == {
+        "resourceLocationId": -100,
+        "mapId": -900,  # resolved from catalog root_map_id
+        "bookingCategoryId": 0,  # resolved from catalog first booking category
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-03",  # N nights inclusive → start + (N-1)
+        "getDailyAvailability": "true",
+    }
+
+
+def test_build_query_explicit_values_win(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    query = adapter._build_availability_query(
+        {
+            "resource_location_id": -100,
+            "map_id": -555,
+            "booking_category_id": 4,
+            "date": "15/09/2026",
+            "nights": 1,
+        }
+    )
+    assert query["mapId"] == -555
+    assert query["bookingCategoryId"] == 4
+    assert query["startDate"] == query["endDate"] == "2026-09-15"
+
+
+def test_build_query_missing_fields_raise(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    with pytest.raises(ValueError):
+        adapter._build_availability_query({"date": "01/08/2026"})  # no rl id
+    with pytest.raises(ValueError):
+        adapter._build_availability_query({"resource_location_id": -100})  # no date
+
+
+def test_build_query_unresolvable_map_id_raises(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    # Resource location not in the catalog and no explicit map_id.
+    with pytest.raises(ValueError):
+        adapter._build_availability_query(
+            {"resource_location_id": -999, "booking_category_id": 0, "date": "01/08/2026"}
+        )
+
+
+async def test_detect_availability_orchestration(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_get(page, query):
+        assert query["resourceLocationId"] == -100
+        return {"mapLinkAvailabilities": {"-100": [1, 1, 2]}}
+
+    adapter._get_map_availability = fake_get  # type: ignore[method-assign]
+    results = await adapter.detect_availability(
+        None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
+    )
+    assert len(results) == 1
+    assert results[0].site == "Alice Lake Provincial Park"  # name from catalog
+    assert results[0].status == AvailabilityStatus.PARTIALLY_AVAILABLE
+
+
+async def test_detect_availability_bad_params_returns_unknown(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    results = await adapter.detect_availability(None, {"resource_location_id": -100})
+    assert results[0].status == AvailabilityStatus.UNKNOWN
