@@ -1,0 +1,2301 @@
+{
+  "scraped_at": "2026-07-05T19:27:20Z",
+  "source": "reservations.ontarioparks.ca",
+  "base_url": "https://reservations.ontarioparks.ca",
+  "culture": "en-CA",
+  "booking_categories": [
+    {
+      "booking_category_id": 0,
+      "booking_model": 0,
+      "name": "Campsite"
+    },
+    {
+      "booking_category_id": 2,
+      "booking_model": 0,
+      "name": "Roofed Accommodation"
+    },
+    {
+      "booking_category_id": 3,
+      "booking_model": 0,
+      "name": "Quetico"
+    },
+    {
+      "booking_category_id": 4,
+      "booking_model": 5,
+      "name": "Paddling"
+    },
+    {
+      "booking_category_id": 5,
+      "booking_model": 5,
+      "name": "Hiking"
+    },
+    {
+      "booking_category_id": 6,
+      "booking_model": 0,
+      "name": "Group"
+    },
+    {
+      "booking_category_id": 7,
+      "booking_model": 1,
+      "name": "Day Use Facility"
+    },
+    {
+      "booking_category_id": 11,
+      "booking_model": 5,
+      "name": "Backcountry Registration"
+    },
+    {
+      "booking_category_id": 13,
+      "booking_model": 5,
+      "name": "Horse Packing"
+    },
+    {
+      "booking_category_id": 23,
+      "booking_model": 2,
+      "name": "Seasonal"
+    },
+    {
+      "booking_category_id": 24,
+      "booking_model": 5,
+      "name": "Algonquin Winter Backcountry"
+    },
+    {
+      "booking_category_id": 32,
+      "booking_model": 2,
+      "name": "Winter Seasonal"
+    },
+    {
+      "booking_category_id": 33,
+      "booking_model": 1,
+      "name": "Daily Vehicle Permit (DVP)"
+    },
+    {
+      "booking_category_id": 48,
+      "booking_model": 1,
+      "name": "Bus Permit"
+    },
+    {
+      "booking_category_id": 51,
+      "booking_model": 1,
+      "name": "Pay & Display Parking"
+    }
+  ],
+  "parks": [
+    {
+      "resource_location_id": -2147483648,
+      "short_name": "Aaron",
+      "full_name": "Aaron Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483648,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483636,
+        -2147483585,
+        -2147483648,
+        -2147483630
+      ]
+    },
+    {
+      "resource_location_id": -2147483647,
+      "short_name": "Algonquin - Achray Campground / Sand Lake Gate",
+      "full_name": "Algonquin - Achray Campground / Sand Lake Gate",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483647,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483648,
+        -2147483591,
+        -2147483602,
+        -2147483646,
+        -2147483596,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483441,
+      "short_name": "Algonquin - Basin Lake",
+      "full_name": "Algonquin - Basin Lake",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483482,
+      "resource_category_ids": [
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483631,
+      "short_name": "Algonquin - Brent Campground",
+      "full_name": "Algonquin - Brent Campground",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483630,
+      "resource_category_ids": [
+        -2147483630,
+        -2147483645,
+        -2147483585,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483627,
+      "short_name": "Algonquin - Canisbay Lake Campground",
+      "full_name": "Algonquin - Canisbay Lake Campground",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483625,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483603
+      ]
+    },
+    {
+      "resource_location_id": -2147483470,
+      "short_name": "Algonquin - Hwy 60 Corridor",
+      "full_name": "Algonquin - Hwy 60 Corridor",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483504,
+      "resource_category_ids": [
+        -2147483582,
+        -2147483583,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483471,
+      "short_name": "Algonquin - Kingscote",
+      "full_name": "Algonquin - Kingscote",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483503,
+      "resource_category_ids": [
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483599,
+      "short_name": "Algonquin - Kiosk Campground",
+      "full_name": "Algonquin - Kiosk Campground",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483595,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483648,
+        -2147483645
+      ]
+    },
+    {
+      "resource_location_id": -2147483596,
+      "short_name": "Algonquin - Lake Of Two Rivers Campground",
+      "full_name": "Algonquin - Lake Of Two Rivers Campground",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483592,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483603
+      ]
+    },
+    {
+      "resource_location_id": -2147483585,
+      "short_name": "Algonquin - Mew Lake Campground",
+      "full_name": "Algonquin - Mew Lake Campground",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483581,
+      "resource_category_ids": [
+        -2147483622,
+        -2147483646,
+        -2147483603,
+        -2147483645,
+        -2147483648,
+        -2147483589
+      ]
+    },
+    {
+      "resource_location_id": -2147483567,
+      "short_name": "Algonquin - Pog Lake and Kearney Lake Campground",
+      "full_name": "Algonquin - Pog Lake and Kearney Lake Campground",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483563,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483555,
+      "short_name": "Algonquin - Rock Lake and Raccoon Lake",
+      "full_name": "Algonquin - Rock Lake and Raccoon Lake",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483551,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483514,
+      "short_name": "Algonquin - Shall Lake",
+      "full_name": "Algonquin - Shall Lake",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483512,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483533,
+      "short_name": "Algonquin - Tea Lake Campground",
+      "full_name": "Algonquin - Tea Lake Campground",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483529,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483591,
+      "short_name": "Algonquin - Tim River",
+      "full_name": "Algonquin - Tim River",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483587,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483525,
+      "short_name": "Algonquin - Whitefish Lake Campground",
+      "full_name": "Algonquin - Whitefish Lake Campground",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483521,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483644,
+      "short_name": "Algonquin Backcountry",
+      "full_name": "Algonquin Backcountry",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483644,
+      "resource_category_ids": [
+        -2147483637,
+        -2147483645,
+        -2147483581,
+        -2147483640,
+        -2147483635,
+        -2147483629,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483645,
+      "short_name": "Algonquin East Gate",
+      "full_name": "Algonquin East Gate",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483645,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483636,
+        -2147483589,
+        -2147483622
+      ]
+    },
+    {
+      "resource_location_id": -2147483642,
+      "short_name": "Arrow Lake",
+      "full_name": "Arrow Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483641,
+      "resource_category_ids": [
+        -2147483630,
+        -2147483648,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483641,
+      "short_name": "Arrowhead",
+      "full_name": "Arrowhead Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483640,
+      "resource_category_ids": [
+        -2147483626,
+        -2147483627,
+        -2147483645,
+        -2147483617,
+        -2147483624,
+        -2147483648,
+        -2147483582,
+        -2147483636,
+        -2147483596,
+        -2147483618,
+        -2147483625,
+        -2147483628,
+        -2147483588,
+        -2147483622,
+        -2147483586,
+        -2147483583,
+        -2147483592,
+        -2147483602,
+        -2147483585,
+        -2147483613,
+        -2147483623
+      ]
+    },
+    {
+      "resource_location_id": -2147483639,
+      "short_name": "Awenda",
+      "full_name": "Awenda Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483638,
+      "resource_category_ids": [
+        -2147483645,
+        -2147483582,
+        -2147483602,
+        -2147483583,
+        -2147483588,
+        -2147483648,
+        -2147483603,
+        -2147483598,
+        -2147483591,
+        -2147483585,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483638,
+      "short_name": "Balsam Lake",
+      "full_name": "Balsam Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483637,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483636,
+        -2147483589,
+        -2147483648,
+        -2147483593,
+        -2147483592,
+        -2147483591,
+        -2147483644,
+        -2147483642,
+        -2147483608,
+        -2147483586,
+        -2147483596,
+        -2147483585,
+        -2147483602
+      ]
+    },
+    {
+      "resource_location_id": -2147483637,
+      "short_name": "Bass Lake",
+      "full_name": "Bass Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483636,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483586,
+        -2147483596,
+        -2147483636,
+        -2147483648,
+        -2147483602,
+        -2147483585,
+        -2147483589,
+        -2147483646
+      ]
+    },
+    {
+      "resource_location_id": -2147483469,
+      "short_name": "Batchawana Bay",
+      "full_name": "Batchawana Bay Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483505,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483596,
+        -2147483592,
+        -2147483602,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483635,
+      "short_name": "Blue Lake",
+      "full_name": "Blue Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483634,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483583,
+        -2147483633,
+        -2147483586,
+        -2147483588,
+        -2147483585,
+        -2147483596,
+        -2147483602,
+        -2147483592,
+        -2147483643,
+        -2147483589,
+        -2147483603,
+        -2147483648,
+        -2147483591,
+        -2147483582
+      ]
+    },
+    {
+      "resource_location_id": -2147483634,
+      "short_name": "Bon Echo",
+      "full_name": "Bon Echo Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483633,
+      "resource_category_ids": [
+        -2147483641,
+        -2147483645,
+        -2147483602,
+        -2147483585,
+        -2147483589,
+        -2147483596,
+        -2147483577,
+        -2147483586,
+        -2147483648,
+        -2147483646,
+        -2147483592,
+        -2147483639,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483633,
+      "short_name": "Bonnechere",
+      "full_name": "Bonnechere Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483632,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483580,
+        -2147483582,
+        -2147483648,
+        -2147483592,
+        -2147483591,
+        -2147483598,
+        -2147483588,
+        -2147483645,
+        -2147483602,
+        -2147483596,
+        -2147483585,
+        -2147483586,
+        -2147483599,
+        -2147483644,
+        -2147483603
+      ]
+    },
+    {
+      "resource_location_id": -2147483630,
+      "short_name": "Bronte Creek - Campground Area",
+      "full_name": "Bronte Creek Provincial Park - Campground Area",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483629,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483603,
+        -2147483583,
+        -2147483585,
+        -2147483586,
+        -2147483646,
+        -2147483589,
+        -2147483582
+      ]
+    },
+    {
+      "resource_location_id": -2147483440,
+      "short_name": "Bronte Creek - Day Use Area",
+      "full_name": "Bronte Creek Provincial Park - Day Use Area",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483629,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483582,
+        -2147483585,
+        -2147483586,
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483628,
+      "short_name": "Caliper Lake",
+      "full_name": "Caliper Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483627,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483630,
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483625,
+      "short_name": "Charleston Lake",
+      "full_name": "Charleston Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483623,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483602,
+        -2147483645,
+        -2147483592,
+        -2147483648,
+        -2147483595,
+        -2147483603,
+        -2147483585,
+        -2147483586,
+        -2147483594,
+        -2147483588,
+        -2147483646,
+        -2147483591,
+        -2147483639
+      ]
+    },
+    {
+      "resource_location_id": -2147483624,
+      "short_name": "Chutes",
+      "full_name": "Chutes Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483622,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648,
+        -2147483591,
+        -2147483603,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483623,
+      "short_name": "Craigleith",
+      "full_name": "Craigleith Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483621,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483586,
+        -2147483589,
+        -2147483585,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483622,
+      "short_name": "Darlington",
+      "full_name": "Darlington Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483620,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483622,
+        -2147483636,
+        -2147483611,
+        -2147483643,
+        -2147483648,
+        -2147483630,
+        -2147483586,
+        -2147483582
+      ]
+    },
+    {
+      "resource_location_id": -2147483620,
+      "short_name": "Driftwood",
+      "full_name": "Driftwood Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483618,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483602,
+        -2147483592,
+        -2147483583,
+        -2147483585,
+        -2147483648,
+        -2147483582,
+        -2147483596,
+        -2147483603
+      ]
+    },
+    {
+      "resource_location_id": -2147483619,
+      "short_name": "Earl Rowe",
+      "full_name": "Earl Rowe Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483617,
+      "resource_category_ids": [
+        -2147483593,
+        -2147483642,
+        -2147483585,
+        -2147483582,
+        -2147483643,
+        -2147483636,
+        -2147483589,
+        -2147483648,
+        -2147483603,
+        -2147483583,
+        -2147483602
+      ]
+    },
+    {
+      "resource_location_id": -2147483618,
+      "short_name": "Emily",
+      "full_name": "Emily Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483616,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483642,
+        -2147483594,
+        -2147483583,
+        -2147483595,
+        -2147483603,
+        -2147483648,
+        -2147483602,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483617,
+      "short_name": "Esker Lakes",
+      "full_name": "Esker Lakes Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483615,
+      "resource_category_ids": [
+        -2147483602,
+        -2147483642,
+        -2147483630,
+        -2147483603,
+        -2147483643,
+        -2147483596,
+        -2147483580,
+        -2147483641,
+        -2147483648,
+        -2147483592,
+        -2147483591,
+        -2147483636,
+        -2147483588,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483616,
+      "short_name": "Fairbank",
+      "full_name": "Fairbank Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483614,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483585,
+        -2147483643,
+        -2147483602,
+        -2147483603,
+        -2147483598,
+        -2147483630
+      ]
+    },
+    {
+      "resource_location_id": -2147483615,
+      "short_name": "Ferris",
+      "full_name": "Ferris Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483613,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483594,
+        -2147483588,
+        -2147483595,
+        -2147483603,
+        -2147483583,
+        -2147483586,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483614,
+      "short_name": "Finlayson Point",
+      "full_name": "Finlayson Point Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483612,
+      "resource_category_ids": [
+        -2147483644,
+        -2147483603,
+        -2147483596,
+        -2147483585,
+        -2147483602,
+        -2147483648,
+        -2147483642,
+        -2147483591
+      ]
+    },
+    {
+      "resource_location_id": -2147483613,
+      "short_name": "Fitzroy",
+      "full_name": "Fitzroy Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483611,
+      "resource_category_ids": [
+        -2147483587,
+        -2147483599,
+        -2147483591,
+        -2147483648,
+        -2147483602,
+        -2147483585,
+        -2147483586,
+        -2147483596,
+        -2147483603,
+        -2147483592,
+        -2147483588
+      ]
+    },
+    {
+      "resource_location_id": -2147483473,
+      "short_name": "Forks of the Credit",
+      "full_name": "Forks of the Credit Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483507,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483611
+      ]
+    },
+    {
+      "resource_location_id": -2147483612,
+      "short_name": "French River",
+      "full_name": "French River Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483610,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483611,
+      "short_name": "Frontenac",
+      "full_name": "Frontenac Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483609,
+      "resource_category_ids": [
+        -2147483622,
+        -2147483585,
+        -2147483639
+      ]
+    },
+    {
+      "resource_location_id": -2147483610,
+      "short_name": "Fushimi Lake",
+      "full_name": "Fushimi Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483608,
+      "resource_category_ids": [
+        -2147483592,
+        -2147483630,
+        -2147483599,
+        -2147483608,
+        -2147483596,
+        -2147483648,
+        -2147483585,
+        -2147483603,
+        -2147483641,
+        -2147483604,
+        -2147483593,
+        -2147483591,
+        -2147483645,
+        -2147483598,
+        -2147483602
+      ]
+    },
+    {
+      "resource_location_id": -2147483609,
+      "short_name": "Grundy Lake",
+      "full_name": "Grundy Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483607,
+      "resource_category_ids": [
+        -2147483591,
+        -2147483641,
+        -2147483603,
+        -2147483645,
+        -2147483648,
+        -2147483588,
+        -2147483585,
+        -2147483643,
+        -2147483642
+      ]
+    },
+    {
+      "resource_location_id": -2147483608,
+      "short_name": "Halfway Lake",
+      "full_name": "Halfway Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483606,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483602,
+        -2147483603,
+        -2147483595,
+        -2147483648,
+        -2147483593,
+        -2147483641,
+        -2147483592,
+        -2147483639,
+        -2147483594,
+        -2147483630,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483607,
+      "short_name": "Inverhuron",
+      "full_name": "Inverhuron Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483603,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483603,
+        -2147483645,
+        -2147483586,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483606,
+      "short_name": "Ivanhoe Lake",
+      "full_name": "Ivanhoe Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483602,
+      "resource_category_ids": [
+        -2147483596,
+        -2147483592,
+        -2147483585,
+        -2147483602,
+        -2147483643,
+        -2147483591,
+        -2147483594,
+        -2147483603,
+        -2147483648,
+        -2147483642,
+        -2147483641,
+        -2147483588,
+        -2147483604,
+        -2147483630
+      ]
+    },
+    {
+      "resource_location_id": -2147483605,
+      "short_name": "Kakabeka Falls",
+      "full_name": "Kakabeka Falls Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483601,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483583,
+        -2147483603,
+        -2147483648,
+        -2147483643,
+        -2147483586,
+        -2147483582,
+        -2147483630
+      ]
+    },
+    {
+      "resource_location_id": -2147483604,
+      "short_name": "Kap-Kig-Iwan",
+      "full_name": "Kap-Kig-Iwan Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483600,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483582,
+        -2147483648,
+        -2147483630,
+        -2147483585,
+        -2147483583
+      ]
+    },
+    {
+      "resource_location_id": -2147483603,
+      "short_name": "Kawartha Highlands",
+      "full_name": "Kawartha Highlands Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483599,
+      "resource_category_ids": [
+        -2147483641,
+        -2147483579
+      ]
+    },
+    {
+      "resource_location_id": -2147483602,
+      "short_name": "Kettle Lakes",
+      "full_name": "Kettle Lakes Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483598,
+      "resource_category_ids": [
+        -2147483602,
+        -2147483642,
+        -2147483643,
+        -2147483636,
+        -2147483589,
+        -2147483582,
+        -2147483585,
+        -2147483645,
+        -2147483595,
+        -2147483583,
+        -2147483591,
+        -2147483592,
+        -2147483630,
+        -2147483648,
+        -2147483586,
+        -2147483594,
+        -2147483593,
+        -2147483603,
+        -2147483588,
+        -2147483608
+      ]
+    },
+    {
+      "resource_location_id": -2147483601,
+      "short_name": "Killarney",
+      "full_name": "Killarney Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483597,
+      "resource_category_ids": [
+        -2147483645,
+        -2147483641,
+        -2147483646,
+        -2147483586,
+        -2147483640,
+        -2147483585,
+        -2147483603,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483600,
+      "short_name": "Killbear",
+      "full_name": "Killbear Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483596,
+      "resource_category_ids": [
+        -2147483586,
+        -2147483643,
+        -2147483642,
+        -2147483591,
+        -2147483636,
+        -2147483648,
+        -2147483585,
+        -2147483603,
+        -2147483583
+      ]
+    },
+    {
+      "resource_location_id": -2147483468,
+      "short_name": "Komoka",
+      "full_name": "Komoka Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483496,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483579
+      ]
+    },
+    {
+      "resource_location_id": -2147483443,
+      "short_name": "Lake on the Mountain",
+      "full_name": "Lake on the Mountain Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483483,
+      "resource_category_ids": [
+        -2147483579
+      ]
+    },
+    {
+      "resource_location_id": -2147483595,
+      "short_name": "Lake St. Peter",
+      "full_name": "Lake St. Peter Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483591,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483602,
+        -2147483589,
+        -2147483603,
+        -2147483596,
+        -2147483648,
+        -2147483592
+      ]
+    },
+    {
+      "resource_location_id": -2147483646,
+      "short_name": "Lake Superior",
+      "full_name": "Lake Superior Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483646,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483639,
+        -2147483600,
+        -2147483576,
+        -2147483591,
+        -2147483648,
+        -2147483583,
+        -2147483575,
+        -2147483640,
+        -2147483603,
+        -2147483601,
+        -2147483645,
+        -2147483641,
+        -2147483588,
+        -2147483642,
+        -2147483573,
+        -2147483582
+      ]
+    },
+    {
+      "resource_location_id": -2147483593,
+      "short_name": "Long Point",
+      "full_name": "Long Point Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483589,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483591,
+        -2147483586,
+        -2147483585,
+        -2147483603
+      ]
+    },
+    {
+      "resource_location_id": -2147483592,
+      "short_name": "MacGregor Point",
+      "full_name": "MacGregor Point Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483588,
+      "resource_category_ids": [
+        -2147483645,
+        -2147483585,
+        -2147483609,
+        -2147483612,
+        -2147483643,
+        -2147483605,
+        -2147483610,
+        -2147483642,
+        -2147483646,
+        -2147483648,
+        -2147483607,
+        -2147483603,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483521,
+      "short_name": "MacLeod",
+      "full_name": "MacLeod Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483517,
+      "resource_category_ids": [
+        -2147483630,
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483589,
+      "short_name": "Mara",
+      "full_name": "Mara Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483585,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483589,
+        -2147483636,
+        -2147483586,
+        -2147483585,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483465,
+      "short_name": "Mark S. Burnham",
+      "full_name": "Mark S. Burnham Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483495,
+      "resource_category_ids": [
+        -2147483579
+      ]
+    },
+    {
+      "resource_location_id": -2147483588,
+      "short_name": "Marten River",
+      "full_name": "Marten River Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483584,
+      "resource_category_ids": [
+        -2147483591,
+        -2147483648,
+        -2147483596,
+        -2147483592,
+        -2147483603,
+        -2147483585,
+        -2147483602
+      ]
+    },
+    {
+      "resource_location_id": -2147483586,
+      "short_name": "McRae Point",
+      "full_name": "McRae Point Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483582,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483586,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483584,
+      "short_name": "Mikisew",
+      "full_name": "Mikisew Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483580,
+      "resource_category_ids": [
+        -2147483630,
+        -2147483585,
+        -2147483588,
+        -2147483591,
+        -2147483610,
+        -2147483592,
+        -2147483589,
+        -2147483609,
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483466,
+      "short_name": "Misery Bay",
+      "full_name": "Misery Bay Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483494,
+      "resource_category_ids": [
+        -2147483582,
+        -2147483583,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483583,
+      "short_name": "Missinaibi",
+      "full_name": "Missinaibi Provincial Park (Lake)",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483579,
+      "resource_category_ids": [
+        -2147483604,
+        -2147483596,
+        -2147483641,
+        -2147483648,
+        -2147483574,
+        -2147483643,
+        -2147483585,
+        -2147483602,
+        -2147483630
+      ]
+    },
+    {
+      "resource_location_id": -2147483582,
+      "short_name": "Missinaibi (River)",
+      "full_name": "Missinaibi Provincial Park (River)",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483578,
+      "resource_category_ids": [
+        -2147483631
+      ]
+    },
+    {
+      "resource_location_id": -2147483581,
+      "short_name": "Mississagi",
+      "full_name": "Mississagi Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483577,
+      "resource_category_ids": [
+        -2147483639,
+        -2147483640,
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483472,
+      "short_name": "Mono Cliffs",
+      "full_name": "Mono Cliffs Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483506,
+      "resource_category_ids": [
+        -2147483611,
+        -2147483583,
+        -2147483582
+      ]
+    },
+    {
+      "resource_location_id": -2147483580,
+      "short_name": "Murphys Point",
+      "full_name": "Murphys Point Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483576,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483585,
+        -2147483589,
+        -2147483645,
+        -2147483643,
+        -2147483602,
+        -2147483596,
+        -2147483592,
+        -2147483591,
+        -2147483646
+      ]
+    },
+    {
+      "resource_location_id": -2147483579,
+      "short_name": "Nagagamisis",
+      "full_name": "Nagagamisis Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483575,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483596,
+        -2147483648,
+        -2147483606,
+        -2147483602,
+        -2147483591,
+        -2147483598,
+        -2147483599,
+        -2147483604,
+        -2147483642,
+        -2147483608,
+        -2147483593,
+        -2147483592,
+        -2147483585,
+        -2147483630
+      ]
+    },
+    {
+      "resource_location_id": -2147483578,
+      "short_name": "Neys",
+      "full_name": "Neys Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483574,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483630,
+        -2147483583,
+        -2147483591,
+        -2147483645,
+        -2147483603,
+        -2147483602,
+        -2147483585,
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483577,
+      "short_name": "North Beach",
+      "full_name": "North Beach Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483573,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483582,
+        -2147483585,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483576,
+      "short_name": "Oastler Lake",
+      "full_name": "Oastler Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483572,
+      "resource_category_ids": [
+        -2147483593,
+        -2147483592,
+        -2147483588,
+        -2147483599,
+        -2147483602,
+        -2147483585,
+        -2147483586,
+        -2147483636,
+        -2147483591,
+        -2147483596,
+        -2147483603,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483573,
+      "short_name": "Ojibway",
+      "full_name": "Ojibway Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483569,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483630,
+        -2147483648,
+        -2147483585,
+        -2147483588
+      ]
+    },
+    {
+      "resource_location_id": -2147483572,
+      "short_name": "OP Marketing",
+      "full_name": "OP Marketing",
+      "region": null,
+      "timezone": null,
+      "transaction_location_id": -2147483568,
+      "resource_category_ids": []
+    },
+    {
+      "resource_location_id": -2147483452,
+      "short_name": "Ouimet Canyon",
+      "full_name": "Ouimet Canyon Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483489,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483583
+      ]
+    },
+    {
+      "resource_location_id": -2147483467,
+      "short_name": "Oxtongue River - Ragged Falls",
+      "full_name": "Oxtongue River - Ragged Falls Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483493,
+      "resource_category_ids": [
+        -2147483579
+      ]
+    },
+    {
+      "resource_location_id": -2147483570,
+      "short_name": "Pakwash",
+      "full_name": "Pakwash Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483566,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483602,
+        -2147483643,
+        -2147483585,
+        -2147483630,
+        -2147483592,
+        -2147483589
+      ]
+    },
+    {
+      "resource_location_id": -2147483569,
+      "short_name": "Pancake Bay",
+      "full_name": "Pancake Bay Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483565,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483596,
+        -2147483636,
+        -2147483583,
+        -2147483645,
+        -2147483602,
+        -2147483642,
+        -2147483630,
+        -2147483589,
+        -2147483643,
+        -2147483592,
+        -2147483582,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483520,
+      "short_name": "Petroglyphs",
+      "full_name": "Petroglyphs Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483516,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483583,
+        -2147483582,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483568,
+      "short_name": "Pinery",
+      "full_name": "Pinery Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483564,
+      "resource_category_ids": [
+        -2147483578,
+        -2147483646,
+        -2147483622,
+        -2147483582,
+        -2147483586,
+        -2147483592,
+        -2147483602,
+        -2147483608,
+        -2147483645,
+        -2147483648,
+        -2147483588,
+        -2147483603,
+        -2147483583,
+        -2147483596,
+        -2147483643,
+        -2147483636,
+        -2147483591,
+        -2147483615,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483566,
+      "short_name": "Point Farms",
+      "full_name": "Point Farms Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483562,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483648,
+        -2147483598,
+        -2147483599,
+        -2147483643,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483565,
+      "short_name": "Port Burwell",
+      "full_name": "Port Burwell Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483561,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483585,
+        -2147483636,
+        -2147483586,
+        -2147483588,
+        -2147483648,
+        -2147483599,
+        -2147483583,
+        -2147483591
+      ]
+    },
+    {
+      "resource_location_id": -2147483563,
+      "short_name": "Presqu'ile",
+      "full_name": "Presqu'ile Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483559,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483582,
+        -2147483583,
+        -2147483603,
+        -2147483644,
+        -2147483646,
+        -2147483591,
+        -2147483588,
+        -2147483586,
+        -2147483636,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483562,
+      "short_name": "Quetico",
+      "full_name": "Quetico Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483558,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483638,
+        -2147483585,
+        -2147483630,
+        -2147483645
+      ]
+    },
+    {
+      "resource_location_id": -2147483560,
+      "short_name": "Rainbow Falls",
+      "full_name": "Rainbow Falls Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483556,
+      "resource_category_ids": [
+        -2147483604,
+        -2147483636,
+        -2147483648,
+        -2147483591,
+        -2147483603,
+        -2147483596,
+        -2147483630,
+        -2147483608,
+        -2147483593,
+        -2147483602,
+        -2147483585,
+        -2147483583,
+        -2147483592
+      ]
+    },
+    {
+      "resource_location_id": -2147483558,
+      "short_name": "Rene Brunelle",
+      "full_name": "Rene Brunelle Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483554,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483596,
+        -2147483643,
+        -2147483630,
+        -2147483604,
+        -2147483648,
+        -2147483591,
+        -2147483593,
+        -2147483636,
+        -2147483592,
+        -2147483599,
+        -2147483602,
+        -2147483608,
+        -2147483645,
+        -2147483598,
+        -2147483642,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483557,
+      "short_name": "Restoule",
+      "full_name": "Restoule Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483553,
+      "resource_category_ids": [
+        -2147483589,
+        -2147483591,
+        -2147483585,
+        -2147483630,
+        -2147483602,
+        -2147483643,
+        -2147483588,
+        -2147483596,
+        -2147483641,
+        -2147483648,
+        -2147483592,
+        -2147483608
+      ]
+    },
+    {
+      "resource_location_id": -2147483556,
+      "short_name": "Rideau River",
+      "full_name": "Rideau River Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483552,
+      "resource_category_ids": [
+        -2147483645,
+        -2147483585,
+        -2147483646,
+        -2147483589,
+        -2147483648,
+        -2147483643,
+        -2147483595,
+        -2147483594,
+        -2147483592,
+        -2147483636,
+        -2147483602,
+        -2147483596,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483554,
+      "short_name": "Rock Point",
+      "full_name": "Rock Point Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483550,
+      "resource_category_ids": [
+        -2147483591,
+        -2147483636,
+        -2147483585,
+        -2147483648,
+        -2147483603,
+        -2147483586,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483553,
+      "short_name": "Rondeau",
+      "full_name": "Rondeau Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483549,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483586,
+        -2147483636,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483552,
+      "short_name": "Rushing River",
+      "full_name": "Rushing River Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483548,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483643,
+        -2147483636,
+        -2147483648,
+        -2147483582,
+        -2147483585,
+        -2147483592,
+        -2147483633,
+        -2147483599,
+        -2147483586,
+        -2147483596,
+        -2147483602,
+        -2147483603,
+        -2147483591
+      ]
+    },
+    {
+      "resource_location_id": -2147483551,
+      "short_name": "Samuel de Champlain",
+      "full_name": "Samuel de Champlain Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483547,
+      "resource_category_ids": [
+        -2147483592,
+        -2147483598,
+        -2147483582,
+        -2147483602,
+        -2147483585,
+        -2147483583,
+        -2147483648,
+        -2147483603,
+        -2147483595,
+        -2147483608,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483549,
+      "short_name": "Sandbanks",
+      "full_name": "Sandbanks Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483545,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483592,
+        -2147483602,
+        -2147483643,
+        -2147483586,
+        -2147483648,
+        -2147483603,
+        -2147483583,
+        -2147483644,
+        -2147483596,
+        -2147483582,
+        -2147483585,
+        -2147483589
+      ]
+    },
+    {
+      "resource_location_id": -2147483548,
+      "short_name": "Sandbar Lake",
+      "full_name": "Sandbar Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483544,
+      "resource_category_ids": [
+        -2147483596,
+        -2147483602,
+        -2147483603,
+        -2147483643,
+        -2147483636,
+        -2147483604,
+        -2147483630,
+        -2147483648,
+        -2147483585,
+        -2147483589
+      ]
+    },
+    {
+      "resource_location_id": -2147483547,
+      "short_name": "Sauble Falls",
+      "full_name": "Sauble Falls Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483543,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483602,
+        -2147483648,
+        -2147483596,
+        -2147483592,
+        -2147483585,
+        -2147483593,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483546,
+      "short_name": "Selkirk",
+      "full_name": "Selkirk Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483542,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483599,
+        -2147483648,
+        -2147483598,
+        -2147483591,
+        -2147483588,
+        -2147483603,
+        -2147483596
+      ]
+    },
+    {
+      "resource_location_id": -2147483545,
+      "short_name": "Sharbot Lake",
+      "full_name": "Sharbot Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483541,
+      "resource_category_ids": [
+        -2147483642,
+        -2147483602,
+        -2147483648,
+        -2147483592,
+        -2147483596,
+        -2147483585,
+        -2147483589,
+        -2147483636,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483544,
+      "short_name": "Sibbald Point",
+      "full_name": "Sibbald Point Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483540,
+      "resource_category_ids": [
+        -2147483583,
+        -2147483603,
+        -2147483643,
+        -2147483586,
+        -2147483648,
+        -2147483582,
+        -2147483591,
+        -2147483636,
+        -2147483585,
+        -2147483598,
+        -2147483611
+      ]
+    },
+    {
+      "resource_location_id": -2147483543,
+      "short_name": "Silent Lake",
+      "full_name": "Silent Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483539,
+      "resource_category_ids": [
+        -2147483622,
+        -2147483648,
+        -2147483592,
+        -2147483646,
+        -2147483585,
+        -2147483602,
+        -2147483596,
+        -2147483645,
+        -2147483589
+      ]
+    },
+    {
+      "resource_location_id": -2147483542,
+      "short_name": "Silver Falls",
+      "full_name": "Silver Falls Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483538,
+      "resource_category_ids": [
+        -2147483630,
+        -2147483648,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483541,
+      "short_name": "Silver Lake",
+      "full_name": "Silver Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483537,
+      "resource_category_ids": [
+        -2147483602,
+        -2147483585,
+        -2147483592,
+        -2147483596,
+        -2147483648,
+        -2147483589,
+        -2147483636,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483540,
+      "short_name": "Sioux Narrows",
+      "full_name": "Sioux Narrows Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483536,
+      "resource_category_ids": [
+        -2147483630,
+        -2147483585,
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483539,
+      "short_name": "Six Mile Lake",
+      "full_name": "Six Mile Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483535,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483591,
+        -2147483642,
+        -2147483598,
+        -2147483603,
+        -2147483596,
+        -2147483586,
+        -2147483580,
+        -2147483648,
+        -2147483602,
+        -2147483592,
+        -2147483599,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483538,
+      "short_name": "Sleeping Giant",
+      "full_name": "Sleeping Giant Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483534,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483596,
+        -2147483592,
+        -2147483583,
+        -2147483591,
+        -2147483603,
+        -2147483642,
+        -2147483582,
+        -2147483608,
+        -2147483648,
+        -2147483644,
+        -2147483585,
+        -2147483589,
+        -2147483640,
+        -2147483602
+      ]
+    },
+    {
+      "resource_location_id": -2147483536,
+      "short_name": "Spanish River & Biscotasi Lake",
+      "full_name": "Spanish River & Biscotasi Lake Provincial Parks",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483532,
+      "resource_category_ids": [
+        -2147483631
+      ]
+    },
+    {
+      "resource_location_id": -2147483519,
+      "short_name": "Springwater",
+      "full_name": "Springwater Provincial Park",
+      "region": null,
+      "timezone": null,
+      "transaction_location_id": -2147483515,
+      "resource_category_ids": [
+        -2147483579
+      ]
+    },
+    {
+      "resource_location_id": -2147483535,
+      "short_name": "Sturgeon Bay",
+      "full_name": "Sturgeon Bay Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483531,
+      "resource_category_ids": [
+        -2147483644,
+        -2147483592,
+        -2147483591,
+        -2147483648,
+        -2147483586,
+        -2147483596,
+        -2147483602,
+        -2147483585,
+        -2147483642,
+        -2147483603
+      ]
+    },
+    {
+      "resource_location_id": -2147483532,
+      "short_name": "Temagami Cluster",
+      "full_name": "Temagami (Lady Evelyn-Smoothwater, Obabika River, Sturgeon River, Solace, Makobe-Grays River)",
+      "region": null,
+      "timezone": null,
+      "transaction_location_id": -2147483528,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483587,
+      "short_name": "Massasauga",
+      "full_name": "The Massasauga Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483583,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483591,
+        -2147483602,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483515,
+      "short_name": "Tidewater",
+      "full_name": "Tidewater Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483511,
+      "resource_category_ids": [
+        -2147483631
+      ]
+    },
+    {
+      "resource_location_id": -2147483531,
+      "short_name": "Turkey Point",
+      "full_name": "Turkey Point Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483527,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483591,
+        -2147483598,
+        -2147483588,
+        -2147483586,
+        -2147483599,
+        -2147483585,
+        -2147483579,
+        -2147483648,
+        -2147483603
+      ]
+    },
+    {
+      "resource_location_id": -2147483530,
+      "short_name": "Voyageur",
+      "full_name": "Voyageur Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483526,
+      "resource_category_ids": [
+        -2147483593,
+        -2147483630,
+        -2147483591,
+        -2147483642,
+        -2147483602,
+        -2147483585,
+        -2147483643,
+        -2147483596,
+        -2147483648,
+        -2147483603,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483529,
+      "short_name": "Wabakimi",
+      "full_name": "Wabakimi Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483525,
+      "resource_category_ids": [
+        -2147483631
+      ]
+    },
+    {
+      "resource_location_id": -2147483528,
+      "short_name": "Wakami Lake",
+      "full_name": "Wakami Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483524,
+      "resource_category_ids": [
+        -2147483646,
+        -2147483574,
+        -2147483648,
+        -2147483641,
+        -2147483592,
+        -2147483643,
+        -2147483602,
+        -2147483596,
+        -2147483585,
+        -2147483604,
+        -2147483630,
+        -2147483642
+      ]
+    },
+    {
+      "resource_location_id": -2147483460,
+      "short_name": "Wasaga Beach - Beach Area 3",
+      "full_name": "Wasaga Beach Provincial Park - Beach Area 3",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483514,
+      "resource_category_ids": [
+        -2147483586,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483459,
+      "short_name": "Wasaga Beach - Beach Area 4",
+      "full_name": "Wasaga Beach Provincial Park - Beach Area 4",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483514,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483458,
+      "short_name": "Wasaga Beach - Beach Area 5",
+      "full_name": "Wasaga Beach Provincial Park - Beach Area 5",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483514,
+      "resource_category_ids": [
+        -2147483586,
+        -2147483585
+      ]
+    },
+    {
+      "resource_location_id": -2147483457,
+      "short_name": "Wasaga Beach - Beach Area 6",
+      "full_name": "Wasaga Beach Provincial Park - Beach Area 6",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483514,
+      "resource_category_ids": [
+        -2147483585,
+        -2147483586
+      ]
+    },
+    {
+      "resource_location_id": -2147483517,
+      "short_name": "Web Store",
+      "full_name": "Web Store",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483604,
+      "resource_category_ids": []
+    },
+    {
+      "resource_location_id": -2147483527,
+      "short_name": "Wheatley",
+      "full_name": "Wheatley Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483523,
+      "resource_category_ids": [
+        -2147483603,
+        -2147483648,
+        -2147483586,
+        -2147483585,
+        -2147483643,
+        -2147483591
+      ]
+    },
+    {
+      "resource_location_id": -2147483526,
+      "short_name": "White Lake",
+      "full_name": "White Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483522,
+      "resource_category_ids": [
+        -2147483642,
+        -2147483602,
+        -2147483583,
+        -2147483592,
+        -2147483630,
+        -2147483596,
+        -2147483603,
+        -2147483585,
+        -2147483604,
+        -2147483648,
+        -2147483593,
+        -2147483643,
+        -2147483574,
+        -2147483591
+      ]
+    },
+    {
+      "resource_location_id": -2147483524,
+      "short_name": "Windy Lake",
+      "full_name": "Windy Lake Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483520,
+      "resource_category_ids": [
+        -2147483646,
+        -2147483588,
+        -2147483603,
+        -2147483648,
+        -2147483645,
+        -2147483630,
+        -2147483586,
+        -2147483643,
+        -2147483598,
+        -2147483585,
+        -2147483599,
+        -2147483597,
+        -2147483622
+      ]
+    },
+    {
+      "resource_location_id": -2147483523,
+      "short_name": "Woodland Caribou",
+      "full_name": "Woodland Caribou Provincial Park",
+      "region": "Ontario",
+      "timezone": null,
+      "transaction_location_id": -2147483519,
+      "resource_category_ids": [
+        -2147483631
+      ]
+    }
+  ]
+}
