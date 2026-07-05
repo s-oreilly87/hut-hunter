@@ -1,0 +1,1735 @@
+{
+  "scraped_at": "2026-07-05T19:27:19Z",
+  "source": "camping.bcparks.ca",
+  "base_url": "https://camping.bcparks.ca",
+  "culture": "en-CA",
+  "booking_categories": [
+    {
+      "booking_category_id": 0,
+      "booking_model": 0,
+      "name": "Campsite"
+    },
+    {
+      "booking_category_id": 1,
+      "booking_model": 0,
+      "name": "Group Campgrounds"
+    },
+    {
+      "booking_category_id": 2,
+      "booking_model": 0,
+      "name": "Cabin"
+    },
+    {
+      "booking_category_id": 4,
+      "booking_model": 5,
+      "name": "Backcountry Reservation"
+    },
+    {
+      "booking_category_id": 5,
+      "booking_model": 1,
+      "name": "Group Picnic Area"
+    },
+    {
+      "booking_category_id": 6,
+      "booking_model": 0,
+      "name": "Backcountry Registration"
+    },
+    {
+      "booking_category_id": 7,
+      "booking_model": 0,
+      "name": "Wilderness"
+    },
+    {
+      "booking_category_id": 11,
+      "booking_model": 0,
+      "name": "Individuals: 1 to 6 people"
+    },
+    {
+      "booking_category_id": 12,
+      "booking_model": 0,
+      "name": "Groups: 7 to 14 people"
+    },
+    {
+      "booking_category_id": 14,
+      "booking_model": 0,
+      "name": "Backcountry Shelter"
+    }
+  ],
+  "parks": [
+    {
+      "resource_location_id": -2147483648,
+      "short_name": "Akamina-Kishinena",
+      "full_name": "Akamina-Kishinena Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483648,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483647,
+      "short_name": "Alice Lake",
+      "full_name": "Alice Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483647,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483497,
+      "short_name": "Allison Lake",
+      "full_name": "Allison Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483434,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483646,
+      "short_name": "Bamberton",
+      "full_name": "Bamberton Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483645,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483645,
+      "short_name": "Bear Creek",
+      "full_name": "Bear Creek Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483644,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647
+      ]
+    },
+    {
+      "resource_location_id": -2147483644,
+      "short_name": "Beatton",
+      "full_name": "Beatton Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483643,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483643,
+      "short_name": "Beaumont",
+      "full_name": "Beaumont Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483642,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483493,
+      "short_name": "Beaver Creek",
+      "full_name": "Beaver Creek Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483433,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483642,
+      "short_name": "Berg Lake Trail",
+      "full_name": "Berg Lake Trail",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483641,
+      "resource_category_ids": [
+        -2147483642
+      ]
+    },
+    {
+      "resource_location_id": -2147483641,
+      "short_name": "Big Bar Lake",
+      "full_name": "Big Bar Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483640,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483640,
+      "short_name": "Birkenhead Lake",
+      "full_name": "Birkenhead Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483639,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483639,
+      "short_name": "Blanket Creek",
+      "full_name": "Blanket Creek Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483638,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483638,
+      "short_name": "Bowron Lake",
+      "full_name": "Bowron Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483637,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483632,
+        -2147483631
+      ]
+    },
+    {
+      "resource_location_id": -2147483636,
+      "short_name": "Bromley Rock",
+      "full_name": "Bromley Rock Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483635,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483635,
+      "short_name": "Bugaboo",
+      "full_name": "Bugaboo - Backcountry Camping",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483634,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483634,
+      "short_name": "Cape Scott",
+      "full_name": "Cape Scott Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483632,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483632,
+      "short_name": "Carp Lake",
+      "full_name": "Carp Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483626,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483645
+      ]
+    },
+    {
+      "resource_location_id": -2147483630,
+      "short_name": "Cathedral",
+      "full_name": "Cathedral Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483624,
+      "resource_category_ids": [
+        -2147483642,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483629,
+      "short_name": "Champion Lakes",
+      "full_name": "Champion Lakes Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483623,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483628,
+      "short_name": "Charlie Lake",
+      "full_name": "Charlie Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483622,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483626,
+      "short_name": "Conkle Lake",
+      "full_name": "Conkle Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483620,
+      "resource_category_ids": [
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483625,
+      "short_name": "Cowichan River",
+      "full_name": "Cowichan River Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483619,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483624,
+      "short_name": "Crooked River",
+      "full_name": "Crooked River Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483618,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483623,
+      "short_name": "Cultus Lake",
+      "full_name": "Cultus Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483617,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483645,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483622,
+      "short_name": "Desolation Sound Marine",
+      "full_name": "Desolation Sound Marine Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483616,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483621,
+      "short_name": "Dionisio Point",
+      "full_name": "Dionisio Point Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483614,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483620,
+      "short_name": "Discovery Island Marine",
+      "full_name": "Discovery Island Marine Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483613,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483619,
+      "short_name": "Dry Gulch",
+      "full_name": "Dry Gulch Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483612,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483618,
+      "short_name": "E. C. Manning",
+      "full_name": "E. C. Manning Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483611,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644,
+        -2147483642,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483617,
+      "short_name": "Elk Falls",
+      "full_name": "Elk Falls Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483610,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483616,
+      "short_name": "Elk Lakes",
+      "full_name": "Elk Lakes Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483609,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483615,
+      "short_name": "Ellison",
+      "full_name": "Ellison Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483608,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483614,
+      "short_name": "Englishman River Falls",
+      "full_name": "Englishman River Falls Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483607,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483613,
+      "short_name": "Fillongley",
+      "full_name": "Fillongley Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483606,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483612,
+      "short_name": "Fintry",
+      "full_name": "Fintry Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483605,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483610,
+      "short_name": "French Beach",
+      "full_name": "French Beach Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483603,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483609,
+      "short_name": "Garibaldi",
+      "full_name": "Garibaldi Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483602,
+      "resource_category_ids": [
+        -2147483642,
+        -2147483639,
+        -2147483637
+      ]
+    },
+    {
+      "resource_location_id": -2147483607,
+      "short_name": "Gladstone",
+      "full_name": "Gladstone Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483600,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483506,
+      "short_name": "Golden Ears Backcountry",
+      "full_name": "Golden Ears Backcountry",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483599,
+      "resource_category_ids": [
+        -2147483642,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483606,
+      "short_name": "Golden Ears",
+      "full_name": "Golden Ears Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483599,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483605,
+      "short_name": "Goldstream",
+      "full_name": "Goldstream Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483598,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483604,
+      "short_name": "Gordon Bay",
+      "full_name": "Gordon Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483597,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483603,
+      "short_name": "Green Lake",
+      "full_name": "Green Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483596,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483498,
+      "short_name": "Gwillim Lake",
+      "full_name": "Gwillim Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483435,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483602,
+      "short_name": "Halkett Bay Marine",
+      "full_name": "Halkett Bay Marine Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483595,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483601,
+      "short_name": "Herald",
+      "full_name": "Herald Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483593,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483600,
+      "short_name": "Horsefly Lake",
+      "full_name": "Horsefly Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483592,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483599,
+      "short_name": "Inland Lake",
+      "full_name": "Inland Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483591,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483598,
+      "short_name": "Jedediah Island Marine",
+      "full_name": "Jedediah Island Marine Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483589,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483503,
+      "short_name": "Jimsmith Lake",
+      "full_name": "Jimsmith Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483440,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483597,
+      "short_name": "Joffre Lakes",
+      "full_name": "Joffre Lakes Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483588,
+      "resource_category_ids": [
+        -2147483642
+      ]
+    },
+    {
+      "resource_location_id": -2147483596,
+      "short_name": "Juan de Fuca",
+      "full_name": "Juan de Fuca Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483587,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483595,
+      "short_name": "Juniper Beach",
+      "full_name": "Juniper Beach Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483586,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483594,
+      "short_name": "Kekuli Bay",
+      "full_name": "Kekuli Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483585,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483593,
+      "short_name": "Kentucky Alleyne",
+      "full_name": "Kentucky-Alleyne Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483584,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483592,
+      "short_name": "Kettle River",
+      "full_name": "Kettle River Recreation Area",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483583,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483591,
+      "short_name": "Kikomun Creek",
+      "full_name": "Kikomun Creek Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483582,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483645,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483590,
+      "short_name": "Kleanza Creek",
+      "full_name": "Kleanza Creek Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483581,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483589,
+      "short_name": "Kokanee Creek",
+      "full_name": "Kokanee Creek Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483580,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483588,
+      "short_name": "Kokanee Glacier",
+      "full_name": "Kokanee Glacier Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483579,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483587,
+      "short_name": "Kootenay Lake",
+      "full_name": "Kootenay Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483572,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483586,
+      "short_name": "Lac La Hache",
+      "full_name": "Lac La Hache Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483571,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483585,
+      "short_name": "Lac Le Jeune",
+      "full_name": "Lac Le Jeune Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483570,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483584,
+      "short_name": "Lakelse Lake",
+      "full_name": "Lakelse Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483569,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483583,
+      "short_name": "Liard River Hot Springs",
+      "full_name": "Liard River Hot Springs Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483568,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647
+      ]
+    },
+    {
+      "resource_location_id": -2147483582,
+      "short_name": "Little Qualicum Falls",
+      "full_name": "Little Qualicum Falls Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483567,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483502,
+      "short_name": "Lockhart Beach",
+      "full_name": "Lockhart Beach Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483439,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483581,
+      "short_name": "Loveland Bay",
+      "full_name": "Loveland Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483566,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483580,
+      "short_name": "Mabel Lake",
+      "full_name": "Mabel Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483560,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483579,
+      "short_name": "Main Lake",
+      "full_name": "Main Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483559,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483578,
+      "short_name": "Martha Creek",
+      "full_name": "Martha Creek Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483558,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483577,
+      "short_name": "McDonald Creek",
+      "full_name": "McDonald Creek Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483557,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483576,
+      "short_name": "Meziadin Lake",
+      "full_name": "Meziadin Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483556,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483575,
+      "short_name": "Miracle Beach",
+      "full_name": "Miracle Beach Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483555,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483574,
+      "short_name": "Moberly Lake",
+      "full_name": "Moberly Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483554,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483573,
+      "short_name": "Monashee",
+      "full_name": "Monashee Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483553,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483572,
+      "short_name": "Monck",
+      "full_name": "Monck Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483552,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647
+      ]
+    },
+    {
+      "resource_location_id": -2147483571,
+      "short_name": "Montague Harbour Marine",
+      "full_name": "Montague Harbour Marine Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483551,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483570,
+      "short_name": "Morton Lake",
+      "full_name": "Morton Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483550,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483569,
+      "short_name": "Mount Assiniboine",
+      "full_name": "Mount Assiniboine Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483549,
+      "resource_category_ids": [
+        -2147483642,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483568,
+      "short_name": "Mount Fernie",
+      "full_name": "Mount Fernie Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483548,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483567,
+      "short_name": "Mount Robson",
+      "full_name": "Mount Robson Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483547,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483566,
+      "short_name": "Mount Seymour",
+      "full_name": "Mount Seymour Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483546,
+      "resource_category_ids": [
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483565,
+      "short_name": "Moyie Lake",
+      "full_name": "Moyie Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483545,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483499,
+      "short_name": "Muncho Lake",
+      "full_name": "Muncho Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483437,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483564,
+      "short_name": "Nairn Falls",
+      "full_name": "Nairn Falls Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483544,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483504,
+      "short_name": "Norbury Lake",
+      "full_name": "Norbury Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483441,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483562,
+      "short_name": "North Thompson River",
+      "full_name": "North Thompson River Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483542,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483561,
+      "short_name": "Okanagan Lake North",
+      "full_name": "Okanagan Lake North Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483535,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647
+      ]
+    },
+    {
+      "resource_location_id": -2147483560,
+      "short_name": "Okanagan Lake South",
+      "full_name": "Okanagan Lake South Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483534,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647
+      ]
+    },
+    {
+      "resource_location_id": -2147483559,
+      "short_name": "Otter Lake",
+      "full_name": "Otter Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483530,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483558,
+      "short_name": "Paarens Beach",
+      "full_name": "Paarens Beach Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483529,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483557,
+      "short_name": "Paul Lake",
+      "full_name": "Paul Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483528,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483556,
+      "short_name": "Peace Arch",
+      "full_name": "Peace Arch Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483522,
+      "resource_category_ids": [
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483555,
+      "short_name": "Pilot Bay",
+      "full_name": "Pilot Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483521,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483553,
+      "short_name": "Pirates Cove Marine",
+      "full_name": "Pirates Cove Marine Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483519,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483552,
+      "short_name": "Plumper Cove Marine",
+      "full_name": "Plumper Cove Marine Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483518,
+      "resource_category_ids": [
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483551,
+      "short_name": "Porpoise Bay",
+      "full_name": "Porpoise Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483517,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483550,
+      "short_name": "Porteau Cove",
+      "full_name": "Porteau Cove Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483516,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647
+      ]
+    },
+    {
+      "resource_location_id": -2147483549,
+      "short_name": "Premier Lake",
+      "full_name": "Premier Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483515,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483548,
+      "short_name": "Prudhomme Lake",
+      "full_name": "Prudhomme Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483514,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483547,
+      "short_name": "Purden Lake",
+      "full_name": "Purden Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483513,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483546,
+      "short_name": "Raft Cove",
+      "full_name": "Raft Cove Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483512,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483545,
+      "short_name": "Rathtrevor Beach",
+      "full_name": "Rathtrevor Beach Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483511,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483544,
+      "short_name": "Red Bluff",
+      "full_name": "Red Bluff Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483510,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483543,
+      "short_name": "Rolley Lake",
+      "full_name": "Rolley Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483509,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483542,
+      "short_name": "Rosebery",
+      "full_name": "Rosebery Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483508,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483541,
+      "short_name": "Ruckle",
+      "full_name": "Ruckle Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483507,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483540,
+      "short_name": "Saltery Bay",
+      "full_name": "Saltery Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483506,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483539,
+      "short_name": "Sasquatch",
+      "full_name": "Sasquatch Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483505,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483563,
+      "short_name": "Saysutshun (Newcastle Island Marine)",
+      "full_name": "Saysutshun (Newcastle Island Marine) Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483543,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483536,
+      "short_name": "Shuswap Lake",
+      "full_name": "Shuswap Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483502,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483535,
+      "short_name": "Silver Lake",
+      "full_name": "Silver Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483501,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483534,
+      "short_name": "Skagit Valley",
+      "full_name": "Skagit Valley Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483500,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483487,
+      "short_name": "Skihist",
+      "full_name": "Skihist Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483430,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483533,
+      "short_name": "Smelt Bay",
+      "full_name": "Smelt Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483495,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483532,
+      "short_name": "Sowchea Bay",
+      "full_name": "Sowchea Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483488,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483531,
+      "short_name": "Sproat Lake",
+      "full_name": "Sproat Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483487,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483530,
+      "short_name": "Stamp River",
+      "full_name": "Stamp River Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483486,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483486,
+      "short_name": "Steelhead",
+      "full_name": "Steelhead Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483429,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483528,
+      "short_name": "Stemwinder",
+      "full_name": "Stemwinder Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483484,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483526,
+      "short_name": "Strathcona Backcountry",
+      "full_name": "Strathcona Backcountry",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483482,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483527,
+      "short_name": "Strathcona",
+      "full_name": "Strathcona Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483483,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483525,
+      "short_name": "Summit Lake - Nakusp",
+      "full_name": "Summit Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483481,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483524,
+      "short_name": "Swan Lake",
+      "full_name": "Swan Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483480,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483522,
+      "short_name": "sx̌ʷəx̌ʷnitkʷ (Okanagan Falls)",
+      "full_name": "sx̌ʷəx̌ʷnitkʷ Provincial Park (Okanagan Falls)",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483478,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483627,
+      "short_name": "Sx̱ótsaqel / Chilliwack Lake",
+      "full_name": "Sx̱ótsaqel / Chilliwack Lake Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483621,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483521,
+      "short_name": "Syringa",
+      "full_name": "Syringa Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483477,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483523,
+      "short_name": "sẁiẁs (Haynes Point)",
+      "full_name": "sẁiẁs Provincial Park (Haynes Point)",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483479,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483520,
+      "short_name": "Taylor Arm",
+      "full_name": "Taylor Arm Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483476,
+      "resource_category_ids": [
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483519,
+      "short_name": "Ten Mile Lake",
+      "full_name": "Ten Mile Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483475,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483518,
+      "short_name": "Top of the World",
+      "full_name": "Top of the World Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483467,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483488,
+      "short_name": "Tribune Bay",
+      "full_name": "Tribune Bay Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483431,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483645
+      ]
+    },
+    {
+      "resource_location_id": -2147483516,
+      "short_name": "Tweedsmuir South",
+      "full_name": "Tweedsmuir Provincial Park – South",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483465,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483515,
+      "short_name": "Tyhee Lake",
+      "full_name": "Tyhee Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483464,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483637,
+      "short_name": "Tā Ch'ilā [a.k.a. Boya Lake]",
+      "full_name": "Tā Ch'ilā Park [a.k.a. Boya Lake Park]",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483636,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483514,
+      "short_name": "Wallace Island Marine",
+      "full_name": "Wallace Island Marine Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483458,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483513,
+      "short_name": "Wasa Lake",
+      "full_name": "Wasa Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483457,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483492,
+      "short_name": "Wells Gray - Clearwater Lake & Falls Creek",
+      "full_name": "Wells Gray Provincial Park - Clearwater Lake & Falls Creek",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483456,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483512,
+      "short_name": "Wells Gray - Mahood Lake",
+      "full_name": "Wells Gray Provincial Park - Mahood Lake",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483456,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483511,
+      "short_name": "Wells Gray - Murtle Lake",
+      "full_name": "Wells Gray Provincial Park - Murtle Lake",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483455,
+      "resource_category_ids": [
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483510,
+      "short_name": "West Lake",
+      "full_name": "West Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483446,
+      "resource_category_ids": [
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483509,
+      "short_name": "Whiskers Point",
+      "full_name": "Whiskers Point Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483445,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483508,
+      "short_name": "Whiteswan Lake",
+      "full_name": "Whiteswan Lake Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483444,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483500,
+      "short_name": "Yahk",
+      "full_name": "Yahk Provincial Park",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483436,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    }
+  ]
+}
