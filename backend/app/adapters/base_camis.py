@@ -146,9 +146,10 @@ class BaseCamisAdapter(BaseAdapter):
     API_SEARCH_CRITERIA_TABS = "/api/searchcriteriatabs"
     API_CAPACITY_CATEGORIES = "/api/capacitycategory/capacitycategories"
     API_EQUIPMENT = "/api/equipment"
-    # Live availability (HH-99). Verified against BC + Ontario: a GET returning
-    # per-day status arrays keyed by resourceLocationId under
-    # ``mapLinkAvailabilities``. Query params:
+    # Live availability (HH-99, decoding corrected in HH-102). A GET returning,
+    # for the queried map: per-day aggregates for each child map under
+    # ``mapLinkAvailabilities`` (keyed by child MAP id) and, on leaf maps,
+    # per-site day codes under ``resourceAvailabilities``. Query params:
     #   resourceLocationId, mapId, bookingCategoryId, startDate, endDate,
     #   getDailyAvailability=true  (plus optional equipmentCategoryId etc.)
     API_AVAILABILITY_MAP = "/api/availability/map"
@@ -158,13 +159,33 @@ class BaseCamisAdapter(BaseAdapter):
     API_DATE_SCHEDULE = "/api/dateschedule/resourcelocationid"
     API_REACHABLE_RESOURCES = "/api/reachableresources/resourcelocationid"
 
-    # ``mapLinkAvailabilities`` per-day status codes, decoded empirically against
-    # the live API across future/past/winter/beyond-window dates (the Angular
-    # enum is inlined in the bundle and not statically recoverable):
-    #   1 = available   2 = unavailable (booked / closed / past)
-    #   6 = not yet released (booking window not open)
-    # Anything else is treated as UNKNOWN so a new code can't be misread as free.
-    AVAILABILITY_AVAILABLE_CODE = 1
+    # Availability status codes, decoded empirically against the live BC Parks
+    # API (HH-102) by cross-checking a fully-booked long weekend (BC Day),
+    # a quiet mid-September weekday, next-day dates, and beyond-window dates
+    # (the Angular enum is inlined in the bundle and not statically
+    # recoverable):
+    #
+    #   site level  (``resourceAvailabilities[<resourceId>][].availability``):
+    #     0 = available   1 = booked/unavailable
+    #     3 = non-reservable / does not match search filters
+    #   link level  (``mapLinkAvailabilities`` / ``mapAvailabilities`` — a
+    #   per-day aggregate over the child map's sites):
+    #     0 = some site available that day   1 = none
+    #     2 = closed                         6 = not yet released
+    #
+    # NOTE: this corrects HH-99, which shipped ``1 = available`` (inverted —
+    # it would report a fully-booked park as AVAILABLE) and read
+    # ``mapLinkAvailabilities`` keyed by ``resourceLocationId``: when querying
+    # a park's map the keys are its child MAP ids (campground loops), not the
+    # park's resource-location id. Any unrecognised code is treated as "not
+    # available" so a new code can't be misread as free.
+    AVAILABILITY_AVAILABLE_CODE = 0
+
+    # Cap on drill-down requests per availability check: a park query only
+    # returns per-day aggregates per campground loop, so loops showing an
+    # available day are queried individually for per-site data. Parks have a
+    # handful of loops; the cap just bounds the worst case.
+    _MAX_DRILL_REQUESTS = 12
 
     # ------------------------------------------------------------------
     # JSON API access (the catalog + availability read path)
@@ -256,13 +277,15 @@ class BaseCamisAdapter(BaseAdapter):
         return cats[0].get("booking_category_id") if cats else None
 
     # ------------------------------------------------------------------
-    # Search + availability detection (HH-99)
+    # Search + availability detection (HH-99, corrected in HH-102)
     #
     # Camis availability is JSON, not DOM — ``GET /api/availability/map``
-    # returns per-day status arrays keyed by resourceLocationId. So
-    # ``detect_availability`` reads the API directly rather than scraping the
-    # page; ``fill_form`` just warms the browser context (Queue-it / WAF pass)
-    # and takes a search snapshot for debugging like the DOC adapters do.
+    # returns per-loop day aggregates for the queried map and per-site day
+    # codes on leaf (loop) maps. ``detect_availability`` reads the API
+    # directly rather than scraping the page, drilling into open loops for
+    # per-site data; ``fill_form`` just warms the browser context (Queue-it /
+    # WAF pass) and takes a search snapshot for debugging like the DOC
+    # adapters do.
     # ------------------------------------------------------------------
 
     def _build_availability_query(self, params: dict) -> dict:
@@ -334,34 +357,99 @@ class BaseCamisAdapter(BaseAdapter):
             return await response.json()
         return await self.fetch_json(self.API_AVAILABILITY_MAP, params=query)
 
-    def _classify_daily_statuses(self, statuses: list[int], site: str) -> AvailabilityResult:
-        """Map a per-day ``mapLinkAvailabilities`` array to an ``AvailabilityResult``.
+    @staticmethod
+    def _extract_site_days(data: Any) -> dict[str, list[int]]:
+        """``resourceAvailabilities`` → ``{resource_id: [per-day codes]}``.
 
-        - all days available → AVAILABLE
-        - some days available → PARTIALLY_AVAILABLE (e.g. a 3-night stay with one
-          night booked)
-        - no days available → UNAVAILABLE
-        - empty/malformed → UNKNOWN
+        Day entries arrive as ``{"availability": <code>, "remainingQuota": …}``
+        objects; tolerate bare ints in case another Camis build flattens them.
         """
-        if not statuses:
+        out: dict[str, list[int]] = {}
+        for rid, days in ((data or {}).get("resourceAvailabilities") or {}).items():
+            codes: list[int] = []
+            for day in days or []:
+                raw = day.get("availability") if isinstance(day, dict) else day
+                try:
+                    codes.append(int(raw))
+                except (TypeError, ValueError):
+                    codes.append(-1)  # unreadable → never counts as available
+            out[str(rid)] = codes
+        return out
+
+    def _open_link_ids(self, data: Any) -> list[str]:
+        """Child map ids from ``mapLinkAvailabilities`` with ≥1 available day."""
+        links = (data or {}).get("mapLinkAvailabilities") or {}
+        return [
+            link_id
+            for link_id, days in links.items()
+            if any(c == self.AVAILABILITY_AVAILABLE_CODE for c in (days or []))
+        ]
+
+    async def _collect_site_days(
+        self, page: Page | None, query: dict, data: Any
+    ) -> dict[str, list[int]]:
+        """Gather per-site day codes for a park, drilling into loop maps.
+
+        A query at the park's root map usually returns only per-loop
+        aggregates (``mapLinkAvailabilities``); per-site codes
+        (``resourceAvailabilities``) appear when querying a leaf (loop) map.
+        Breadth-first drill into every link that shows an available day,
+        bounded by ``_MAX_DRILL_REQUESTS``. Links with no available day are
+        skipped — their sites can't contribute a bookable stay.
+        """
+        sites = self._extract_site_days(data)
+        queue = self._open_link_ids(data)
+        requests = 0
+        while queue and requests < self._MAX_DRILL_REQUESTS:
+            link_id = queue.pop(0)
+            sub = await self._get_map_availability(
+                page, {**query, "mapId": int(link_id)}
+            )
+            requests += 1
+            sites.update(self._extract_site_days(sub))
+            queue.extend(self._open_link_ids(sub))
+        return sites
+
+    def _classify_site_days(
+        self, site_days: dict[str, list[int]], site: str
+    ) -> AvailabilityResult:
+        """Map per-site day codes to an ``AvailabilityResult``.
+
+        A stay is only bookable on a single site, so:
+        - ≥1 site available (code 0) every night → AVAILABLE (count = such sites)
+        - no full-stay site but some site/night available → PARTIALLY_AVAILABLE
+          (e.g. different sites free on different nights, or part of the stay)
+        - nothing available → UNAVAILABLE
+        - no per-site data → UNKNOWN
+        """
+        if not site_days:
             return AvailabilityResult(
                 site=site,
                 status=AvailabilityStatus.UNKNOWN,
-                evidence="no per-day availability returned for this resource location",
+                evidence="no per-site availability returned for this resource location",
             )
-        available_days = [s == self.AVAILABILITY_AVAILABLE_CODE for s in statuses]
-        n_avail = sum(available_days)
-        if all(available_days):
+        ok = self.AVAILABILITY_AVAILABLE_CODE
+        full_stay = [
+            rid for rid, codes in site_days.items()
+            if codes and all(c == ok for c in codes)
+        ]
+        any_night = sum(
+            1 for codes in site_days.values() if any(c == ok for c in codes)
+        )
+        if full_stay:
             status = AvailabilityStatus.AVAILABLE
-        elif n_avail > 0:
+        elif any_night:
             status = AvailabilityStatus.PARTIALLY_AVAILABLE
         else:
             status = AvailabilityStatus.UNAVAILABLE
         return AvailabilityResult(
             site=site,
             status=status,
-            evidence=f"daily status codes={statuses} (1=available)",
-            total_available=n_avail,
+            evidence=(
+                f"sites free for the full stay: {len(full_stay)}/{len(site_days)}; "
+                f"sites with ≥1 free night: {any_night} (0=available)"
+            ),
+            total_available=len(full_stay),
         )
 
     async def fill_form(self, page: Page, params: dict) -> None:
@@ -383,11 +471,15 @@ class BaseCamisAdapter(BaseAdapter):
     async def detect_availability(
         self, page: Page | None, params: dict
     ) -> list[AvailabilityResult]:
-        """Read park-level availability for the requested dates from the JSON API.
+        """Read park availability for the requested dates from the JSON API.
 
-        One watch job → one park (resource location). Returns a single-element
-        list to match ``BaseAdapter``'s contract; callers already handle the
-        all/any/partial cases generically.
+        One watch job → one park (resource location). Queries the park's map,
+        short-circuits to UNAVAILABLE when every campground loop reports no
+        available day, and otherwise drills into the open loops for per-site
+        codes — a stay is only real if a single site is free every night
+        (day-wise aggregates can show "available" when no site covers the
+        whole stay). Returns a single-element list to match ``BaseAdapter``'s
+        contract; callers already handle the all/any/partial cases generically.
         """
         park = self._park_by_resource_location_id(int(params["resource_location_id"])) \
             if params.get("resource_location_id") is not None else None
@@ -401,9 +493,26 @@ class BaseCamisAdapter(BaseAdapter):
             )]
 
         data = await self._get_map_availability(page, query)
-        link_avail = (data or {}).get("mapLinkAvailabilities") or {}
-        statuses = link_avail.get(str(query["resourceLocationId"])) or []
-        return [self._classify_daily_statuses(statuses, site_name)]
+        links = (data or {}).get("mapLinkAvailabilities") or {}
+        has_sites = bool((data or {}).get("resourceAvailabilities"))
+        if not links and not has_sites:
+            return [AvailabilityResult(
+                site=site_name,
+                status=AvailabilityStatus.UNKNOWN,
+                evidence="availability/map returned no links or site data for this park",
+            )]
+        # Fast path — every loop reports zero available days, so there is
+        # nothing to drill into (the common polling case).
+        if not has_sites and not self._open_link_ids(data):
+            return [AvailabilityResult(
+                site=site_name,
+                status=AvailabilityStatus.UNAVAILABLE,
+                evidence=f"all campground loops report no available days: {links}",
+                total_available=0,
+            )]
+
+        site_days = await self._collect_site_days(page, query, data)
+        return [self._classify_site_days(site_days, site_name)]
 
     # ------------------------------------------------------------------
     # Cart / hold flow (HH-100)
