@@ -346,6 +346,7 @@ pytest
 
 Planned extensions already suggested by the project structure and config:
 
+- **Canadian Provincial Parks (Camis) adapters** — BC Parks and Ontario Parks, on a shared `BaseCamisAdapter`. Platform recon is documented in [`docs/adapters/camis-recon.md`](docs/adapters/camis-recon.md); adapter builds are logged against the [build-log template](docs/adapters/adapter-build-log-template.md)
 - **More booking site adapters** beyond the current DOC flows
 - **Broader campsite coverage** where the booking workflow is similar but not yet implemented
 - **AI agent adapter builder** for unsupported booking sites, aimed at generating or scaffolding new adapter logic faster
