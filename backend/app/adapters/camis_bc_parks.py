@@ -118,6 +118,20 @@ class CamisBcParksAdapter(BaseCamisAdapter):
                 min=1,
                 max=len(PEOPLE_OPTIONS),
             ),
+            # Renders the camper picker in the job wizard (the frontend
+            # special-cases key == "occupants") and gates auto-book: the poll
+            # worker only enqueues a hold when params.occupants is non-empty.
+            # Camis needs just a permit holder at checkout, so one camper with
+            # the permit_holder occupant field filled is enough. Optional for
+            # availability-only hunts. (Found in HH-103: without this field
+            # the wizard could never enable auto-book for Camis jobs.)
+            ParamField(
+                key="occupants",
+                label="Campers",
+                type="text",
+                default="[]",
+                required=False,
+            ),
         ]
 
     @classmethod

@@ -77,7 +77,20 @@ Flow shape: **search → results → add to cart → `/create-booking/*` multi-s
 
 **Login model (confirmed in HH-100):** account-based, `requires_credentials = True`. Verified flow against live BC Parks: navigate `/login` → dismiss the cookie-consent gate (`#login-cookie-consent`) which otherwise hides the form → fill `#email` / `#password` → **press Enter** (the Angular form does *not* submit on the button click alone) → the site posts `POST /api/auth/login` and redirects to `/account`. The cart is account-scoped, so login is required before holding.
 
-**Cart/hold funnel (mapped in HH-100):** `/create-booking/results?resourceLocationId=&mapId=&bookingCategoryId=&startDate=&endDate=` → drill into a map loop (Leaflet `path.mapLinkArea-*`, needs force-click) → the site grid renders each site/date cell as a `<button>` whose **aria-label** states availability (`"Available for all selected dates"` is the only bookable one; others: `"Not available for selected dates"`, `"Closed during selected dates"`, `"Does not match all search filters"`) → click an available cell → Shopping Cart → `#proceedToCheckout` → occupant/party → payment. Occupancy/equipment are chosen during search; a single **permit-holder** name is taken at checkout (not per-person like DOC). **Still OPEN (defer to E2E HH-103):** the interactive site-config/checkout/occupant tail, and the exact **cart-hold expiry** — no countdown timer surfaces before the payment step, so it must be measured during a real E2E hold (still *not* assumed to be DOC's 25 min).
+**Cart/hold funnel (confirmed end-to-end in HH-103; HH-100's mapping was wrong).** The confirmed live flow:
+
+1. `/create-booking/results?resourceLocationId=&mapId=&bookingCategoryId=&startDate=&endDate=` — navigate at an **open loop's** `mapId` (from the availability read) so the per-site list renders directly, skipping the park's loop overview.
+2. **Select equipment** in the search-form dropdown (`#equipment-field` → e.g. "1 Tent") and re-search (`#actionSearch`). A site refuses to reserve until an equipment type is chosen ("You must select equipment before adding this location…").
+3. Switch to **List view** (`[aria-label='List view of results']`). Each site is a Material expansion panel: availability marker `.resource-availability .icon-available`, expander `#details-N` (`aria-label="select for details"`), and once expanded a Reserve button `[id^=reserveButton]`.
+4. Expand an available site → **Reserve** → `POST /api/cart/commit` → **Review Reservation Details** (`/create-booking/reservationmessages`).
+5. Tick the acknowledgement checkboxes → **Confirm reservation details** (`#confirmReservationDetails`) → `/cart` with the item held (header badge shows "N Item").
+6. **Proceed to checkout** (`#proceedToCheckout`) → payment (the noVNC hand-off).
+
+Equipment + party size are chosen during search; a single **permit-holder** name (the account occupant) is shown on the review page, not per-person like DOC.
+
+> ⚠️ **HH-100 was a false positive.** Its "available cell" selector `"Available for all selected dates"` actually matched the availability **legend's** tooltip trigger (a `mat-mdc-tooltip-trigger` button), so it clicked nothing; its success check was a URL substring (`create-booking`) that the results URL satisfies trivially — so it reported `held=True` with an empty cart. The real Leaflet map has **no semantic per-site markers** (image pins only), which is why HH-103 uses the **List view** instead. Hold verification now reads the **DOM cart badge** (`#viewShoppingCartButton` → "N Item"); `/api/cart` fetched from a fresh request context returns an *empty* cart because the committed booking lives in the Angular app's in-memory session, not the REST snapshot.
+
+**Cart-hold expiry — 15 minutes (confirmed HH-103).** No countdown timer surfaces before the payment page and no expiry field is exposed in `/api/cart`, so it was measured empirically: a committed hold auto-released at **~15.9 min** of inactivity. Independently confirmed — the live Shopping Cart page states *"All reservations in your shopping cart will be held for 15 minutes or until the reservation has been paid for."* `cart_hold_minutes = 15` on `BaseCamisAdapter` (rounded down so the /pay page never overpromises). NOT DOC's 25 min.
 
 ### Availability endpoint (resolved in HH-99)
 
