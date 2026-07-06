@@ -15,3 +15,4 @@ frontend/dist/
 /backend/scripts/artifacts
 .junie
 .claude/
+.secrets/
