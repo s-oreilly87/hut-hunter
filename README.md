@@ -4,13 +4,14 @@ License: GPL-3.0
 
 Hut Hunter is a booking assistant for popular, hard-to-book huts and campsites. It monitors availability, sends alerts quickly, and can continue through the booking flow to secure a reservation hold so you do not lose your spot.
 
-Today the app is centered on New Zealand DOC inventory and supports:
+Supported booking sites:
 
-- Great Walks
-- Standard huts
-- Campsite-style booking workflows exposed through the current DOC adapters
+- **New Zealand DOC** — Great Walks, standard huts, and campsite-style booking workflows
+- **BC Parks** (camping.bcparks.ca) — full pipeline including automated holds, verified live
+- **Ontario Parks** (reservations.ontarioparks.ca) — full pipeline including automated holds, verified live
+- **Parks Canada** (reservation.pc.gc.ca) — watch & notify only: the site signs in exclusively through third-party SSO (Google/Facebook/GCKey), which can't be automated, so booking is manual
 
-Other booking sites are in the works (Canadian Provincial parks) as well as an agentic adapter builder to streamline extensible compatability. (See __Coming Soon__ below)
+The three Canadian sites share one `BaseCamisAdapter` (they run the same Camis reservation platform); each site is a handful of config attributes on top of it. An agentic adapter builder to streamline further expansion is in the works. (See __Coming Soon__ below)
 
 The product promise reflected in the welcome screen is the core of the app:
 
@@ -20,7 +21,7 @@ The product promise reflected in the welcome screen is the core of the app:
 
 ## Repo notes
 
-- This project is not affiliated with New Zealand DOC.
+- This project is not affiliated with New Zealand DOC, BC Parks, Ontario Parks, Parks Canada, or Camis.
 - Booking credentials and occupant details are user data. Treat this as a private app unless you are prepared to operate it responsibly.
 - The production deployment path in this repo is aimed at a single-owner demo on a trusted host, not a hardened multi-tenant SaaS launch.
 
@@ -34,7 +35,7 @@ After sign-in, Hut Hunter gives each user a private workspace for:
 - Saving adapter-specific booking credentials, encrypted at rest
 - Turning monitoring on for scheduled checks or running manual checks on demand
 - Auto-booking when every requested site is fully available
-- Keeping a live held cart open through the DOC 25 minute hold for the user to finish payment
+- Keeping a live held cart open through the site's hold window (25 minutes on DOC, 15 on the Camis parks sites) for the user to finish payment
 - Reviewing snapshots and artifacts from failed or successful automation runs
 
 ## Current product flow
@@ -46,7 +47,7 @@ After sign-in, Hut Hunter gives each user a private workspace for:
 5. The poll worker checks availability on a schedule or via manual trigger.
 6. If inventory is found, the app notifies the user or enqueues the hold worker.
 7. The hold worker opens a headed Playwright browser, places the hold, and exposes the payment page over noVNC.
-8. The user completes payment before the cart expires (25 minutes for DOC).
+8. The user completes payment before the cart expires (25 minutes for DOC, 15 for the Camis parks sites — both measured against the live sites).
 
 ## Architecture Overview
 
@@ -139,12 +140,18 @@ The current adapter registry includes:
 
 - `doc_great_walk`
 - `doc_standard_hut`
+- `camis_bc_parks`
+- `camis_ontario_parks`
+- `camis_parks_canada` *(watch & notify only — see below)*
+
+The three `camis_*` adapters are pure configuration over a shared `BaseCamisAdapter`, which owns the platform mechanics: JSON availability reads (with per-site drill-down so a stay only counts as available when a single site is free every night), login, the list-view reserve funnel, cart-badge hold verification, and the measured 15-minute hold window. Platform recon lives in [`docs/adapters/camis-recon.md`](docs/adapters/camis-recon.md); catalogs are produced by `backend/scripts/scrape_camis_catalog.py`.
 
 Each adapter publishes:
 
 - search parameter definitions for the frontend form
 - optional occupant field requirements
 - whether credentials are required
+- whether automated booking is supported (`supports_automated_booking` — false for sites like Parks Canada whose sign-in is third-party SSO only; those are watch/notify, with manual booking on the site)
 - booking timezone and cutoff rules
 - availability detection logic
 - optional hold automation logic
@@ -351,10 +358,10 @@ pytest
 
 Planned extensions already suggested by the project structure and config:
 
-- **Canadian Provincial Parks (Camis) adapters** — BC Parks and Ontario Parks, on a shared `BaseCamisAdapter`. Platform recon is documented in [`docs/adapters/camis-recon.md`](docs/adapters/camis-recon.md); adapter builds are logged against the [build-log template](docs/adapters/adapter-build-log-template.md)
-- **More booking site adapters** beyond the current DOC flows
-- **Broader campsite coverage** where the booking workflow is similar but not yet implemented
-- **AI agent adapter builder** for unsupported booking sites, aimed at generating or scaffolding new adapter logic faster
+- **More Camis sites** — Newfoundland (nlcamping.ca) answers the same platform API and should be another config-only adapter
+- **"Link your account" for SSO-only sites** — Parks Canada books through Google/GCKey sign-in; a one-time noVNC-assisted sign-in whose session is captured and reused would unlock automated holds there (Camis sessions were verified to survive transfer into a fresh browser)
+- **More booking site adapters** beyond the current DOC and Camis flows
+- **AI agent adapter builder** for unsupported booking sites, aimed at generating or scaffolding new adapter logic faster — the Camis build was logged step-by-step (see the [build-log template](docs/adapters/adapter-build-log-template.md)) as its primary input
 - **A cleaner adapter onboarding path** so new providers can define params, credentials, occupant fields, detection rules, and hold automation with less hand-written boilerplate
 
 The `ANTHROPIC_API_KEY` note in `.env.example` points at that future adapter-builder workflow, but it is not a production-ready feature yet.
@@ -384,4 +391,4 @@ hut-hunter/
 
 ## Status
 
-This repo is already a functional end-to-end booking automation system for the currently supported DOC flows, with user auth, monitoring, notifications, encrypted credentials, and hold automation wired together.
+This repo is already a functional end-to-end booking automation system for the supported DOC and Camis parks flows — both proven against live bookings — with user auth, monitoring, notifications, encrypted credentials, and hold automation wired together.
