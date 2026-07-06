@@ -66,6 +66,10 @@ export function BookButton({
   const holdExpired = hasHoldExpired(job)
   const visible =
     !isTerminal
+    // Watch/notify-only sites (third-party-SSO sign-in) have no automated
+    // booking — never offer Attempt Booking. Open Payment can't arise either
+    // (no holds are ever placed), so hide the button entirely.
+    && job.supports_automated_booking
     && displayStatus !== 'attempting_hold'
     && (
       (job.status === 'hold_placed' && !holdExpired)

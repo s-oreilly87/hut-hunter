@@ -21,6 +21,7 @@ from app.api._route_deps import (
     _validate_job_occupants_for_adapter,
     get_redis,
 )
+from app.adapters import adapter_supports_automated_booking
 from app.core.adapter_credentials import get_user_configured_adapter_ids
 from app.core.database import get_session
 from app.models.job import (
@@ -69,6 +70,8 @@ async def create_job(
     now = utcnow()
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
 
+    if body.auto_book and not adapter_supports_automated_booking(body.adapter_id):
+        raise HTTPException(status_code=409, detail="This booking site does not support automated booking.")
     if body.auto_book and not _params_have_occupants(body.params):
         raise HTTPException(status_code=409, detail="Occupants are required before auto-book can be enabled.")
     if body.auto_book and not _job_has_required_credentials(body.adapter_id, configured_adapter_ids):
@@ -148,6 +151,8 @@ async def update_job(
         job.name = patch["name"]
 
     if "auto_book" in patch:
+        if patch["auto_book"] and not adapter_supports_automated_booking(job.adapter_id):
+            raise HTTPException(status_code=409, detail="This booking site does not support automated booking.")
         if patch["auto_book"] and not _params_have_occupants(next_params):
             raise HTTPException(status_code=409, detail="Occupants are required before auto-book can be enabled.")
         if patch["auto_book"] and not _job_has_required_credentials(job.adapter_id, configured_adapter_ids):
@@ -290,6 +295,15 @@ async def book_job(
     """Dispatch the hold worker manually. Valid when last_result shows all sites
     AVAILABLE. Rejects partial availability and live holds."""
     job = await _get_owned_job(session, current_user.id, job_id)
+
+    if not adapter_supports_automated_booking(job.adapter_id):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This booking site does not support automated booking "
+                "(sign-in is via third-party SSO). Book manually on the site."
+            ),
+        )
 
     if job.status == JobStatus.HOLD_PLACED.value:
         cart = await _latest_cart(session, job_id)

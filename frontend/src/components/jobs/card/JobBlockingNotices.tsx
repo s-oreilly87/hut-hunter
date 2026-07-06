@@ -19,6 +19,20 @@ export function MissingOccupantsNotice() {
   )
 }
 
+export function ManualBookingOnlyNotice({ siteName }: { siteName?: string }) {
+  return (
+    <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
+      <p className="text-sm text-muted-foreground">
+        <BadgeInfo className="inline-block size-5 mr-2 text-gray-400" />
+        {siteName ?? 'This booking site'} signs in with a third-party account
+        (e.g. Google or GCKey), which Hut Hunter can't automate — automated
+        booking isn't available. You'll be notified when availability is found
+        so you can book manually on the site.
+      </p>
+    </div>
+  )
+}
+
 export function MissingCredentialsNotice() {
   return (
     <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">

@@ -50,6 +50,19 @@ export function AutomationFields({
 
   return (
     <>
+      {!selectedAdapter.supports_automated_booking ? (
+        // Watch/notify-only sites (third-party-SSO sign-in, e.g. Parks
+        // Canada) can't be booked automatically — explain instead of
+        // rendering the auto-book toggle.
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+          <p className="text-sm text-muted-foreground">
+            {selectedAdapter.name} signs in with a third-party account (e.g.
+            Google or GCKey), which Hut Hunter can't automate — so automated
+            booking isn't available. You'll still be notified the moment
+            availability is found and can book manually on the site.
+          </p>
+        </div>
+      ) : (
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -97,6 +110,7 @@ export function AutomationFields({
           </div>
         )}
       </div>
+      )}
 
       <div className="flex items-center justify-between gap-4">
         <Label htmlFor="enable-monitoring">Enable monitoring</Label>

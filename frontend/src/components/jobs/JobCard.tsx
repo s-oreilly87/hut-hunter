@@ -34,6 +34,7 @@ import {
 import { JobCardHeader } from '@/components/jobs/card/JobCardHeader'
 import { MonitoringSection } from '@/components/jobs/card/MonitoringSection'
 import {
+  ManualBookingOnlyNotice,
   MissingCredentialsNotice,
   MissingOccupantsNotice,
 } from '@/components/jobs/card/JobBlockingNotices'
@@ -151,8 +152,12 @@ export function JobCard({
   const holdExpired = hasHoldExpired(job)
   const isLocked = job.status === 'booking_complete'
   const isLive = isLiveJob(job)
-  const missingOccupants = !jobHasOccupants(job) && isLive
-  const missingCredentials = !job.credentials_configured && isLive
+  // Watch/notify-only sites can't book at all, so the "…required before
+  // booking can start" nudges don't apply — a single explanatory notice
+  // replaces them.
+  const manualBookingOnly = !job.supports_automated_booking
+  const missingOccupants = !jobHasOccupants(job) && isLive && !manualBookingOnly
+  const missingCredentials = !job.credentials_configured && isLive && !manualBookingOnly
 
   // ── Section gating ──
   // The body sections are mutually exclusive on `job.status` / displayStatus;
@@ -235,6 +240,7 @@ export function JobCard({
                 onEditCampers={() => onOpenOccupants?.()}
               />
             )}
+            {manualBookingOnly && isLive && <ManualBookingOnlyNotice siteName={adapter?.name} />}
             {missingOccupants && <MissingOccupantsNotice />}
             {missingCredentials && <MissingCredentialsNotice />}
 

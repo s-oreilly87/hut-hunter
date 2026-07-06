@@ -78,6 +78,9 @@ export interface WatchJob {
   status: JobStatus
   auto_book: boolean
   credentials_configured: boolean
+  // False for watch/notify-only booking sites (third-party-SSO sign-in, e.g.
+  // Parks Canada) — the UI hides auto-book and manual-booking affordances.
+  supports_automated_booking: boolean
   // Scheduler state for periodic polling. When enable_monitoring=true, the
   // backend scheduler dispatches check_availability every interval_minutes
   // and next_check_at reflects when the next dispatch is due. next_check_at
@@ -151,6 +154,9 @@ export interface AdapterInfo {
   param_fields: ParamField[]
   occupant_fields: ParamField[]
   requires_credentials: boolean
+  // False when the site's sign-in is third-party SSO that can't be automated
+  // (e.g. Parks Canada: Google/Facebook/GCKey) — watch & notify only.
+  supports_automated_booking: boolean
   // Set when the adapter has a time-bounded booking window. Used by the
   // frontend for date validation and stale-job display.
   // null timezone means "use client local timezone"

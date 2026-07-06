@@ -7,7 +7,12 @@ Adapter Builder pipeline. Same thin shape as the Ontario tests.
 
 from __future__ import annotations
 
-from app.adapters import adapter_requires_credentials, get_adapter, list_adapters
+from app.adapters import (
+    adapter_requires_credentials,
+    adapter_supports_automated_booking,
+    get_adapter,
+    list_adapters,
+)
 from app.adapters.base_camis import BaseCamisAdapter, _parse_park_option
 from app.adapters.camis_parks_canada import CamisParksCanadaAdapter
 
@@ -17,8 +22,18 @@ def test_registered_in_registry():
     assert "camis_parks_canada" in {a["adapter_id"] for a in list_adapters()}
 
 
-def test_requires_credentials_flow():
-    assert adapter_requires_credentials("camis_parks_canada") is True
+def test_watch_notify_only_flags():
+    # Parks Canada sign-in is Google/Facebook/GCKey SSO only (HH-118): no
+    # automated booking, and no storable credential either — so it must not
+    # appear in the Sign-Ins dialog (requires_credentials False).
+    assert adapter_supports_automated_booking("camis_parks_canada") is False
+    assert adapter_requires_credentials("camis_parks_canada") is False
+    # Every other adapter still supports booking (the default).
+    for entry in list_adapters():
+        expected = entry["adapter_id"] != "camis_parks_canada"
+        assert entry["supports_automated_booking"] is expected
+    # Unknown adapters are tolerated (True) so other validation surfaces first.
+    assert adapter_supports_automated_booking("nope") is True
 
 
 def test_parks_canada_config():
