@@ -1,6 +1,6 @@
-# Shared bits pulled in by api / poll_worker / hold_worker via YAML anchors.
-# x-app is ignored by compose itself (the `x-` prefix), it's only here so
-# we don't repeat build/env/depends_on across three services.
+# Production / NAS deployment stack (default `docker compose up`).
+# Synology Container Manager and similar UIs read this file automatically.
+# For local development with Mailpit and hot-reload, use docker-compose.dev.yml.
 x-app: &app
   build:
     context: .
@@ -9,38 +9,34 @@ x-app: &app
   restart: unless-stopped
   env_file:
     - .env
-  # Override the DB / Redis hosts to resolve inside the compose network.
-  # Everything else (SECRET_KEY, ENCRYPTION_KEY, APP_URL, VNC_PORT/VNC_URL,
-  # SMTP_*) comes from .env.
   environment:
-    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD:-huthunter}@postgres:5432/${POSTGRES_DB:-huthunter}
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-huthunter}
     REDIS_URL: redis://redis:6379
-    SMTP_HOST: mailpit
-    SMTP_PORT: 1025
-    # Mailpit speaks plaintext SMTP without AUTH; .env carries the prod
-    # (implicit-TLS + login) values, so TLS must be off and the credentials
-    # blank (notify.py only calls smtp.login when both are non-empty).
-    SMTP_USE_SSL: "false"
-    SMTP_USE_STARTTLS: "false"
-    SMTP_USERNAME: ""
-    SMTP_PASSWORD: ""
-  # Bind-mount the backend source into /app so code changes don't require
-  # an image rebuild. The image still has a COPY of the code baked in, so
-  # removing this mount (e.g. in prod) still gives a self-contained image.
-  # Rebuild only needed when requirements.txt or the Dockerfile changes.
   volumes:
-    - ./backend:/app
+    - artifacts_data:/app/artifacts
 
 services:
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    image: hut-hunter-web:latest
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      hold_worker:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
   postgres:
     image: postgres:16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-huthunter}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-huthunter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-huthunter}
-    ports:
-      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -52,29 +48,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
 
-  mailpit:
-    image: axllent/mailpit:v1.26
-    restart: unless-stopped
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-
-  # ---------------------------------------------------------------------------
-  # Hut Hunter application services. All three use the same image; the only
-  # difference is which command they run inside it. Shared config comes
-  # from the top-level `x-app` anchor above.
-  # ---------------------------------------------------------------------------
-
   api:
     <<: *app
-    command: ["sh", "-lc", "alembic -c alembic.ini upgrade head && python run.py"]
-    ports:
-      - "8000:8000"
+    command: ["sh", "-lc", "alembic -c alembic.ini upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,34 +75,20 @@ services:
 
   hold_worker:
     <<: *app
-    # hold-entrypoint.sh starts Xvfb + x11vnc + noVNC, then execs the worker.
     entrypoint: ["/usr/bin/tini", "--", "/usr/local/bin/hold-entrypoint.sh"]
     command: ["python", "bin/run_hold_worker.py"]
-    # Headed Chromium needs the X display the entrypoint sets up.
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD:-huthunter}@postgres:5432/${POSTGRES_DB:-huthunter}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-huthunter}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-huthunter}
       REDIS_URL: redis://redis:6379
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_USE_SSL: "false"
-      SMTP_USE_STARTTLS: "false"
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
       BROWSER_DISPLAY: ":99"
       DISPLAY: ":99"
       X11VNC_PORT: 5900
-    ports:
-      # noVNC HTTP/WebSocket endpoint. By default the pay page will use the
-      # current app host with VNC_PORT; set VNC_URL only when noVNC lives on a
-      # different public hostname.
-      - "6080:6080"
-    # /dev/shm defaults to 64MB in containers, which Chromium will exhaust
-    # on any non-trivial page and start crashing with SIGBUS.
     shm_size: "1gb"
     depends_on:
       api:
         condition: service_healthy
 
 volumes:
+  artifacts_data:
   postgres_data:
   redis_data:

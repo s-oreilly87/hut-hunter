@@ -177,7 +177,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 3. Start the stack:
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.dev.yml up --build
 ```
 
 4. Start the frontend in a separate terminal:
@@ -197,7 +197,9 @@ npm run dev
 
 ### Option 2: Production-style Docker deployment
 
-Use this when deploying the demo to a NAS or another always-on box and putting it behind Cloudflare Tunnel or another reverse proxy.
+Use this when deploying the demo to a NAS (including Synology Container Manager) or another always-on box and putting it behind Cloudflare Tunnel or another reverse proxy.
+
+`docker-compose.yml` is the production stack. Container Manager and similar UIs pick it up automatically — no `-f` flag required.
 
 What this stack does:
 
@@ -221,16 +223,19 @@ cp .env.example .env
 - `ENCRYPTION_KEY` to a generated Fernet key
 - `POSTGRES_PASSWORD` to a real secret
 - `SMTP_*` to a real provider
+- `WEB_PORT` if the default host port `8080` is already taken (e.g. `8099` on a NAS)
 
 3. Start the production stack:
 
 ```bash
-docker compose -f docker-compose.prod.yml up --build -d
+docker compose up --build -d
 ```
+
+In Synology Container Manager, point the project at this repo directory (or paste `docker-compose.yml` when creating the project) and rebuild from the UI.
 
 4. Point your Cloudflare Tunnel or reverse proxy at:
 
-- `http://<nas-or-docker-host>:8080`
+- `http://<nas-or-docker-host>:${WEB_PORT:-8080}`
 
 5. Open the app at your public hostname.
 
@@ -372,7 +377,8 @@ hut-hunter/
 │   ├── public/
 │   └── src/
 ├── docker/
-├── docker-compose.yml
+├── docker-compose.yml          # production / NAS (default)
+├── docker-compose.dev.yml      # local development
 └── Dockerfile
 ```
 
