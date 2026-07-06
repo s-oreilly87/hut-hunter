@@ -154,8 +154,8 @@ export function PartialAvailabilityHelp() {
         Create a new hunt scoped to just that site,
       </span>
       {' '}then hit <span className="font-medium">Book Now</span>{' '}
-      on that hunt. Note: the DOC cart can't mix party sizes across nights, so
-      those hunts need to be split separately too.
+      on that hunt. Note: the booking site's cart can't mix party sizes across
+      nights, so those hunts need to be split separately too.
     </p>
   )
 }

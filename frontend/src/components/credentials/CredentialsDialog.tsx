@@ -96,7 +96,7 @@ function CredentialCard({
             id={`${adapterId}-username`}
             value={draft.username}
             onChange={(event) => setDraft((current) => ({ ...current, username: event.target.value }))}
-            placeholder="DOC login email"
+            placeholder={`${adapterName} login email`}
           />
         </div>
 
@@ -109,7 +109,7 @@ function CredentialCard({
             type="password"
             value={draft.password}
             onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))}
-            placeholder={configured ? 'Enter a new password only if it changed' : 'DOC password'}
+            placeholder={configured ? 'Enter a new password only if it changed' : `${adapterName} password`}
           />
         </div>
       </div>
