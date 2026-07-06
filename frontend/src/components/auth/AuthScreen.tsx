@@ -64,7 +64,7 @@ export function AuthScreen() {
               Monitor hut/campsite availability, get notified fast, and secure reservation holds so you don't lose your spot!
             </p>
             <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-              Hut Hunter keeps customizable availability checks, notifications, and auto-booking in one focused workflow.
+              Hut Hunter keeps customizable availability checks, notifications, and auto-booking in one focused workflow across New Zealand DOC, BC Parks, Ontario Parks, and Parks Canada.
             </p>
           </div>
 
@@ -72,7 +72,7 @@ export function AuthScreen() {
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
               <p className="text-sm font-semibold text-foreground">Availability Checks</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Run regular checks across Great Walks, standard huts, and campsites with your preferred dates, direction, and party setup.
+                Run regular checks across NZ Great Walks and standard huts, plus BC Parks, Ontario Parks, and Parks Canada campsites, with your preferred dates, direction, and party setup.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
@@ -84,10 +84,14 @@ export function AuthScreen() {
             <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-4">
               <p className="text-sm font-semibold text-foreground">Booking Holds and Auto-Booking</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Save your site logins (encrypted at rest) and camper details once, and Hut Hunter can continue through booking to secure a hold at the payment screen.
+                Save your site logins (encrypted at rest) and camper details once, and Hut Hunter can continue through booking to secure a hold at the payment screen on NZ DOC, BC Parks, and Ontario Parks. Parks Canada is watch &amp; notify only — its SSO-only sign-in can't be automated.
               </p>
             </div>
           </div>
+
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground/80">
+            Coming soon: Newfoundland and Yukon parks, plus an AI agent that builds new site adapters automatically.
+          </p>
         </section>
 
         <section className="app-panel flex flex-col justify-center px-6 py-6 sm:px-8 sm:py-8">
