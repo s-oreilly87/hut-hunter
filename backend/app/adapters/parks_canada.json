@@ -1,0 +1,1558 @@
+{
+  "scraped_at": "2026-07-06T00:52:24Z",
+  "source": "reservation.pc.gc.ca",
+  "base_url": "https://reservation.pc.gc.ca",
+  "culture": "en-CA",
+  "booking_categories": [
+    {
+      "booking_category_id": 0,
+      "booking_model": 0,
+      "name": "Campsite"
+    },
+    {
+      "booking_category_id": 1,
+      "booking_model": 0,
+      "name": "Parks Canada Accommodation"
+    },
+    {
+      "booking_category_id": 2,
+      "booking_model": 0,
+      "name": "Group Campsite"
+    },
+    {
+      "booking_category_id": 3,
+      "booking_model": 1,
+      "name": "Guided Hike"
+    },
+    {
+      "booking_category_id": 4,
+      "booking_model": 0,
+      "name": "West Coast Trail"
+    },
+    {
+      "booking_category_id": 5,
+      "booking_model": 5,
+      "name": "Backcountry Campsite"
+    },
+    {
+      "booking_category_id": 7,
+      "booking_model": 5,
+      "name": "Backcountry Zone"
+    },
+    {
+      "booking_category_id": 8,
+      "booking_model": 1,
+      "name": "Parking"
+    },
+    {
+      "booking_category_id": 9,
+      "booking_model": 1,
+      "name": "Shuttle to Lake Louise and Moraine Lake (Banff)"
+    },
+    {
+      "booking_category_id": 10,
+      "booking_model": 1,
+      "name": "Lake O'Hara Day Use Bus (Yoho)"
+    },
+    {
+      "booking_category_id": 11,
+      "booking_model": 1,
+      "name": "DayTripper (Georgian Bay Islands)"
+    },
+    {
+      "booking_category_id": 12,
+      "booking_model": 1,
+      "name": "Fishing (La Mauricie)"
+    },
+    {
+      "booking_category_id": 13,
+      "booking_model": 0,
+      "name": "Long Range Mountains"
+    },
+    {
+      "booking_category_id": 14,
+      "booking_model": 1,
+      "name": "Learn-to Activity"
+    },
+    {
+      "booking_category_id": 15,
+      "booking_model": 1,
+      "name": "Guided Event"
+    },
+    {
+      "booking_category_id": 16,
+      "booking_model": 1,
+      "name": "Chilkoot Trail Day Runner"
+    },
+    {
+      "booking_category_id": 17,
+      "booking_model": 5,
+      "name": "Chilkoot Trail"
+    }
+  ],
+  "parks": [
+    {
+      "resource_location_id": -2147483511,
+      "short_name": "Banff - Castle Mountain",
+      "full_name": "Banff - Castle Mountain",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483648,
+      "root_map_id": -2147483064,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483647,
+      "short_name": "Banff - Johnston Canyon",
+      "full_name": "Banff - Johnston Canyon",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483648,
+      "root_map_id": -2147483629,
+      "resource_category_ids": [
+        -2147483641,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483644,
+      "short_name": "Banff - Trailer Court",
+      "full_name": "Banff - Tunnel Mountain Trailer Court",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483648,
+      "root_map_id": -2147483626,
+      "resource_category_ids": [
+        -2147483641,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483646,
+      "short_name": "Banff - Village 1",
+      "full_name": "Banff - Tunnel Mountain Village 1",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483648,
+      "root_map_id": -2147483622,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483648,
+      "short_name": "Banff - Village 2",
+      "full_name": "Banff - Tunnel Mountain Village 2",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483648,
+      "root_map_id": -2147483611,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483643,
+      "short_name": "Banff - Two Jack Lakeside",
+      "full_name": "Banff - Two Jack Lakeside",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483648,
+      "root_map_id": -2147483606,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483645,
+      "short_name": "Banff - Two Jack Main",
+      "full_name": "Banff - Two Jack Main",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483648,
+      "root_map_id": -2147483602,
+      "resource_category_ids": [
+        -2147483635,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483638,
+      "short_name": "Banff, Kootenay and Yoho - Backcountry",
+      "full_name": "Banff, Kootenay and Yoho - Backcountry",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483646,
+      "root_map_id": -2147483589,
+      "resource_category_ids": [
+        -2147483629,
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483507,
+      "short_name": "Bethune Memorial House",
+      "full_name": "Bethune Memorial House National Historic Site",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483598,
+      "root_map_id": -2147483057,
+      "resource_category_ids": [
+        -2147483620
+      ]
+    },
+    {
+      "resource_location_id": -2147483635,
+      "short_name": "Bruce Peninsula - Backcountry",
+      "full_name": "Bruce Peninsula - Backcountry",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483645,
+      "root_map_id": -2147483582,
+      "resource_category_ids": [
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483636,
+      "short_name": "Bruce Peninsula - Cyprus Lake",
+      "full_name": "Bruce Peninsula - Cyprus Lake",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483645,
+      "root_map_id": -2147483172,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483647
+      ]
+    },
+    {
+      "resource_location_id": -2147483637,
+      "short_name": "Bruce Peninsula - Parking",
+      "full_name": "Bruce Peninsula - Parking",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483645,
+      "root_map_id": -2147483171,
+      "resource_category_ids": [
+        -2147483628
+      ]
+    },
+    {
+      "resource_location_id": -2147483633,
+      "short_name": "Cape Breton Highlands - Backcountry",
+      "full_name": "Cape Breton Highlands - Backcountry",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483643,
+      "root_map_id": -2147483560,
+      "resource_category_ids": [
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483634,
+      "short_name": "Cape Breton Highlands - Broad Cove",
+      "full_name": "Cape Breton Highlands - Broad Cove",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483643,
+      "root_map_id": -2147483170,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483630,
+      "short_name": "Cape Breton Highlands - Cheticamp",
+      "full_name": "Cape Breton Highlands - Cheticamp",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483643,
+      "root_map_id": -2147483568,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483506,
+      "short_name": "Cape Breton Highlands - Guided Hikes",
+      "full_name": "Cape Breton Highlands - Guided Hikes",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483643,
+      "root_map_id": -2147482996,
+      "resource_category_ids": [
+        -2147483638
+      ]
+    },
+    {
+      "resource_location_id": -2147483631,
+      "short_name": "Cape Breton Highlands - Ingonish Beach",
+      "full_name": "Cape Breton Highlands - Ingonish Beach",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483643,
+      "root_map_id": -2147483169,
+      "resource_category_ids": [
+        -2147483645,
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483632,
+      "short_name": "Cape Breton Highlands - Mkwesaqtuk/Cap-Rouge",
+      "full_name": "Cape Breton Highlands - Mkwesaqtuk/Cap-Rouge",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483643,
+      "root_map_id": -2147483569,
+      "resource_category_ids": [
+        -2147483645,
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483503,
+      "short_name": "Cape Breton Highlands - Skyline Trail Parking",
+      "full_name": "Cape Breton Highlands - Skyline Trail Parking",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483643,
+      "root_map_id": -2147483004,
+      "resource_category_ids": [
+        -2147483628
+      ]
+    },
+    {
+      "resource_location_id": -2147483513,
+      "short_name": "Chambly",
+      "full_name": "Chambly",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483600,
+      "root_map_id": -2147483076,
+      "resource_category_ids": [
+        -2147483621
+      ]
+    },
+    {
+      "resource_location_id": -2147483526,
+      "short_name": "Chilkoot Trail",
+      "full_name": "Chilkoot Trail National Historic Site",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483602,
+      "root_map_id": -2147483113,
+      "resource_category_ids": [
+        -2147483619,
+        -2147483618
+      ]
+    },
+    {
+      "resource_location_id": -2147483629,
+      "short_name": "Elk Island",
+      "full_name": "Elk Island",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483642,
+      "root_map_id": -2147483559,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483628,
+      "short_name": "Fathom Five - Flowerpot Island",
+      "full_name": "Fathom Five - Flowerpot Island",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483641,
+      "root_map_id": -2147483554,
+      "resource_category_ids": [
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483534,
+      "short_name": "Forillon - Backcountry",
+      "full_name": "Forillon - Backcountry",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483640,
+      "root_map_id": -2147483539,
+      "resource_category_ids": [
+        -2147483629,
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483627,
+      "short_name": "Forillon - Cap-Bon-Ami",
+      "full_name": "Forillon - Cap-Bon-Ami",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483640,
+      "root_map_id": -2147483551,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483625,
+      "short_name": "Forillon - Des-Rosiers",
+      "full_name": "Forillon - Des-Rosiers",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483640,
+      "root_map_id": -2147483157,
+      "resource_category_ids": [
+        -2147483644,
+        -2147483648,
+        -2147483643,
+        -2147483642
+      ]
+    },
+    {
+      "resource_location_id": -2147483626,
+      "short_name": "Forillon - Petit-Gaspé",
+      "full_name": "Forillon - Petit-Gaspé",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483640,
+      "root_map_id": -2147483156,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483623,
+      "short_name": "Fort Langley",
+      "full_name": "Fort Langley",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483638,
+      "root_map_id": -2147483536,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483620
+      ]
+    },
+    {
+      "resource_location_id": -2147483622,
+      "short_name": "Fort Rodd Hill",
+      "full_name": "Fort Rodd Hill",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483637,
+      "root_map_id": -2147483534,
+      "resource_category_ids": [
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483618,
+      "short_name": "Fundy - Backcountry",
+      "full_name": "Fundy - Backcountry",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483636,
+      "root_map_id": -2147483527,
+      "resource_category_ids": [
+        -2147483645,
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483620,
+      "short_name": "Fundy - Cannontown",
+      "full_name": "Fundy - Cannontown",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483636,
+      "root_map_id": -2147483513,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483617,
+      "short_name": "Fundy - Chignecto",
+      "full_name": "Fundy - Chignecto",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483636,
+      "root_map_id": -2147483531,
+      "resource_category_ids": [
+        -2147483641,
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483621,
+      "short_name": "Fundy - Headquarters",
+      "full_name": "Fundy - Headquarters",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483636,
+      "root_map_id": -2147483529,
+      "resource_category_ids": [
+        -2147483647,
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483616,
+      "short_name": "Fundy - Lakeview",
+      "full_name": "Fundy - Lakeview",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483636,
+      "root_map_id": -2147483514,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483619,
+      "short_name": "Fundy - Point Wolfe",
+      "full_name": "Fundy - Point Wolfe",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483636,
+      "root_map_id": -2147483528,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483615,
+      "short_name": "Georgian Bay Islands - Backcountry",
+      "full_name": "Georgian Bay Islands - Backcountry",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483635,
+      "root_map_id": -2147483153,
+      "resource_category_ids": [
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483614,
+      "short_name": "Georgian Bay Islands - Cedar Spring",
+      "full_name": "Georgian Bay Islands - Cedar Spring",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483635,
+      "root_map_id": -2147482995,
+      "resource_category_ids": [
+        -2147483625,
+        -2147483643,
+        -2147483645,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483613,
+      "short_name": "Georgian Bay Islands - Christian Beach",
+      "full_name": "Georgian Bay Islands - Christian Beach",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483635,
+      "root_map_id": -2147483506,
+      "resource_category_ids": [
+        -2147483645
+      ]
+    },
+    {
+      "resource_location_id": -2147483611,
+      "short_name": "Glacier - Illecillewaet",
+      "full_name": "Glacier - Illecillewaet",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483634,
+      "root_map_id": -2147483029,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483610,
+      "short_name": "Glacier - Loop Brook & Hermit Meadows",
+      "full_name": "Glacier - Loop Brook & Hermit Meadows",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483634,
+      "root_map_id": -2147482997,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483607,
+      "short_name": "Grasslands - Frenchman Valley/West Block",
+      "full_name": "Grasslands - Frenchman Valley/West Block",
+      "region": null,
+      "timezone": "America/Regina",
+      "transaction_location_id": -2147483632,
+      "root_map_id": -2147482999,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643,
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483608,
+      "short_name": "Grasslands - Rock Creek/East Block",
+      "full_name": "Grasslands - Rock Creek/East Block",
+      "region": null,
+      "timezone": "America/Regina",
+      "transaction_location_id": -2147483632,
+      "root_map_id": -2147482998,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648,
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483517,
+      "short_name": "Gros Morne - Backcountry",
+      "full_name": "Gros Morne - Backcountry",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483631,
+      "root_map_id": -2147483083,
+      "resource_category_ids": [
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483606,
+      "short_name": "Gros Morne - Berry Hill",
+      "full_name": "Gros Morne - Berry Hill",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483631,
+      "root_map_id": -2147483152,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643,
+        -2147483645
+      ]
+    },
+    {
+      "resource_location_id": -2147483603,
+      "short_name": "Gros Morne - Green Point",
+      "full_name": "Gros Morne - Green Point",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483631,
+      "root_map_id": -2147483480,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483605,
+      "short_name": "Gros Morne - Lomond",
+      "full_name": "Gros Morne - Lomond",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483631,
+      "root_map_id": -2147483479,
+      "resource_category_ids": [
+        -2147483646,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483519,
+      "short_name": "Gros Morne - Long Range Mountains",
+      "full_name": "Gros Morne - Long Range Mountains",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483631,
+      "root_map_id": -2147483096,
+      "resource_category_ids": [
+        -2147483622
+      ]
+    },
+    {
+      "resource_location_id": -2147483602,
+      "short_name": "Gros Morne - Shallow Bay",
+      "full_name": "Gros Morne - Shallow Bay",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483631,
+      "root_map_id": -2147483482,
+      "resource_category_ids": [
+        -2147483646,
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483604,
+      "short_name": "Gros Morne - Trout River",
+      "full_name": "Gros Morne - Trout River",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483631,
+      "root_map_id": -2147483481,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648,
+        -2147483646
+      ]
+    },
+    {
+      "resource_location_id": -2147483598,
+      "short_name": "Gulf Islands - Backcountry",
+      "full_name": "Gulf Islands - Backcountry",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483630,
+      "root_map_id": -2147483151,
+      "resource_category_ids": [
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483600,
+      "short_name": "Gulf Islands - Prior Centennial",
+      "full_name": "Gulf Islands - Prior Centennial",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483630,
+      "root_map_id": -2147483475,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483599,
+      "short_name": "Gulf Islands - Sidney Spit",
+      "full_name": "Gulf Islands - Sidney Spit",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483630,
+      "root_map_id": -2147483476,
+      "resource_category_ids": [
+        -2147483641,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483601,
+      "short_name": "Gulf Islands - SMONEĆTEN",
+      "full_name": "Gulf Islands - SMONEĆTEN",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483630,
+      "root_map_id": -2147483477,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483639,
+      "short_name": "Icefields Parkway - Rampart Creek",
+      "full_name": "Icefields Parkway - Rampart Creek",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483647,
+      "root_map_id": -2147483648,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483535,
+      "short_name": "Icefields Parkway - Silverhorn Creek",
+      "full_name": "Icefields Parkway - Silverhorn Creek",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483647,
+      "root_map_id": -2147483124,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483531,
+      "short_name": "Internet",
+      "full_name": "Internet",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483629,
+      "root_map_id": null,
+      "resource_category_ids": []
+    },
+    {
+      "resource_location_id": -2147483592,
+      "short_name": "Jasper - Backcountry",
+      "full_name": "Jasper - Backcountry",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483628,
+      "root_map_id": -2147483422,
+      "resource_category_ids": [
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483596,
+      "short_name": "Jasper - Miette",
+      "full_name": "Jasper - Miette",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483628,
+      "root_map_id": -2147483462,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483591,
+      "short_name": "Jasper - Overflow",
+      "full_name": "Jasper - Overflow",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483628,
+      "root_map_id": -2147483403,
+      "resource_category_ids": [
+        -2147483641,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483593,
+      "short_name": "Jasper - Wapiti",
+      "full_name": "Jasper - Wapiti",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483628,
+      "root_map_id": -2147483455,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483597,
+      "short_name": "Jasper - Whistlers",
+      "full_name": "Jasper - Whistlers",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483628,
+      "root_map_id": -2147483454,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483588,
+      "short_name": "Kejimkujik - Backcountry",
+      "full_name": "Kejimkujik - Backcountry",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483627,
+      "root_map_id": -2147483398,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483634
+      ]
+    },
+    {
+      "resource_location_id": -2147483587,
+      "short_name": "Kejimkujik - Jeremy's Bay & Jakes Landing",
+      "full_name": "Kejimkujik - Jeremy's Bay & Jakes Landing",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483627,
+      "root_map_id": -2147483126,
+      "resource_category_ids": [
+        -2147483644,
+        -2147483640,
+        -2147483645,
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483586,
+      "short_name": "Kluane",
+      "full_name": "Kluane",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483626,
+      "root_map_id": -2147483387,
+      "resource_category_ids": [
+        -2147483640,
+        -2147483643,
+        -2147483648,
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483583,
+      "short_name": "Kootenay - Marble Canyon",
+      "full_name": "Kootenay - Marble Canyon",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483625,
+      "root_map_id": -2147483372,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483585,
+      "short_name": "Kootenay - McLeod Meadows",
+      "full_name": "Kootenay - McLeod Meadows",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483625,
+      "root_map_id": -2147483373,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483582,
+      "short_name": "Kootenay - Redstreak",
+      "full_name": "Kootenay - Redstreak",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483625,
+      "root_map_id": -2147483148,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483584,
+      "short_name": "Kootenay - Stanley Glacier",
+      "full_name": "Kootenay - Stanley Glacier",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483625,
+      "root_map_id": -2147483374,
+      "resource_category_ids": [
+        -2147483638
+      ]
+    },
+    {
+      "resource_location_id": -2147483518,
+      "short_name": "Kouchibouguac - Backcountry",
+      "full_name": "Kouchibouguac - Backcountry",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483624,
+      "root_map_id": -2147483101,
+      "resource_category_ids": [
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483580,
+      "short_name": "Kouchibouguac - Côte-à-Fabien",
+      "full_name": "Kouchibouguac - Côte-à-Fabien",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483624,
+      "root_map_id": -2147483147,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483581,
+      "short_name": "Kouchibouguac - South",
+      "full_name": "Kouchibouguac - South",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483624,
+      "root_map_id": -2147483146,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483577,
+      "short_name": "La Mauricie - Canoe-Camping",
+      "full_name": "La Mauricie - Canoe-Camping",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483623,
+      "root_map_id": -2147483364,
+      "resource_category_ids": [
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483520,
+      "short_name": "La Mauricie - Fishing",
+      "full_name": "La Mauricie - Fishing",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483623,
+      "root_map_id": -2147483095,
+      "resource_category_ids": [
+        -2147483623
+      ]
+    },
+    {
+      "resource_location_id": -2147483523,
+      "short_name": "La Mauricie - La Clairière",
+      "full_name": "La Mauricie - La Clairière",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483623,
+      "root_map_id": -2147483107,
+      "resource_category_ids": [
+        -2147483640
+      ]
+    },
+    {
+      "resource_location_id": -2147483575,
+      "short_name": "La Mauricie - Mistagance",
+      "full_name": "La Mauricie - Mistagance",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483623,
+      "root_map_id": -2147483363,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483641,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483573,
+      "short_name": "La Mauricie - Rivière-à-la-Pêche",
+      "full_name": "La Mauricie - Rivière-à-la-Pêche",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483623,
+      "root_map_id": -2147483362,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483524,
+      "short_name": "La Mauricie - Saint-Jean-des-Piles",
+      "full_name": "La Mauricie - Saint-Jean-des-Piles",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483623,
+      "root_map_id": -2147483110,
+      "resource_category_ids": [
+        -2147483646
+      ]
+    },
+    {
+      "resource_location_id": -2147483578,
+      "short_name": "La Mauricie - Wapizagonke",
+      "full_name": "La Mauricie - Wapizagonke",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483623,
+      "root_map_id": -2147483361,
+      "resource_category_ids": [
+        -2147483641,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483571,
+      "short_name": "Lachine Canal",
+      "full_name": "Lachine Canal",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483622,
+      "root_map_id": -2147483330,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483621
+      ]
+    },
+    {
+      "resource_location_id": -2147483508,
+      "short_name": "Lake Louise - Consolation Lakes",
+      "full_name": "Lake Louise - Consolation Lakes",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483647,
+      "root_map_id": -2147483058,
+      "resource_category_ids": [
+        -2147483638
+      ]
+    },
+    {
+      "resource_location_id": -2147483512,
+      "short_name": "Lake Louise - Protection Mountain",
+      "full_name": "Lake Louise - Protection Mountain",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483647,
+      "root_map_id": -2147483065,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483642,
+      "short_name": "Lake Louise - Shuttle",
+      "full_name": "Lake Louise - Shuttle",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483647,
+      "root_map_id": -2147483634,
+      "resource_category_ids": [
+        -2147483627
+      ]
+    },
+    {
+      "resource_location_id": -2147483640,
+      "short_name": "Lake Louise - Soft/Hard-Sided",
+      "full_name": "Lake Louise - Soft/Hard-Sided",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483647,
+      "root_map_id": -2147483026,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483570,
+      "short_name": "Mingan Archipelago",
+      "full_name": "Mingan Archipelago",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483621,
+      "root_map_id": -2147483327,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483640,
+        -2147483643,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483567,
+      "short_name": "Mount Revelstoke - Snowforest",
+      "full_name": "Mount Revelstoke - Snowforest",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483620,
+      "root_map_id": -2147483141,
+      "resource_category_ids": [
+        -2147483632,
+        -2147483642,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483563,
+      "short_name": "Pacific Rim - Broken Group Islands",
+      "full_name": "Pacific Rim - Broken Group Islands",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483619,
+      "root_map_id": -2147483312,
+      "resource_category_ids": [
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483565,
+      "short_name": "Pacific Rim - Green Point",
+      "full_name": "Pacific Rim - Green Point",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483619,
+      "root_map_id": -2147483315,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643,
+        -2147483640,
+        -2147483641
+      ]
+    },
+    {
+      "resource_location_id": -2147483564,
+      "short_name": "Pacific Rim - Keeha Beach",
+      "full_name": "Pacific Rim - Keeha Beach",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483619,
+      "root_map_id": -2147483311,
+      "resource_category_ids": [
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483562,
+      "short_name": "Pacific Rim - West Coast Trail",
+      "full_name": "Pacific Rim - West Coast Trail",
+      "region": null,
+      "timezone": "America/Los_Angeles",
+      "transaction_location_id": -2147483619,
+      "root_map_id": -2147483189,
+      "resource_category_ids": [
+        -2147483637
+      ]
+    },
+    {
+      "resource_location_id": -2147483561,
+      "short_name": "Point Pelee - Camp Henry",
+      "full_name": "Point Pelee - Camp Henry",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483618,
+      "root_map_id": -2147483309,
+      "resource_category_ids": [
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483558,
+      "short_name": "Prince Albert - Beaver Glen",
+      "full_name": "Prince Albert - Beaver Glen",
+      "region": null,
+      "timezone": "America/Regina",
+      "transaction_location_id": -2147483617,
+      "root_map_id": -2147483140,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483559,
+      "short_name": "Prince Albert - Red Deer",
+      "full_name": "Prince Albert - Red Deer",
+      "region": null,
+      "timezone": "America/Regina",
+      "transaction_location_id": -2147483617,
+      "root_map_id": -2147483139,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483557,
+      "short_name": "Prince Edward Island - Cavendish",
+      "full_name": "Prince Edward Island - Cavendish",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483616,
+      "root_map_id": -2147483062,
+      "resource_category_ids": [
+        -2147483646,
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483556,
+      "short_name": "Prince Edward Island - Stanhope",
+      "full_name": "Prince Edward Island - Stanhope",
+      "region": null,
+      "timezone": "America/Halifax",
+      "transaction_location_id": -2147483616,
+      "root_map_id": -2147483136,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483646,
+        -2147483635,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483555,
+      "short_name": "Pukaskwa",
+      "full_name": "Pukaskwa",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483615,
+      "root_map_id": -2147483279,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643,
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483554,
+      "short_name": "Rideau Canal",
+      "full_name": "Rideau Canal",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483614,
+      "root_map_id": -2147483266,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483551,
+      "short_name": "Riding Mountain - Backcountry",
+      "full_name": "Riding Mountain - Backcountry",
+      "region": null,
+      "timezone": "America/Chicago",
+      "transaction_location_id": -2147483613,
+      "root_map_id": -2147483245,
+      "resource_category_ids": [
+        -2147483636,
+        -2147483634
+      ]
+    },
+    {
+      "resource_location_id": -2147483553,
+      "short_name": "Riding Mountain - Wasagaming",
+      "full_name": "Riding Mountain - Wasagaming",
+      "region": null,
+      "timezone": "America/Chicago",
+      "transaction_location_id": -2147483613,
+      "root_map_id": -2147483133,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648,
+        -2147483642,
+        -2147483647
+      ]
+    },
+    {
+      "resource_location_id": -2147483549,
+      "short_name": "Rocky Mountain House",
+      "full_name": "Rocky Mountain House",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483612,
+      "root_map_id": -2147483244,
+      "resource_category_ids": [
+        -2147483620,
+        -2147483648,
+        -2147483645,
+        -2147483631,
+        -2147483630
+      ]
+    },
+    {
+      "resource_location_id": -2147483548,
+      "short_name": "Saint-Ours Canal",
+      "full_name": "Saint-Ours Canal",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483611,
+      "root_map_id": -2147483241,
+      "resource_category_ids": [
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483547,
+      "short_name": "Terra Nova - Backcountry",
+      "full_name": "Terra Nova - Backcountry",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483610,
+      "root_map_id": -2147483131,
+      "resource_category_ids": [
+        -2147483636
+      ]
+    },
+    {
+      "resource_location_id": -2147483546,
+      "short_name": "Terra Nova - Malady Head",
+      "full_name": "Terra Nova - Malady Head",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483610,
+      "root_map_id": -2147483130,
+      "resource_category_ids": [
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483545,
+      "short_name": "Terra Nova - Newman Sound",
+      "full_name": "Terra Nova - Newman Sound",
+      "region": null,
+      "timezone": "America/St_Johns",
+      "transaction_location_id": -2147483610,
+      "root_map_id": -2147483129,
+      "resource_category_ids": [
+        -2147483624,
+        -2147483643,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483544,
+      "short_name": "Thousand Islands",
+      "full_name": "Thousand Islands",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483609,
+      "root_map_id": -2147483216,
+      "resource_category_ids": [
+        -2147483648,
+        -2147483643
+      ]
+    },
+    {
+      "resource_location_id": -2147483543,
+      "short_name": "Trent-Severn Waterway",
+      "full_name": "Trent-Severn Waterway",
+      "region": null,
+      "timezone": "America/New_York",
+      "transaction_location_id": -2147483608,
+      "root_map_id": -2147483204,
+      "resource_category_ids": [
+        -2147483645,
+        -2147483643,
+        -2147483648,
+        -2147483644
+      ]
+    },
+    {
+      "resource_location_id": -2147483542,
+      "short_name": "Waterton Lakes",
+      "full_name": "Waterton Lakes",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483607,
+      "root_map_id": -2147483128,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483528,
+      "short_name": "Waterton Lakes - Backcountry",
+      "full_name": "Waterton Lakes - Backcountry",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483607,
+      "root_map_id": -2147483115,
+      "resource_category_ids": [
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483541,
+      "short_name": "Wood Buffalo",
+      "full_name": "Wood Buffalo",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483606,
+      "root_map_id": -2147483188,
+      "resource_category_ids": [
+        -2147483640,
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483537,
+      "short_name": "Yoho - Guided Hikes",
+      "full_name": "Yoho - Guided Hikes",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483605,
+      "root_map_id": -2147483185,
+      "resource_category_ids": [
+        -2147483638
+      ]
+    },
+    {
+      "resource_location_id": -2147483540,
+      "short_name": "Yoho - Kicking Horse",
+      "full_name": "Yoho - Kicking Horse",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483605,
+      "root_map_id": -2147483183,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483538,
+      "short_name": "Yoho - Lake O'Hara Backcountry",
+      "full_name": "Yoho - Lake O'Hara Backcountry",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483605,
+      "root_map_id": -2147483181,
+      "resource_category_ids": [
+        -2147483632
+      ]
+    },
+    {
+      "resource_location_id": -2147483536,
+      "short_name": "Yoho - Lake O'Hara Bus",
+      "full_name": "Yoho - Lake O'Hara Bus",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483605,
+      "root_map_id": -2147483328,
+      "resource_category_ids": [
+        -2147483626
+      ]
+    },
+    {
+      "resource_location_id": -2147483539,
+      "short_name": "Yoho - Monarch",
+      "full_name": "Yoho - Monarch",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483605,
+      "root_map_id": -2147483030,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    },
+    {
+      "resource_location_id": -2147483522,
+      "short_name": "Yoho - Takakkaw Falls",
+      "full_name": "Yoho - Takakkaw Falls",
+      "region": null,
+      "timezone": "America/Denver",
+      "transaction_location_id": -2147483605,
+      "root_map_id": -2147483106,
+      "resource_category_ids": [
+        -2147483648
+      ]
+    }
+  ]
+}

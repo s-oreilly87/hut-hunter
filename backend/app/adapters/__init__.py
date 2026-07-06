@@ -1,6 +1,7 @@
 from app.adapters.base import BaseAdapter
 from app.adapters.camis_bc_parks import CamisBcParksAdapter
 from app.adapters.camis_ontario_parks import CamisOntarioParksAdapter
+from app.adapters.camis_parks_canada import CamisParksCanadaAdapter
 from app.adapters.doc_great_walk import DocGreatWalkAdapter
 from app.adapters.doc_standard_hut import DocStandardHutAdapter
 
@@ -9,6 +10,7 @@ _REGISTRY: dict[str, type[BaseAdapter]] = {
     DocStandardHutAdapter.adapter_id: DocStandardHutAdapter,
     CamisBcParksAdapter.adapter_id: CamisBcParksAdapter,
     CamisOntarioParksAdapter.adapter_id: CamisOntarioParksAdapter,
+    CamisParksCanadaAdapter.adapter_id: CamisParksCanadaAdapter,
 }
 
 def get_adapter(adapter_id: str) -> BaseAdapter:
