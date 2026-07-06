@@ -14,6 +14,7 @@ from sqlmodel import select
 
 from app.api.auth import get_current_user
 from app.api._route_deps import (
+    LIVE_HOLD_STATUSES,
     _enqueue_browser_close,
     _get_owned_job,
     _latest_cart,
@@ -36,12 +37,52 @@ public_router = APIRouter()
 _PAY_TEMPLATE = (Path(__file__).parent / "templates" / "pay.html").read_text()
 
 
-def _render_pay_page(job_id: str, vnc_config: dict, minutes_left: int) -> str:
+# THR-122: takeover copy shown instead of the normal payment banner when the
+# hold worker parked the session after an unexpected failure rather than a
+# successful hold. Same template, same noVNC iframe/countdown/actions — only
+# the header label and banner copy change (see __HEADER_TITLE__ /
+# __BANNER_HTML__ placeholders in pay.html).
+_PAY_HEADER_TITLE = "Hut Hunter — complete your booking"
+_PAY_BANNER_HTML = (
+    "<strong>Heads up:</strong>\n"
+    "    click <strong>Booking Complete</strong> after you've paid — the job moves\n"
+    "    to <em>Booking Complete</em> and polling stops. Clicking\n"
+    "    <strong>Cancel</strong> closes the browser and moves the job to\n"
+    "    <em>Cancelled</em>; re-trigger it later to resume checking. Closing this\n"
+    "    tab without clicking either leaves the hold in limbo."
+)
+
+_TAKEOVER_HEADER_TITLE = "Hut Hunter — take over this booking"
+_TAKEOVER_BANNER_HTML = (
+    "<strong>Heads up:</strong>\n"
+    "    we hit something unexpected placing this hold and paused here instead\n"
+    "    of losing the session. Take over the booking in the live browser below\n"
+    "    to finish or cancel it yourself. Clicking <strong>Booking Complete</strong>\n"
+    "    after you've paid moves the job to <em>Booking Complete</em>. Clicking\n"
+    "    <strong>Cancel</strong> closes the browser and moves the job to\n"
+    "    <em>Cancelled</em>; re-trigger it later to resume checking. Closing this\n"
+    "    tab without clicking either leaves the hold in limbo."
+)
+
+
+def _render_pay_page(
+    job_id: str,
+    vnc_config: dict,
+    minutes_left: int,
+    *,
+    mode: str = "pay",
+) -> str:
+    header_title, banner_html = (
+        (_TAKEOVER_HEADER_TITLE, _TAKEOVER_BANNER_HTML) if mode == "takeover"
+        else (_PAY_HEADER_TITLE, _PAY_BANNER_HTML)
+    )
     return (
         _PAY_TEMPLATE
         .replace("__JOB_ID__", json.dumps(job_id))
         .replace("__VNC_CONFIG__", json.dumps(vnc_config))
         .replace("__MINUTES_LEFT__", str(minutes_left))
+        .replace("__HEADER_TITLE__", header_title)
+        .replace("__BANNER_HTML__", banner_html)
     )
 
 
@@ -215,7 +256,7 @@ async def assist_live_booking_page(
     if action == "send-text" and not chars:
         raise HTTPException(status_code=400, detail="chars required for send-text")
     job = await _get_owned_job(session, current_user.id, job_id)
-    if job.status != JobStatus.HOLD_PLACED.value:
+    if job.status not in LIVE_HOLD_STATUSES:
         raise HTTPException(status_code=409, detail="No live hold browser for this job")
     await _enqueue_live_browser_assist(job_id, action, redis, chars=chars)
     return {"queued": True, "job_id": job_id, "action": action}
@@ -261,7 +302,11 @@ async def pay(
     current_user: AppUser = Depends(get_current_user),
 ):
     """Pay page — noVNC iframe into the headed Chromium parked on the checkout form.
-    Renders only when the job is HOLD_PLACED and the cart is still live."""
+
+    Renders when the job is HOLD_PLACED (normal payment copy) or, since
+    THR-122, NEEDS_ATTENTION (takeover copy) — both park the session with the
+    same CartSession/live-browser machinery, so this route only needs to
+    branch on which copy variant to show, not on any different data shape."""
     job = await _get_owned_job(session, current_user.id, job_id)
     cart = await _latest_cart(session, job_id)
 
@@ -272,7 +317,7 @@ async def pay(
             "<h1>Hold cancelled</h1><p>This hold was cancelled. Re-trigger the job from the dashboard to resume checking.</p>",
             status_code=410,
         )
-    if job.status != JobStatus.HOLD_PLACED.value:
+    if job.status not in (JobStatus.HOLD_PLACED.value, JobStatus.NEEDS_ATTENTION.value):
         return HTMLResponse(
             f"<h1>No active hold</h1><p>Job status is '<b>{job.status}</b>'. A hold must be placed before there's a payment page to show.</p>",
             status_code=404,
@@ -289,4 +334,5 @@ async def pay(
 
     seconds_left = int((cart_expires_at - utcnow()).total_seconds())
     minutes_left = max(0, seconds_left // 60)
-    return HTMLResponse(_render_pay_page(job_id, _vnc_client_config(request), minutes_left))
+    mode = "takeover" if job.status == JobStatus.NEEDS_ATTENTION.value else "pay"
+    return HTMLResponse(_render_pay_page(job_id, _vnc_client_config(request), minutes_left, mode=mode))

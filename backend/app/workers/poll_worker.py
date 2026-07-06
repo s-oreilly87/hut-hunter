@@ -288,16 +288,22 @@ async def scheduler_tick(ctx: dict) -> dict:
     from sqlmodel import select  # local to avoid top-level circular risk
 
     async with AsyncSessionLocal() as session:
-        # Pass 1 — hold-expiry. Fetch all HOLD_PLACED jobs (should be few)
-        # and check per-job. N+1 is fine at this scale.
+        # Pass 1 — hold-expiry. Fetch all HOLD_PLACED/NEEDS_ATTENTION jobs
+        # (should be few) and check per-job. N+1 is fine at this scale.
+        # THR-122: NEEDS_ATTENTION (parked takeover session after an
+        # unexpected hold failure) expires the same way a successful hold
+        # does — same CartSession row, same close_browser_task — so it's
+        # folded into this pass rather than a parallel one.
         hold_jobs = (await session.execute(
-            select(WatchJob).where(WatchJob.status == JobStatus.HOLD_PLACED.value)
+            select(WatchJob).where(
+                WatchJob.status.in_([JobStatus.HOLD_PLACED.value, JobStatus.NEEDS_ATTENTION.value])
+            )
         )).scalars().all()
         for job in hold_jobs:
             active_cart = await _get_active_cart(session, job.id)
             if active_cart is not None:
                 continue  # hold still live
-            logger.info(f"scheduler_tick: hold expired for {job.id}, cleaning hold artifacts")
+            logger.info(f"scheduler_tick: {job.status} expired for {job.id}, cleaning hold artifacts")
             _remove_hold_artifacts_from_job(job)
             if job.enable_monitoring:
                 job.status = JobStatus.WAITING.value
@@ -317,6 +323,7 @@ async def scheduler_tick(ctx: dict) -> dict:
                 WatchJob.status.not_in([
                     JobStatus.CHECKING.value,
                     JobStatus.HOLD_PLACED.value,
+                    JobStatus.NEEDS_ATTENTION.value,
                     JobStatus.BOOKING_COMPLETE.value,
                     JobStatus.CANCELLED.value,
                 ]),

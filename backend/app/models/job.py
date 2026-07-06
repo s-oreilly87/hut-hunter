@@ -67,10 +67,16 @@ class JobStatus(str, Enum):
          hold in flight          -> CHECKING (unchanged; flips on hold result)
         hold secured             -> CHECKING -> HOLD_PLACED
         hold failed              -> CHECKING -> PAUSED/WAITING
+        hold hit unexpected
+         condition mid-funnel    -> CHECKING -> NEEDS_ATTENTION (browser parked,
+                                    same as a successful hold — see THR-122)
         user Complete            -> HOLD_PLACED -> BOOKING_COMPLETE (terminal)
         user Cancel              -> HOLD_PLACED -> CANCELLED (terminal-ish; trigger resumes)
+        user Cancel              -> NEEDS_ATTENTION -> CANCELLED (same as HOLD_PLACED)
         hold expired             -> HOLD_PLACED -> WAITING/CHECKING (lazy; checked by
                                     /trigger, check_availability, scheduler_tick)
+        takeover expired         -> NEEDS_ATTENTION -> WAITING/CHECKING (same lazy
+                                    expiry path as HOLD_PLACED)
 
     EXPIRED is a virtual/computed status returned by the API when a DOC-adapter
     job's start date has passed 8pm New Zealand time. It is never written to the
@@ -78,11 +84,20 @@ class JobStatus(str, Enum):
 
     WAITING means "monitoring on, between scheduled runs" — the scheduler will
     pick this job up on its next tick once next_check_at is due.
+
+    NEEDS_ATTENTION (THR-122): the hold worker hit an unexpected condition mid-
+    funnel (an unrecognized blocking dialog, a locator timeout — anything the
+    adapter doesn't have specific handling for) rather than a known clean
+    negative outcome. The session is parked exactly like a successful hold
+    (same CartSession row, same noVNC browser kept alive) so the user can open
+    /pay/{job_id} and drive the browser themselves to finish or cancel. Treated
+    identically to HOLD_PLACED everywhere cart expiry/cleanup is checked.
     """
     PAUSED = "paused"
     CHECKING = "checking"
     WAITING = "waiting"
     HOLD_PLACED = "hold_placed"
+    NEEDS_ATTENTION = "needs_attention"
     BOOKING_COMPLETE = "booking_complete"
     CANCELLED = "cancelled"
     EXPIRED = "expired"

@@ -10,6 +10,7 @@ from sqlmodel import select
 
 from app.api.auth import get_current_user
 from app.api._route_deps import (
+    LIVE_HOLD_STATUSES,
     _clamp_interval,
     _delete_job_artifacts,
     _enqueue_browser_close,
@@ -221,10 +222,10 @@ async def delete_job(
     redis=Depends(get_redis),
     current_user: AppUser = Depends(get_current_user),
 ):
-    """Delete a job and its carts. If HOLD_PLACED, also signals the hold
-    worker to close the headed browser (best-effort)."""
+    """Delete a job and its carts. If HOLD_PLACED or NEEDS_ATTENTION, also
+    signals the hold worker to close the headed browser (best-effort)."""
     job = await _get_owned_job(session, current_user.id, job_id)
-    had_live_hold = job.status == JobStatus.HOLD_PLACED.value
+    had_live_hold = job.status in LIVE_HOLD_STATUSES
     _delete_job_artifacts(job)
 
     carts = (await session.execute(
@@ -252,7 +253,8 @@ async def trigger_job(
     current_user: AppUser = Depends(get_current_user),
 ):
     """Manually enqueue a check. Rejects expired jobs and live holds.
-    Expired HOLD_PLACED (no live cart) is lazily flipped back to CHECKING."""
+    Expired HOLD_PLACED/NEEDS_ATTENTION (no live cart) is lazily flipped back
+    to CHECKING."""
     job = await _get_owned_job(session, current_user.id, job_id)
 
     if job.status == JobStatus.BOOKING_COMPLETE.value:
@@ -262,14 +264,14 @@ async def trigger_job(
     if is_job_expired(job.adapter_id, params):
         raise HTTPException(status_code=409, detail="This job's start date has passed — it cannot be triggered.")
 
-    if job.status == JobStatus.HOLD_PLACED.value:
+    if job.status in LIVE_HOLD_STATUSES:
         cart = await _latest_cart(session, job_id)
         if cart and cart.completed_at is None and as_utc(cart.expires_at) > utcnow():
             raise HTTPException(
                 status_code=409,
                 detail=f"A hold is already placed for this job. Finish or cancel it at /pay/{job_id} before triggering again.",
             )
-        logger.info(f"Lazy-expiring HOLD_PLACED for job {job_id} (cart expired)")
+        logger.info(f"Lazy-expiring {job.status} for job {job_id} (cart expired)")
         try:
             await _enqueue_browser_close(job_id, redis)
         except Exception:
@@ -305,7 +307,7 @@ async def book_job(
             ),
         )
 
-    if job.status == JobStatus.HOLD_PLACED.value:
+    if job.status in LIVE_HOLD_STATUSES:
         cart = await _latest_cart(session, job_id)
         if cart and cart.completed_at is None and as_utc(cart.expires_at) > utcnow():
             raise HTTPException(

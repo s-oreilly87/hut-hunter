@@ -215,16 +215,23 @@ async def _set_status(session, job: WatchJob, status: JobStatus) -> None:
     await session.commit()
 
 
+_LIVE_HOLD_STATUS_VALUES = {JobStatus.HOLD_PLACED.value, JobStatus.NEEDS_ATTENTION.value}
+
+
 async def _resolve_lazy_expired_hold(session, job: WatchJob) -> None:
-    """Flip HOLD_PLACED back to CHECKING if no active cart remains.
+    """Flip HOLD_PLACED/NEEDS_ATTENTION back to CHECKING if no active cart remains.
 
     Handles the case where a hold's cart expired without an explicit signal —
     the next poll or hold attempt detects this and resumes checking.
+
+    THR-122: NEEDS_ATTENTION (an unexpected-failure takeover session) parks a
+    cart exactly like HOLD_PLACED, so it expires the same way — reusing this
+    check rather than a parallel one.
     """
-    if job.status != JobStatus.HOLD_PLACED.value:
+    if job.status not in _LIVE_HOLD_STATUS_VALUES:
         return
     if await _get_active_cart(session, job.id) is None:
-        logger.info(f"Lazy-expiring HOLD_PLACED for job {job.id} (no live cart)")
+        logger.info(f"Lazy-expiring {job.status} for job {job.id} (no live cart)")
         _remove_hold_artifacts_from_job(job)
         await _set_status(session, job, JobStatus.CHECKING)
 
