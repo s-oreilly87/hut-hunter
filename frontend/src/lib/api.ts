@@ -42,6 +42,11 @@ export type JobStatus =
   | 'checking'
   | 'waiting'
   | 'hold_placed'
+  // THR-122: hold worker hit an unexpected condition mid-funnel (unrecognized
+  // dialog, locator timeout) and parked the session for manual takeover
+  // instead of tearing it down. Treated like hold_placed everywhere a live
+  // cart/browser is involved — see /pay/{job_id} and cart-expiry handling.
+  | 'needs_attention'
   | 'booking_complete'
   | 'cancelled'
   | 'expired'
@@ -106,6 +111,7 @@ export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
   checking: 'Checking',
   waiting: 'Waiting',
   hold_placed: 'Hold Placed',
+  needs_attention: 'Needs Attention',
   booking_complete: 'Booking Complete',
   cancelled: 'Cancelled',
   expired: 'Expired',

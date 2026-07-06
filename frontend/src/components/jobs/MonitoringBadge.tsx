@@ -46,6 +46,14 @@ export function MonitoringBadge({ job, displayStatus }: Props) {
     )
   }
 
+  if (displayStatus === 'needs_attention') {
+    return (
+      <Badge className="bg-orange-600 hover:bg-orange-600 text-white">
+        Needs attention
+      </Badge>
+    )
+  }
+
   if (displayStatus === 'attempting_hold') {
     return (
       <Badge className="bg-amber-500 hover:bg-amber-500 text-white">

@@ -41,6 +41,7 @@ import {
 import { BookingCompleteSection } from '@/components/jobs/card/BookingCompleteSection'
 import { HoldActiveSection } from '@/components/jobs/card/HoldActiveSection'
 import { HoldExpiredSection } from '@/components/jobs/card/HoldExpiredSection'
+import { NeedsAttentionSection } from '@/components/jobs/card/NeedsAttentionSection'
 import { BookingInProgressSection } from '@/components/jobs/card/BookingInProgressSection'
 import { LatestResultSection } from '@/components/jobs/card/LatestResultSection'
 import { HeaderParamSummary } from '@/components/jobs/shared/HeaderParamSummary'
@@ -178,16 +179,21 @@ export function JobCard({
   // these booleans capture the routing so the JSX below stays readable.
   const isBookingComplete = job.status === 'booking_complete'
   const showHoldActive = job.status === 'hold_placed' && !holdExpired
+  // THR-122: needs_attention parks the session the same way a successful
+  // hold does (same cart, same countdown) — it just renders different copy
+  // pointing at the takeover flow instead of payment.
+  const showNeedsAttention = job.status === 'needs_attention' && !holdExpired
   const isMidBookingFlow =
     displayStatus === 'booking' || displayStatus === 'attempting_hold'
   const isSettled =
     !isBookingComplete
     && !showHoldActive
+    && !showNeedsAttention
     && !holdExpired
     && !isMidBookingFlow
     && displayStatus !== 'checking'
   const showBookingInProgress =
-    !isBookingComplete && !showHoldActive && !holdExpired && isMidBookingFlow
+    !isBookingComplete && !showHoldActive && !showNeedsAttention && !holdExpired && isMidBookingFlow
 
   const hideTrigger =
     isBookingComplete
@@ -277,6 +283,10 @@ export function JobCard({
 
             {showHoldActive && (
               <HoldActiveSection job={job} holdArtifacts={holdArtifacts} />
+            )}
+
+            {showNeedsAttention && (
+              <NeedsAttentionSection job={job} holdArtifacts={holdArtifacts} />
             )}
 
             {holdExpired && (
