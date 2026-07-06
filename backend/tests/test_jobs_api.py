@@ -87,6 +87,63 @@ async def test_create_job_rejects_auto_book_without_credentials(
     assert fake_redis.calls == []
 
 
+async def test_create_job_rejects_auto_book_on_watch_only_adapter(
+    client,
+    fake_redis,
+    make_job_payload,
+):
+    # camis_parks_canada is watch/notify only (IdP-only sign-in — HH-118):
+    # auto_book is rejected before the occupants/credentials checks run.
+    response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(
+            auto_book=True,
+            adapter_id="camis_parks_canada",
+            params={
+                "park": "Banff - Castle Mountain (-2147483647)",
+                "booking_category": "Campsite",
+                "date": "01/01/2099",
+                "nights": 1,
+                "people": "2",
+                "occupants": [],
+            },
+        ),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "This booking site does not support automated booking."
+    assert fake_redis.calls == []
+
+
+async def test_create_job_watch_only_adapter_without_auto_book_succeeds(
+    client,
+    fake_redis,
+    make_job_payload,
+):
+    # Watch/notify still works for IdP-only sites; the read model surfaces
+    # the capability flag so the UI can hide booking affordances.
+    response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(
+            adapter_id="camis_parks_canada",
+            enable_monitoring=False,
+            params={
+                "park": "Banff - Castle Mountain (-2147483647)",
+                "booking_category": "Campsite",
+                "date": "01/01/2099",
+                "nights": 1,
+                "people": "2",
+                "occupants": [],
+            },
+        ),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["supports_automated_booking"] is False
+    assert body["credentials_configured"] is True  # nothing required
+
+
 async def test_create_job_rejects_missing_adapter_specific_occupant_details(
     client,
     fake_redis,

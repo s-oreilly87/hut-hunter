@@ -37,6 +37,14 @@ def adapter_requires_credentials(adapter_id: str) -> bool:
     return bool(cls.requires_credentials)
 
 
+def adapter_supports_automated_booking(adapter_id: str) -> bool:
+    """False for watch/notify-only adapters (IdP-only sign-in — see
+    BaseAdapter.supports_automated_booking). Tolerant of unknown adapters
+    (returns True) so callers validating other fields surface the real error."""
+    cls = _REGISTRY.get(adapter_id)
+    return bool(cls.supports_automated_booking) if cls else True
+
+
 def list_adapters() -> list[dict]:
     return [
         {
@@ -45,6 +53,7 @@ def list_adapters() -> list[dict]:
             "param_fields": [f.__dict__ for f in cls.param_fields()],
             "occupant_fields": [f.__dict__ for f in cls.occupant_fields()],
             "requires_credentials": cls.requires_credentials,
+            "supports_automated_booking": cls.supports_automated_booking,
             # Expiry metadata — None means the adapter has no booking cutoff.
             # Consumed by the frontend for date validation and by the worker
             # to gate availability checks.

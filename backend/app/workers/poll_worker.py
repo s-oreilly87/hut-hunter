@@ -9,7 +9,11 @@ from arq import cron
 from arq.connections import RedisSettings
 
 from app.adapters.base import AvailabilityStatus
-from app.adapters import adapter_requires_credentials, get_adapter
+from app.adapters import (
+    adapter_requires_credentials,
+    adapter_supports_automated_booking,
+    get_adapter,
+)
 from app.core.adapter_credentials import get_user_adapter_credentials
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -126,7 +130,23 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
 
     # --- Enqueue hold or notify ---
     hold_enqueued = False
-    if all_fully_available and auto_book and not _params_have_occupants(params):
+    if all_fully_available and auto_book and not adapter_supports_automated_booking(adapter.adapter_id):
+        # Belt-and-braces: the API rejects auto_book for these adapters, but a
+        # job could predate the capability flag (HH-118). Never enqueue a hold
+        # for a site whose sign-in can't be automated — notify instead.
+        lines = [f"- {r.site}: {r.total_available} spot(s)" for r in fully_available]
+        await dispatch_notification_targets(
+            notification_settings,
+            title="🏕️ Availability Detected!",
+            message=(
+                f"All sites fully available on {params.get('date')}.\n"
+                + "\n".join(lines)
+                + "\n\nThis booking site signs in with third-party SSO, which "
+                "Hut Hunter can't automate — book manually on the site."
+            ),
+            priority=8,
+        )
+    elif all_fully_available and auto_book and not _params_have_occupants(params):
         lines = [f"- {r.site}: {r.total_available} spot(s)" for r in fully_available]
         await dispatch_notification_targets(
             notification_settings,

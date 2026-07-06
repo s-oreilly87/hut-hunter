@@ -98,6 +98,13 @@ class BaseAdapter(ABC):
     cart_inactive_after_minutes: int | None = None
     cart_keepalive_interval_minutes: int | None = None
     requires_credentials: bool = False
+    # Whether Hut Hunter can drive this site's booking flow at all. False for
+    # sites whose sign-in is third-party SSO only (e.g. Parks Canada:
+    # Google/Facebook/GCKey) — Playwright can't automate those IdPs and we
+    # never store IdP passwords, so such adapters are watch/notify only until
+    # session-linking ships (THR-119). Gates auto_book and manual booking in
+    # both the API and the UI.
+    supports_automated_booking: bool = True
 
     def __init__(self) -> None:
         self._artifact_log: list[ArtifactSnapshot] = []

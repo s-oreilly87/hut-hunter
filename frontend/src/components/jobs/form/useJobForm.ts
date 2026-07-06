@@ -174,7 +174,9 @@ export function useJobForm({
     ? selectedOccupantCount
     : enteredPeopleCount
   const canAutoBook =
-    selectedOccupantsPresent
+    // Watch/notify-only sites (third-party-SSO sign-in) never auto-book.
+    (selectedAdapter?.supports_automated_booking ?? true)
+    && selectedOccupantsPresent
     && hasCredentialsForSelectedAdapter
     && selectedOccupantDetailsComplete
   const effectiveAutoBook = autoBook && canAutoBook

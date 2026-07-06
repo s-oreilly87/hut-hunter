@@ -14,9 +14,14 @@ Spike notes (full detail in the Adapter Build Log):
   the westernmost so ``is_expired`` never retires a job before its park-local
   cutoff anywhere in the country. Per-park expiry resolution from the catalog
   is the proper future refinement.
-- Availability decode / drilling verified live (Banff). The interactive hold
-  funnel has NOT been driven here (needs a Parks Canada account) — watch +
-  notify are fully supported; treat auto-book as unproven on this site.
+- **No automated booking (HH-118):** reservation.pc.gc.ca has no native
+  credentials — sign-in is Google / Facebook / GCKey-Interac SSO only, which
+  Playwright cannot drive (and IdP passwords are never stored). So
+  ``supports_automated_booking = False`` (watch/notify only; the availability
+  API is unauthenticated) and ``requires_credentials = False`` (no usable
+  credential to save). Session-linking via noVNC SSO capture is the planned
+  path to enabling booking here (THR-119 — Camis sessions verified to survive
+  transfer into a fresh browser, unlike DOC's).
 """
 
 from __future__ import annotations
@@ -27,13 +32,18 @@ from app.adapters.base_camis import BaseCamisAdapter
 
 
 class CamisParksCanadaAdapter(BaseCamisAdapter):
-    """Availability (+ unproven hold) adapter for Parks Canada (Camis)."""
+    """Watch/notify-only adapter for Parks Canada (Camis) — see module note."""
 
     adapter_id = "camis_parks_canada"
     name = "Parks Canada Camping"
     base_url = "https://reservation.pc.gc.ca"
     culture = "en-CA"
     catalog_path = Path(__file__).with_name("parks_canada.json")
+
+    # IdP-only sign-in (Google/Facebook/GCKey) — no automated booking and no
+    # storable credentials until session-linking ships (THR-118/119).
+    supports_automated_booking = False
+    requires_credentials = False
 
     # Westernmost of the 7 zones Parks Canada spans — see module docstring.
     booking_timezone = "America/Vancouver"

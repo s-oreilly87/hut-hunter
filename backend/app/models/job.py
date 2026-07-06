@@ -101,6 +101,12 @@ def is_job_expired(adapter_id: str, params: dict) -> bool:
     return _adapter_is_expired(adapter_id, params)
 
 
+def _adapter_supports_automated_booking(adapter_id: str) -> bool:
+    """Lazy-import wrapper (same circular-dependency reason as above)."""
+    from app.adapters import adapter_supports_automated_booking  # noqa: PLC0415
+    return adapter_supports_automated_booking(adapter_id)
+
+
 class WatchJob(SQLModel, table=True):
     """A configured availability watch job."""
     __tablename__ = "watch_job"
@@ -180,6 +186,9 @@ class WatchJobRead(SQLModel):
     status: str                        # JobStatus enum value (see above)
     auto_book: bool
     credentials_configured: bool
+    # False for watch/notify-only adapters (IdP-only sign-in, e.g. Parks
+    # Canada). The UI hides auto-book and manual-booking affordances on it.
+    supports_automated_booking: bool = True
     enable_monitoring: bool
     interval_minutes: int
     next_check_at: datetime | None
@@ -269,6 +278,7 @@ class WatchJobRead(SQLModel):
             status=effective_status,
             auto_book=job.auto_book,
             credentials_configured=credentials_configured,
+            supports_automated_booking=_adapter_supports_automated_booking(job.adapter_id),
             enable_monitoring=job.enable_monitoring,
             interval_minutes=job.interval_minutes,
             next_check_at=as_optional_utc(job.next_check_at),
