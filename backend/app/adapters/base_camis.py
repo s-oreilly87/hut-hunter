@@ -691,9 +691,11 @@ class BaseCamisAdapter(BaseAdapter):
     # ------------------------------------------------------------------
 
     # First allowed-equipment option to auto-select when the job doesn't specify
-    # one. Camis blocks Reserve until equipment is chosen; "1 Tent" is the
-    # least-constrained frontcountry option and valid for every campsite.
-    _DEFAULT_EQUIPMENT_RE = re.compile(r"1 tent", re.I)
+    # one. Camis blocks Reserve until equipment is chosen; a single tent is the
+    # least-constrained frontcountry option and valid for every campsite. The
+    # wording is per-site — BC says "1 Tent", Ontario "Single Tent" (HH-105) —
+    # so match both; ``_select_equipment`` falls back to the first option.
+    _DEFAULT_EQUIPMENT_RE = re.compile(r"(?:1|single)\s+tent", re.I)
 
     @classmethod
     def occupant_fields(cls) -> list[OccupantField]:
@@ -737,9 +739,27 @@ class BaseCamisAdapter(BaseAdapter):
         open_loops = self._open_link_ids(data, nights)
         return int(open_loops[0]) if open_loops else query["mapId"]
 
+    async def _dismiss_park_alerts(self, page: Page) -> bool:
+        """Dismiss the "Park Alerts" interstitial modal some parks gate the
+        results page behind (e.g. Algonquin's invasive-species notice — HH-105).
+        It overlays the map and intercepts pointer events, so the whole funnel
+        stalls until it's acknowledged. Best-effort; returns whether one was
+        dismissed. Safe to call repeatedly — no-op when absent."""
+        for name in (r"^\s*Acknowledge\s*$", r"^\s*(OK|I understand|Continue)\s*$"):
+            btn = page.get_by_role("button", name=re.compile(name, re.I))
+            try:
+                if await btn.count() and await btn.first.is_visible():
+                    await btn.first.click()
+                    await page.wait_for_timeout(1_000)
+                    return True
+            except PlaywrightTimeoutError:
+                continue
+        return False
+
     async def _select_equipment(self, page: Page) -> None:
         """Choose an allowed-equipment type in the search form (required before a
-        site can be reserved). Prefers "1 Tent"; falls back to the first option."""
+        site can be reserved). Prefers a single tent; falls back to the first
+        option."""
         field = page.locator("#equipment-field")
         if await field.count() == 0:
             return
@@ -793,6 +813,9 @@ class BaseCamisAdapter(BaseAdapter):
         await page.goto(results_url, wait_until="domcontentloaded", timeout=60_000)
         await self._pass_queue_it(page)
         await page.wait_for_timeout(6_000)
+        # Some parks gate the results page behind a "Park Alerts" modal that
+        # intercepts every click until acknowledged (Algonquin — HH-105).
+        await self._dismiss_park_alerts(page)
         await self.snapshot(page, "camis_results")
 
         # 3. Pick equipment (required) and switch to the list view.
@@ -822,6 +845,8 @@ class BaseCamisAdapter(BaseAdapter):
             )
         await reserve.first.click(force=True)
         await page.wait_for_timeout(6_000)
+        # A Park Alerts modal can re-appear on the way to the review page.
+        await self._dismiss_park_alerts(page)
         await self.snapshot(page, "camis_reservation_messages")
 
         # 5. Review Reservation Details: accept acknowledgements, confirm.

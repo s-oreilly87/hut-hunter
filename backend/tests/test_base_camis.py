@@ -374,9 +374,65 @@ async def test_cart_item_count_parses_badge(text, expected):
     assert await _StubCamisAdapter()._cart_item_count(_FakePage(text)) == expected
 
 
-def test_default_equipment_matches_one_tent():
+def test_default_equipment_matches_single_tent_wordings():
     # Camis blocks Reserve until equipment is chosen; the auto-default must hit
-    # the "1 Tent" option (discovered live in HH-103).
+    # the single-tent option under both site wordings: "1 Tent" (BC, HH-103)
+    # and "Single Tent" (Ontario, HH-105).
     assert _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("1 Tent")
-    assert _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("1 tent")
+    assert _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("Single Tent")
+    assert not _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("2 Tents")
     assert not _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("Van/Camper")
+    assert not _StubCamisAdapter._DEFAULT_EQUIPMENT_RE.search("Trailer or RV up to 18ft (5.5m)")
+
+
+class _FakeButton:
+    def __init__(self, visible: bool):
+        self._visible = visible
+        self.clicked = False
+
+    async def is_visible(self):
+        return self._visible
+
+    async def click(self):
+        self.clicked = True
+
+
+class _FakeLocator:
+    def __init__(self, button: _FakeButton | None):
+        self._button = button
+
+    async def count(self):
+        return 1 if self._button else 0
+
+    @property
+    def first(self):
+        return self._button
+
+
+class _AlertPage:
+    """Page stand-in whose only visible button matches ``visible_name`` (a
+    substring) — models the Park Alerts modal's Acknowledge button."""
+    def __init__(self, visible_name: str | None):
+        self._name = visible_name
+        self.wait_calls = 0
+
+    def get_by_role(self, role, name=None):
+        if role == "button" and self._name is not None and name.search(self._name):
+            return _FakeLocator(_FakeButton(visible=True))
+        return _FakeLocator(None)
+
+    async def wait_for_timeout(self, _ms):
+        self.wait_calls += 1
+
+
+async def test_dismiss_park_alerts_clicks_acknowledge():
+    # Ontario (HH-105): Algonquin gates the results page behind a Park Alerts
+    # modal whose Acknowledge button must be clicked or the funnel stalls.
+    page = _AlertPage("Acknowledge")
+    assert await _StubCamisAdapter()._dismiss_park_alerts(page) is True
+
+
+async def test_dismiss_park_alerts_noop_when_absent():
+    # BC has no such modal — must be a silent no-op, not an error.
+    page = _AlertPage(None)
+    assert await _StubCamisAdapter()._dismiss_park_alerts(page) is False

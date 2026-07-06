@@ -144,8 +144,14 @@ Note: `/api/dateschedule/resourcelocationid` is the operating-**season** calenda
 | Localization cultures | `en-CA` only | `en-CA` **and** `fr-CA` (bilingual) |
 | Booking categories | Campsite-led | includes `Seasonal`, `Group Campsite` |
 | Region tree / catalog data | BC parks | Ontario parks |
+| Single-tent equipment label | `"1 Tent"` | `"Single Tent"` |
+| Park Alerts interstitial | not seen | modal with **Acknowledge** on some parks (e.g. Algonquin invasive-species notice) — overlays the results map and intercepts clicks |
 
-**Design conclusion:** the split is clean. `BaseCamisAdapter` owns the flow, endpoints, Queue-it handling, and login. Subclasses set `base_url`, catalog path, and (for Ontario) tolerate the `fr-CA` localization arrays. Ontario's `bookingModel: 2` / `Seasonal` category suggests some categories won't map to the nightly-site model — the subclass/catalog should filter to the bookable-night categories Hut Hunter targets.
+**Hold funnel deltas confirmed live (HH-105).** Only two, both absorbed into `BaseCamisAdapter`:
+1. **Equipment wording** — `_DEFAULT_EQUIPMENT_RE` matches both `1 Tent` and `Single Tent`.
+2. **Park Alerts modal** — `_dismiss_park_alerts` clicks *Acknowledge* after the results page loads and again after Reserve. Some parks gate the results page behind it; it silently no-ops where absent (BC). Everything else (login, list-view funnel, `POST /api/cart/commit`, reservationmessages → confirm → cart → checkout, the 15-minute hold window, badge-based verification) transferred **unchanged**.
+
+**Design conclusion:** the split is clean. `BaseCamisAdapter` owns the flow, endpoints, Queue-it handling, and login. Subclasses set `base_url`, catalog path, culture, and timezone — nothing else (HH-104/105 proved it). Ontario's `bookingModel: 2` / `Seasonal` category suggests some categories won't map to the nightly-site model — the subclass/catalog should filter to the bookable-night categories Hut Hunter targets.
 
 ---
 
