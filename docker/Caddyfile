@@ -36,11 +36,12 @@
             reverse_proxy hold_worker:6080
         }
 
+        # WebSocket endpoint for noVNC. Caddy v2 proxies WebSocket upgrades
+        # natively — do NOT set Connection/Upgrade via header_up; they are
+        # hop-by-hop headers and manual overrides can break the upgrade
+        # handshake (THR-125).
         handle /websockify* {
-            reverse_proxy hold_worker:6080 {
-                header_up Connection {>Connection}
-                header_up Upgrade {>Upgrade}
-            }
+            reverse_proxy hold_worker:6080
         }
 
         handle /app/* {
@@ -52,6 +53,21 @@
         }
 
         handle /vendor/* {
+            reverse_proxy hold_worker:6080
+        }
+
+        # noVNC 1.4 fetches these relative to /vnc.html; without these
+        # handles they fall through to the SPA fallback and return
+        # index.html, producing JSON-parse console errors (THR-125).
+        handle /defaults.json {
+            reverse_proxy hold_worker:6080
+        }
+
+        handle /mandatory.json {
+            reverse_proxy hold_worker:6080
+        }
+
+        handle /package.json {
             reverse_proxy hold_worker:6080
         }
 
