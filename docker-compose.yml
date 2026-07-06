@@ -17,6 +17,13 @@ x-app: &app
     REDIS_URL: redis://redis:6379
     SMTP_HOST: mailpit
     SMTP_PORT: 1025
+    # Mailpit speaks plaintext SMTP without AUTH; .env carries the prod
+    # (implicit-TLS + login) values, so TLS must be off and the credentials
+    # blank (notify.py only calls smtp.login when both are non-empty).
+    SMTP_USE_SSL: "false"
+    SMTP_USE_STARTTLS: "false"
+    SMTP_USERNAME: ""
+    SMTP_PASSWORD: ""
   # Bind-mount the backend source into /app so code changes don't require
   # an image rebuild. The image still has a COPY of the code baked in, so
   # removing this mount (e.g. in prod) still gives a self-contained image.
@@ -98,6 +105,10 @@ services:
       REDIS_URL: redis://redis:6379
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
+      SMTP_USE_SSL: "false"
+      SMTP_USE_STARTTLS: "false"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
       BROWSER_DISPLAY: ":99"
       DISPLAY: ":99"
       X11VNC_PORT: 5900
