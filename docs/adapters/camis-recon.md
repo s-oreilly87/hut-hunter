@@ -182,11 +182,11 @@ Note: `/api/dateschedule/resourcelocationid` is the operating-**season** calenda
 
 ---
 
-## 7. Open items to resolve in M2 (carry into the build log)
+## 7. Open items (final status — project complete through M5)
 
-1. Exact **cart hold / expiry duration** — **still OPEN after HH-100:** no timer surfaces before payment; measure during the live E2E hold (HH-103). Not assumed to be DOC's 25 min.
-2. **Occupant fields** — **partially resolved (HH-100):** Camis takes party/equipment at search + a single permit-holder name at checkout; `occupant_fields()` exposes `permit_holder`. Full checkout form finalized at E2E (HH-103).
-3. **Login timing** — **RESOLVED (HH-100):** login is a dedicated `/login` route (consent gate + `#email`/`#password` + Enter → `POST /api/auth/login`), required before holding (cart is account-scoped).
+1. ~~Exact **cart hold / expiry duration**~~ — **RESOLVED (HH-103/105): 15 minutes**, measured on a live BC hold and stated verbatim on both provinces' cart pages (see §3). Not DOC's 25.
+2. ~~**Occupant fields**~~ — **RESOLVED (HH-100/103):** party/equipment at search + a single permit-holder at checkout; `occupant_fields()` exposes `permit_holder` and the funnel was driven to payment live on both provinces.
+3. ~~**Login timing**~~ — **RESOLVED (HH-100):** dedicated `/login` route (consent gate + `#email`/`#password` + Enter → `POST /api/auth/login`), required before holding. **Caveat (HH-118):** Parks Canada has *no* native login — Google/Facebook/GCKey SSO only, so it's watch/notify-only (`supports_automated_booking = False`) pending session-linking (THR-119; Camis sessions verified to survive transfer into a fresh browser, unlike DOC's).
 4. ~~Exact query params for the availability endpoint~~ — **RESOLVED (HH-99):** `GET /api/availability/map` (see §3). `/api/dateschedule` turned out to be season metadata, not live availability.
 5. ~~Map-tree traversal to enumerate parks~~ — **RESOLVED (HH-101):** the visual `/api/maps` tree dead-ends; use the flat `GET /api/resourcelocation` instead.
-6. Behaviour of the **Queue-it handshake** under Playwright, headless vs headed (HH-97 follow-through in M2) — `fill_form` now calls `_pass_queue_it`; still to be exercised against a live queue.
+6. Behaviour of the **Queue-it handshake** under Playwright, headless vs headed — `_pass_queue_it` is wired throughout but no live queue was encountered during any E2E run; remains to be exercised on a launch morning.
