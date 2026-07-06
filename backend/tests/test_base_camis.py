@@ -436,3 +436,178 @@ async def test_dismiss_park_alerts_noop_when_absent():
     # BC has no such modal — must be a silent no-op, not an error.
     page = _AlertPage(None)
     assert await _StubCamisAdapter()._dismiss_park_alerts(page) is False
+
+
+# ---------------------------------------------------------------------------
+# THR-122 — cookie-consent gate can render later than a fixed delay allows,
+# blocking #email and timing out Locator.fill(). _accept_cookie_consent and
+# _login_if_prompted must race consent-vs-#email instead of guessing a delay.
+# ---------------------------------------------------------------------------
+
+class _ConsentLocator:
+    """Stand-in for the combined ``page.locator("#a, #b").first`` consent
+    locator. ``visible_after`` polls is when it starts reporting visible;
+    ``None`` means it never appears."""
+
+    def __init__(self, visible_after: int | None):
+        self.visible_after = visible_after
+        self.polls = 0
+        self.clicked = False
+
+    async def count(self):
+        return 1 if self.visible_after is not None else 0
+
+    async def is_visible(self):
+        self.polls += 1
+        if self.visible_after is None:
+            return False
+        return self.polls >= self.visible_after
+
+    async def click(self):
+        self.clicked = True
+
+    @property
+    def first(self):
+        return self
+
+
+class _EmailLocator:
+    """Stand-in for ``page.locator("#email")``. ``visible_after`` is the poll
+    count at which ``is_visible()`` flips true; becomes true immediately once
+    ``unblocked`` is set (simulates the consent click un-covering the form)."""
+
+    def __init__(self, visible_after: int | None = None):
+        self.visible_after = visible_after
+        self.polls = 0
+        self.unblocked = False
+        self.wait_for_calls = 0
+
+    async def is_visible(self):
+        self.polls += 1
+        if self.unblocked:
+            return True
+        if self.visible_after is None:
+            return False
+        return self.polls >= self.visible_after
+
+    async def wait_for(self, state="visible", timeout=None):
+        self.wait_for_calls += 1
+        if self.unblocked or self.visible_after is not None:
+            return
+        raise __import__("playwright.async_api", fromlist=["TimeoutError"]).TimeoutError("timeout")
+
+
+class _ConsentRacePage:
+    """Page stand-in for the consent/#email race. Only implements what
+    ``_accept_cookie_consent`` / ``_login_if_prompted`` touch."""
+
+    def __init__(self, consent: _ConsentLocator, email: _EmailLocator):
+        self._consent = consent
+        self._email = email
+        self.snapshots: list[str] = []
+
+    def locator(self, selector):
+        if selector == BaseCamisAdapter._EMAIL_SELECTOR:
+            return self._email
+        return self._consent
+
+    async def wait_for_timeout(self, _ms):
+        pass
+
+
+async def test_accept_cookie_consent_returns_immediately_if_email_already_visible():
+    # No banner at all — should not click anything, should not raise.
+    consent = _ConsentLocator(visible_after=None)
+    email = _EmailLocator(visible_after=1)
+    page = _ConsentRacePage(consent, email)
+    adapter = _StubCamisAdapter()
+    await adapter._accept_cookie_consent(page, timeout_ms=2_000)
+    assert consent.clicked is False
+
+
+async def test_accept_cookie_consent_waits_past_old_fixed_delay():
+    # Regression for THR-122: banner renders "late" — well past what the old
+    # fixed 1.5s delay would have covered (modelled here as needing several
+    # polls before it's visible). The bounded race must still catch it.
+    consent = _ConsentLocator(visible_after=8)
+    email = _EmailLocator(visible_after=None)
+
+    async def unblock_after_click():
+        email.unblocked = True
+
+    class _Page(_ConsentRacePage):
+        pass
+
+    page = _Page(consent, email)
+    orig_click = consent.click
+
+    async def click_and_unblock():
+        await orig_click()
+        await unblock_after_click()
+
+    consent.click = click_and_unblock  # type: ignore[method-assign]
+
+    adapter = _StubCamisAdapter()
+    await adapter._accept_cookie_consent(page, timeout_ms=5_000)
+    assert consent.clicked is True
+    assert email.unblocked is True
+
+
+async def test_accept_cookie_consent_raises_and_snapshots_when_nothing_appears():
+    # Neither the consent button nor #email ever shows up (e.g. a changed
+    # selector) — must fail loudly with a snapshot, not silently return.
+    consent = _ConsentLocator(visible_after=None)
+    email = _EmailLocator(visible_after=None)
+    page = _ConsentRacePage(consent, email)
+    adapter = _StubCamisAdapter()
+
+    snapshots = []
+
+    async def fake_snapshot(_page, label):
+        snapshots.append(label)
+        return f"artifacts/{label}"
+
+    adapter.snapshot = fake_snapshot  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError, match="did not become visible"):
+        await adapter._accept_cookie_consent(page, timeout_ms=500)
+    assert snapshots == ["camis_consent_blocked"]
+
+
+async def test_login_if_prompted_detects_consent_banner_not_just_email():
+    # Before THR-122 this waited on #email directly and would time out while
+    # a banner sat on top of it. Now the consent banner itself should be
+    # enough to recognize "the login form is present" and trigger _login.
+    consent = _ConsentLocator(visible_after=1)
+    email = _EmailLocator(visible_after=None)
+    page = _ConsentRacePage(consent, email)
+    adapter = _StubCamisAdapter()
+
+    called = {}
+
+    async def fake_login(_page):
+        called["yes"] = True
+
+    adapter._login = fake_login  # type: ignore[method-assign]
+
+    result = await adapter._login_if_prompted(page, timeout_ms=2_000)
+    assert result is True
+    assert called.get("yes") is True
+
+
+async def test_login_if_prompted_false_when_nothing_present():
+    consent = _ConsentLocator(visible_after=None)
+    email = _EmailLocator(visible_after=None)
+    page = _ConsentRacePage(consent, email)
+    adapter = _StubCamisAdapter()
+
+    called = {}
+
+    async def fake_login(_page):
+        called["yes"] = True
+
+    adapter._login = fake_login  # type: ignore[method-assign]
+
+    result = await adapter._login_if_prompted(page, timeout_ms=500)
+    assert result is False
+    assert "yes" not in called
