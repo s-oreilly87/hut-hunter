@@ -9,9 +9,15 @@ from typing import cast
 from arq import cron
 from arq.connections import RedisSettings
 
-from app.adapters.base import AvailabilityStatus, BookingResult, UnexpectedHoldFailure
+from app.adapters.base import (
+    AvailabilityStatus,
+    BookingResult,
+    CredentialVerificationResult,
+    UnexpectedHoldFailure,
+    VerificationStatus,
+)
 from app.adapters import adapter_requires_credentials, get_adapter
-from app.core.adapter_credentials import get_user_adapter_credentials
+from app.core.adapter_credentials import get_adapter_credential_record, get_user_adapter_credentials
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notification_settings import get_user_notification_settings_secret
@@ -240,6 +246,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             return {"error": str(e)}
 
         credentials = await get_user_adapter_credentials(session, job.user_id or "", job.adapter_id)
+        credential_record = await get_adapter_credential_record(session, job.user_id or "", job.adapter_id)
         notification_settings = await get_user_notification_settings_secret(session, job.user_id or "")
         adapter.set_login_credentials(credentials)
 
@@ -263,12 +270,21 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     # path. THR-122.
     needs_attention_url: str | None = None
 
-    if adapter_requires_credentials(job.adapter_id) and credentials is None:
-        logger.warning("Hold skipped for job %s: no stored credentials for adapter %s", job_id, job.adapter_id)
+    # THR-123: a credential that failed verification is treated the same as
+    # no credential at all — a known-bad login is never worth burning a hold
+    # attempt on.
+    credential_failed = credential_record is not None and credential_record.is_verified is False
+    if adapter_requires_credentials(job.adapter_id) and (credentials is None or credential_failed):
+        if credential_failed:
+            logger.warning("Hold skipped for job %s: credential failed verification for adapter %s", job_id, job.adapter_id)
+            message = "The stored sign-in for this adapter failed verification — fix it in Booking Site Sign-Ins before booking."
+        else:
+            logger.warning("Hold skipped for job %s: no stored credentials for adapter %s", job_id, job.adapter_id)
+            message = "Stored booking credentials are missing for this adapter."
         booking = BookingResult(
             success=False,
             held=False,
-            message="Stored booking credentials are missing for this adapter.",
+            message=message,
         )
 
     if booking is None:
@@ -396,13 +412,18 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
         )
     else:
         msg = booking.message if booking else "Hold not attempted"
-        if booking and "Stored booking credentials are missing" in msg:
+        if booking and (credentials is None or credential_failed) and adapter_requires_credentials(job.adapter_id):
+            blocked_reason = (
+                "the saved sign-in for this adapter failed verification"
+                if credential_failed else
+                "this adapter has no stored booking credentials"
+            )
             await dispatch_notification_targets(
                 notification_settings,
                 title="🏕️ Booking blocked",
                 message=(
                     f"Availability was ready to book on {params.get('date')}, "
-                    "but this adapter has no stored booking credentials."
+                    f"but {blocked_reason}."
                 ),
                 priority=8,
             )
@@ -454,6 +475,50 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
         ),
         "message": booking.message if booking else ("Needs attention" if needs_attention_url else ""),
     }
+
+
+async def verify_credentials_task(ctx: dict, user_id: str, adapter_id: str) -> dict:
+    """Run a login-only check on a stored credential and persist the outcome.
+
+    THR-123: enqueued both automatically (on credential save) and on-demand
+    (the "Verify now"/"Re-verify" button). Runs on the hold queue/display
+    like attempt_hold_task since it needs the same Playwright + headed
+    browser stack, but never registers a live browser — the browser always
+    closes at the end.
+    """
+    async with AsyncSessionLocal() as session:
+        record = await get_adapter_credential_record(session, user_id, adapter_id)
+        if record is None:
+            logger.info(f"verify_credentials_task: no stored credential for {user_id}/{adapter_id}")
+            return {"adapter_id": adapter_id, "status": "inconclusive", "message": "No stored credentials"}
+        credentials = await get_user_adapter_credentials(session, user_id, adapter_id)
+
+    try:
+        adapter = get_adapter(adapter_id)
+    except ValueError as e:
+        logger.error(f"verify_credentials_task: unknown adapter {adapter_id}: {e}")
+        return {"adapter_id": adapter_id, "status": "inconclusive", "message": str(e)}
+
+    adapter.set_login_credentials(credentials)
+
+    try:
+        async with _browser_page(headless=False, display=settings.browser_display) as (page, _keep_alive):
+            result = await adapter.verify_credentials(page)
+    except Exception as e:
+        logger.error(f"verify_credentials_task error for {adapter_id}: {e}", exc_info=True)
+        result = CredentialVerificationResult(VerificationStatus.INCONCLUSIVE, f"Verification task error: {e}")
+
+    if result.status in (VerificationStatus.VERIFIED, VerificationStatus.FAILED):
+        async with AsyncSessionLocal() as session:
+            record = await get_adapter_credential_record(session, user_id, adapter_id)
+            if record is not None:
+                record.is_verified = result.status == VerificationStatus.VERIFIED
+                record.verified_at = utcnow()
+                session.add(record)
+                await session.commit()
+
+    logger.info(f"verify_credentials_task {adapter_id}: {result.status.value} — {result.message}")
+    return {"adapter_id": adapter_id, "status": result.status.value, "message": result.message}
 
 
 async def close_browser_task(ctx: dict, job_id: str) -> dict:
@@ -544,6 +609,7 @@ class HoldWorkerSettings:
         assist_live_browser_task,
         snapshot_complete_task,
         keep_live_carts_active,
+        verify_credentials_task,
     ]
     cron_jobs = [
         cron(

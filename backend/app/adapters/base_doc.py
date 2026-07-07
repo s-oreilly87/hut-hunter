@@ -16,7 +16,12 @@ from datetime import datetime, time, timedelta
 
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
-from app.adapters.base import BaseAdapter, BookingResult
+from app.adapters.base import (
+    BaseAdapter,
+    BookingResult,
+    CredentialVerificationResult,
+    VerificationStatus,
+)
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.job import utcnow
@@ -132,6 +137,59 @@ class BaseDOCAdapter(BaseAdapter):
         await page.wait_for_load_state("networkidle", timeout=15_000)
 
         return True
+
+    def _login_check_url(self) -> str:
+        """URL to navigate to for verify_credentials.
+
+        Defaults to base_url, which works for adapters like
+        DocGreatWalkAdapter where it's a plain URL. Adapters whose base_url
+        is a per-site template (e.g. DocStandardHutAdapter's
+        {park_id}/{facility_id}) override this with a park-agnostic landing
+        page — the top-nav login button is global, not park-specific.
+        """
+        return self.base_url
+
+    async def verify_credentials(self, page: Page) -> CredentialVerificationResult:
+        """Drive just the sign-in steps to check the bound credentials.
+
+        THR-123: unlike Camis, the DOC login modal doesn't sit behind a
+        standalone /login page — it's normally reached mid-funnel after
+        selecting real nights and clicking Reserve. But the top-nav
+        "#login-btn" opens the same modal directly, so this drives that
+        instead of faking a booking attempt (which would carry live-site
+        side effects and depend on availability existing).
+        """
+        credentials = self._login_credentials
+        if credentials is None:
+            return CredentialVerificationResult(
+                VerificationStatus.INCONCLUSIVE, "No stored credentials to verify"
+            )
+
+        try:
+            await page.goto(self._login_check_url(), wait_until="domcontentloaded", timeout=60_000)
+            await page.locator("#login-btn").click()
+        except Exception as e:
+            await self.snapshot(page, "doc_verify_inconclusive")
+            return CredentialVerificationResult(
+                VerificationStatus.INCONCLUSIVE, f"Could not open the login form: {e}"
+            )
+
+        try:
+            logged_in = await self._login_if_prompted(page)
+        except RuntimeError as e:
+            await self.snapshot(page, "doc_verify_failed")
+            return CredentialVerificationResult(VerificationStatus.FAILED, str(e))
+        except Exception as e:
+            await self.snapshot(page, "doc_verify_inconclusive")
+            return CredentialVerificationResult(
+                VerificationStatus.INCONCLUSIVE, f"Verification could not complete: {e}"
+            )
+
+        if logged_in:
+            return CredentialVerificationResult(VerificationStatus.VERIFIED, "Signed in successfully")
+        return CredentialVerificationResult(
+            VerificationStatus.INCONCLUSIVE, "Login modal did not appear after clicking Log In"
+        )
 
     # ------------------------------------------------------------------
     # Occupant details form (shared selector pattern across both sites)

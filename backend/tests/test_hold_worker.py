@@ -253,6 +253,33 @@ async def test_known_clean_negative_outcome_still_uses_existing_hold_failed_path
     assert job.id not in hold_worker.LIVE_BROWSERS
 
 
+async def test_hold_skipped_when_credential_failed_verification(
+    monkeypatch, seed_job, seed_credential, fetch_job, notifications,
+):
+    """THR-123: a credential that failed its login check is treated the same
+    as no credential at all — never worth burning a hold attempt on a
+    known-bad login. attempt_hold gates on this before the browser opens, so
+    hold_effect being a success here proves the gate short-circuited first."""
+    adapter = _FakeAdapter(
+        hold_effect=BookingResult(success=True, held=True, reservation_url="http://testserver/pay/x", message="ok"),
+    )
+    monkeypatch.setattr(hold_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(hold_worker, "adapter_requires_credentials", lambda adapter_id: True)
+    monkeypatch.setattr(hold_worker, "_browser_page", _fake_browser_page)
+
+    await seed_credential(adapter_id="doc_great_walk", is_verified=False)
+    job = await seed_job(adapter_id="doc_great_walk", status=JobStatus.CHECKING.value, enable_monitoring=False)
+
+    result = await hold_worker.attempt_hold_task({}, job.id)
+
+    assert result["status"] == "hold_failed"
+    assert "failed verification" in result["message"]
+
+    refreshed = await fetch_job(job.id)
+    assert refreshed.status == JobStatus.PAUSED.value
+    assert job.id not in hold_worker.LIVE_BROWSERS
+
+
 async def test_successful_hold_is_unaffected_by_needs_attention_branch(
     monkeypatch, seed_job, fetch_job, notifications, list_carts,
 ):

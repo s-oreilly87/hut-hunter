@@ -52,6 +52,26 @@ async def get_user_configured_adapter_ids(
     return {adapter_id for adapter_id in result.scalars().all() if adapter_id}
 
 
+async def get_user_failed_adapter_ids(
+    session: AsyncSession,
+    user_id: str,
+) -> set[str]:
+    """Adapter IDs whose stored credential failed verification (THR-123).
+
+    A failed credential is treated as unusable everywhere
+    ``credentials_configured`` is consumed — same UX as no credentials at
+    all — so this is meant to be subtracted from
+    ``get_user_configured_adapter_ids``'s result, not used standalone.
+    """
+    result = await session.execute(
+        select(AdapterCredential.adapter_id).where(
+            AdapterCredential.user_id == user_id,
+            AdapterCredential.is_verified.is_(False),
+        )
+    )
+    return {adapter_id for adapter_id in result.scalars().all() if adapter_id}
+
+
 async def upsert_user_adapter_credentials(
     session: AsyncSession,
     *,
@@ -82,6 +102,11 @@ async def upsert_user_adapter_credentials(
         if cleaned_password:
             record.encrypted_password = encrypt(cleaned_password)
         record.updated_at = now
+        # THR-123: any change to the sign-in resets verification — a stale
+        # is_verified=True would otherwise keep gating holds open on a
+        # credential nobody has actually re-checked yet.
+        record.is_verified = None
+        record.verified_at = None
 
     session.add(record)
     await session.commit()

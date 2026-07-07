@@ -34,6 +34,7 @@ import {
 import { JobCardHeader } from '@/components/jobs/card/JobCardHeader'
 import { MonitoringSection } from '@/components/jobs/card/MonitoringSection'
 import {
+  FailedCredentialsNotice,
   ManualBookingOnlyNotice,
   MissingCredentialsNotice,
   MissingOccupantsNotice,
@@ -172,7 +173,11 @@ export function JobCard({
   // replaces them.
   const manualBookingOnly = !job.supports_automated_booking
   const missingOccupants = !jobHasOccupants(job) && isLive && !manualBookingOnly
-  const missingCredentials = !job.credentials_configured && isLive && !manualBookingOnly
+  // credentials_configured is false for both "no credential" and "failed
+  // verification" (THR-123) — credentials_failed disambiguates so each gets
+  // its own notice.
+  const missingCredentials = !job.credentials_configured && !job.credentials_failed && isLive && !manualBookingOnly
+  const failedCredentials = job.credentials_failed && isLive && !manualBookingOnly
 
   // ── Section gating ──
   // The body sections are mutually exclusive on `job.status` / displayStatus;
@@ -267,6 +272,7 @@ export function JobCard({
             {manualBookingOnly && isLive && <ManualBookingOnlyNotice siteName={adapter?.name} />}
             {missingOccupants && <MissingOccupantsNotice />}
             {missingCredentials && <MissingCredentialsNotice />}
+            {failedCredentials && <FailedCredentialsNotice />}
 
             <MonitoringSection
               job={job}

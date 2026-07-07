@@ -257,7 +257,13 @@ class WatchJobRead(SQLModel):
     params: dict                       # deserialize back to dict for response
     status: str                        # JobStatus enum value (see above)
     auto_book: bool
+    # THR-123: "usable" — a credential row exists AND it hasn't failed
+    # verification. True when the adapter doesn't require credentials at all.
     credentials_configured: bool
+    # THR-123: True when a stored credential exists but failed its login
+    # check — distinct from "no credential at all" so the UI can show the
+    # right notice (see JobBlockingNotices.FailedCredentialsNotice).
+    credentials_failed: bool = False
     # False for watch/notify-only adapters (IdP-only sign-in, e.g. Parks
     # Canada). The UI hides auto-book and manual-booking affordances on it.
     supports_automated_booking: bool = True
@@ -287,6 +293,7 @@ class WatchJobRead(SQLModel):
         *,
         cart_expires_at: datetime | None = None,
         credentials_configured: bool = True,
+        credentials_failed: bool = False,
     ) -> "WatchJobRead":
         raw = json.loads(job.last_result) if job.last_result else None
         if isinstance(raw, list):
@@ -355,6 +362,7 @@ class WatchJobRead(SQLModel):
             status=effective_status,
             auto_book=job.auto_book,
             credentials_configured=credentials_configured,
+            credentials_failed=credentials_failed,
             supports_automated_booking=_adapter_supports_automated_booking(job.adapter_id),
             enable_monitoring=job.enable_monitoring,
             interval_minutes=job.interval_minutes,

@@ -56,6 +56,26 @@ class BookingResult:
     message: str = ""
 
 
+class VerificationStatus(str, Enum):
+    """Outcome of BaseAdapter.verify_credentials (THR-123).
+
+    VERIFIED/FAILED both mean the login check actually ran to completion —
+    the credential is either usable or known-bad. INCONCLUSIVE means the
+    check itself couldn't complete (queue-it, consent gate, network) and
+    says nothing about whether the credential works — callers must not
+    treat it as a failure.
+    """
+    VERIFIED = "verified"
+    FAILED = "failed"
+    INCONCLUSIVE = "inconclusive"
+
+
+@dataclass
+class CredentialVerificationResult:
+    status: VerificationStatus
+    message: str = ""
+
+
 @dataclass
 class ArtifactSnapshot:
     label: str
@@ -189,6 +209,14 @@ class BaseAdapter(ABC):
         Override in adapters that support it.
         """
         raise NotImplementedError(f"{self.__class__.__name__} does not support holds yet")
+
+    async def verify_credentials(self, page: Page) -> CredentialVerificationResult:
+        """
+        Run just the sign-in steps (no booking funnel) and report whether the
+        bound credentials work. Override in adapters with requires_credentials
+        = True; never called otherwise (THR-123).
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not support credential verification")
 
     async def check_booking_window(self, params: dict) -> BookingWindowInfo:
         """Whether ``params``'s requested date is inside a rolling booking

@@ -87,7 +87,13 @@ export interface WatchJob {
   params: Record<string, unknown>
   status: JobStatus
   auto_book: boolean
+  // THR-123: "usable" — a credential row exists AND it hasn't failed
+  // verification. True when the adapter doesn't require credentials.
   credentials_configured: boolean
+  // THR-123: true when a stored credential exists but failed its login
+  // check — distinct from "no credential at all" so the UI can show the
+  // right notice.
+  credentials_failed: boolean
   // False for watch/notify-only booking sites (third-party-SSO sign-in, e.g.
   // Parks Canada) — the UI hides auto-book and manual-booking affordances.
   supports_automated_booking: boolean
@@ -216,6 +222,11 @@ export interface AdapterCredential {
   adapter_id: string
   username: string
   has_password: boolean
+  // THR-123: null = never checked (legacy row, or a fresh save whose
+  // verification hasn't landed yet). true/false only ever come from an
+  // actual login check.
+  is_verified: boolean | null
+  verified_at: string | null
   created_at: string
   updated_at: string
 }
@@ -283,6 +294,8 @@ export const credentialsApi = {
   upsert: (adapterId: string, data: AdapterCredentialUpsert) =>
     api.put<AdapterCredential>(`/credentials/${adapterId}`, data).then(r => r.data),
   remove: (adapterId: string) => api.delete(`/credentials/${adapterId}`),
+  verify: (adapterId: string) =>
+    api.post<{ status: string }>(`/credentials/${adapterId}/verify`).then(r => r.data),
 }
 
 export const notificationsApi = {
