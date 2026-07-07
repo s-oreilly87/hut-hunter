@@ -127,12 +127,19 @@ export function DatePicker({
 
   const firstWeekday = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1).getDay()
   const daysInMonth  = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate()
+  // Always render a fixed 6-row (42-cell) grid, padding with trailing blanks.
+  // Some months only need 4-5 rows, which otherwise shrinks the popover and
+  // shifts the prev/next-month buttons — awkward to click through months
+  // when the calendar keeps resizing under the cursor.
+  const WEEKS_SHOWN = 6
+  const totalCells = WEEKS_SHOWN * 7
   const cells: Array<Date | null> = [
     ...Array.from({ length: firstWeekday }, () => null),
     ...Array.from({ length: daysInMonth }, (_, i) => (
       new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), i + 1)
     )),
   ]
+  while (cells.length < totalCells) cells.push(null)
 
   const shiftMonth = (amount: number) =>
     setVisibleMonth(c => new Date(c.getFullYear(), c.getMonth() + amount, 1))

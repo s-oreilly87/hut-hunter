@@ -1217,10 +1217,16 @@ class BaseCamisAdapter(BaseAdapter):
         """
         await page.goto(self.base_url, wait_until="domcontentloaded", timeout=60_000)
         await self._pass_queue_it(page)
+        await self._dismiss_site_cookie_banner(page)
         try:
             await page.wait_for_load_state("networkidle", timeout=15_000)
         except PlaywrightTimeoutError:
             pass
+
+        # The banner can render after networkidle on a slow connection —
+        # check once more now that the page has settled, before the JSON
+        # availability calls that reuse this context.
+        await self._dismiss_site_cookie_banner(page)
 
         results_url = self._results_deep_link(params)
         if results_url is not None:
@@ -1485,6 +1491,36 @@ class BaseCamisAdapter(BaseAdapter):
                 continue
         return False
 
+    # MISC: BC Parks added a second, site-wide cookie-consent banner ("This
+    # website uses cookies to keep your information secure...I Consent") that
+    # is distinct from the Camis-app login gate this class already handles
+    # (``#consentButton`` / ``#login-cookie-consent``, see
+    # ``_accept_cookie_consent`` above). This one is a BC.gov-wide notice that
+    # can render on any page — home, search results, login — and per its own
+    # copy the site withholds functionality (including "make a reservation")
+    # until it's dismissed, which is exactly why it was seen blocking
+    # availability checks: ``fill_form`` never accepted it, so the JSON
+    # availability calls that reuse the same browser context ran without the
+    # consent cookie the site expects. Dismissed as early as possible on
+    # every page load rather than once at login.
+    _SITE_COOKIE_CONSENT_RE = re.compile(r"^\s*I\s*Consent\s*$", re.I)
+
+    async def _dismiss_site_cookie_banner(self, page: Page) -> bool:
+        """Dismiss the site-wide BC.gov cookie-consent banner if present.
+
+        Best-effort and safe to call repeatedly — a no-op once the banner has
+        already been dismissed (it sets a persistent cookie so it won't
+        re-render for the rest of the browser context)."""
+        btn = page.get_by_role("button", name=self._SITE_COOKIE_CONSENT_RE)
+        try:
+            if await btn.count() and await btn.first.is_visible():
+                await btn.first.click()
+                await page.wait_for_timeout(500)
+                return True
+        except PlaywrightTimeoutError:
+            pass
+        return False
+
     async def _select_equipment(self, page: Page) -> None:
         """Choose an allowed-equipment type in the search form (required before a
         site can be reserved). Prefers a single tent; falls back to the first
@@ -1561,6 +1597,7 @@ class BaseCamisAdapter(BaseAdapter):
         )
         await page.goto(results_url, wait_until="domcontentloaded", timeout=60_000)
         await self._pass_queue_it(page)
+        await self._dismiss_site_cookie_banner(page)
         await page.wait_for_timeout(6_000)
         # Some parks gate the results page behind a "Park Alerts" modal that
         # intercepts every click until acknowledged (Algonquin — HH-105).
@@ -1897,6 +1934,7 @@ class BaseCamisAdapter(BaseAdapter):
 
         await page.goto(f"{self.base_url}/login", wait_until="domcontentloaded", timeout=60_000)
         await self._pass_queue_it(page)
+        await self._dismiss_site_cookie_banner(page)
         await self._accept_cookie_consent(page)
 
         # Re-check immediately before filling: a banner that re-renders after
@@ -1955,6 +1993,7 @@ class BaseCamisAdapter(BaseAdapter):
         try:
             await page.goto(f"{self.base_url}/login", wait_until="domcontentloaded", timeout=60_000)
             await self._pass_queue_it(page)
+            await self._dismiss_site_cookie_banner(page)
             await self._accept_cookie_consent(page)
 
             # THR-126: same verified-dismissal helper as _login — this is the
