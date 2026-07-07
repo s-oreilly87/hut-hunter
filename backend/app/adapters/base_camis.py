@@ -418,31 +418,51 @@ class BaseCamisAdapter(BaseAdapter):
     # ------------------------------------------------------------------
     # Booking-window gating (THR-124)
     #
-    # `/api/dateschedule/resourcelocationid` is documented in recon (§2, §3
-    # of docs/adapters/camis-recon.md) as "the operating-SEASON calendar
-    # (reservable date ranges, go-live dates, min/max stay)" and confirmed
-    # to answer unauthenticated like the other catalog endpoints — but no
-    # live response was ever captured (an OPEN item in recon), so the field
-    # names below are a best-effort mapping over the candidates a Camis-
-    # family API is likely to use, NOT a confirmed schema. Every branch that
-    # can't confidently identify a reservable range or go-live date fails
-    # OPEN (``is_open=True``) — an unexpected response shape degrades to
-    # "poll normally, exactly like before THR-124", never "job stuck parked
-    # forever". CONFIRM LIVE before relying on this for a real launch morning:
-    # query a park/date known to be beyond its release window and diff the
-    # actual shape against ``_SCHEDULE_LIST_KEYS`` / ``_RANGE_*_KEYS`` /
-    # ``_GO_LIVE_KEYS`` below (see recon §7).
+    # `/api/dateschedule/resourcelocationid` field shape CONFIRMED LIVE
+    # against both camping.bcparks.ca and reservations.ontarioparks.ca on
+    # 2026-07-07 (unauthenticated GET, identical shape on both sites):
+    #
+    #   {"<scheduleId>": {"displayOnline": bool, ..., "reservableDates": [
+    #       {"reservableDates": {"start": <ISO>, "end": <ISO>},
+    #        "goLiveDate": <naive local ISO or null>,
+    #        "goLiveDateUtc": <UTC ISO ("...Z") or null>,
+    #        "goLiveTimeZone": "Pacific Standard Time"}, ...
+    #   ], "operatingDates": [...], ...}, "<scheduleId2>": {...}}
+    #
+    # i.e. a dict keyed by scheduleId, each holding a *list* of per-season
+    # dicts nested one level under a same-named `reservableDates` key.
+    # `operatingDates` is a separate, much broader facility-operating range
+    # and is NOT the reservable window — never read it for gating.
+    #
+    # IMPORTANT: a future season's row commonly exists with `goLiveDate(Utc)`
+    # still null (the site hasn't published its release date yet) — e.g.
+    # every BC 2027 season sampled during recon. There is NO reliable
+    # relationship between a season's start date and its actual go-live time
+    # to fall back on: BC go-live dates ranged from ~11 months before to
+    # several months after the corresponding season start, while Ontario's
+    # go-live is typically the same instant as the season start — two
+    # different rolling-release models on the same API shape. So a range
+    # with no go-live date must NOT be treated as "opens on its start date";
+    # doing so could park a job (with polling fully OFF — see
+    # WatchJob.window_opens_at) until a wildly wrong date, silently missing
+    # the real release. Only a genuinely present `goLiveDate`/`goLiveDateUtc`
+    # produces an arm time; everything else fails OPEN (``is_open=True``,
+    # i.e. "poll normally, exactly like before THR-124").
     # ------------------------------------------------------------------
 
     _SCHEDULE_LIST_KEYS = ("dateSchedules", "schedules", "seasons", "items", "results")
+    _NESTED_RANGE_KEY = "reservableDates"  # confirmed: {"start": ..., "end": ...}
     _RANGE_START_KEYS = (
         "reservationStartDate", "reservableStartDate", "startDate", "seasonStartDate",
     )
     _RANGE_END_KEYS = (
         "reservationEndDate", "reservableEndDate", "endDate", "seasonEndDate",
     )
+    # goLiveDateUtc is confirmed always UTC already ("...Z") — tried first so
+    # no timezone guessing is needed for the common case.
     _GO_LIVE_KEYS = (
-        "goLiveDate", "goLiveDateTime", "onSaleDate", "bookingWindowOpenDate", "releaseDate",
+        "goLiveDateUtc", "goLiveDate", "goLiveDateTime", "onSaleDate",
+        "bookingWindowOpenDate", "releaseDate",
     )
 
     @staticmethod
@@ -464,21 +484,70 @@ class BaseCamisAdapter(BaseAdapter):
 
     @classmethod
     def _schedule_entries(cls, data: Any) -> list[dict]:
-        """Normalize a dateschedule response into a flat list of entry dicts.
+        """Flatten a dateschedule response into a list of per-season dicts.
 
-        Tolerates a bare list, a dict wrapping the list under one of
-        ``_SCHEDULE_LIST_KEYS``, or a single season/day object with no
-        wrapper at all.
+        Confirmed live shape (see module comment above): a dict keyed by
+        scheduleId, each value holding its seasons under a `reservableDates`
+        list. Also tolerates a bare list of season dicts, a dict wrapping the
+        list under one of ``_SCHEDULE_LIST_KEYS``, or a single season/schedule
+        object with no wrapper at all, for forward-compatibility with a Camis
+        site we haven't recon'd.
         """
+        def _seasons_of(schedule: Any) -> list[dict]:
+            if not isinstance(schedule, dict):
+                return []
+            seasons = schedule.get(cls._NESTED_RANGE_KEY)
+            if isinstance(seasons, list):
+                return [s for s in seasons if isinstance(s, dict)]
+            return []
+
         if isinstance(data, list):
             return [e for e in data if isinstance(e, dict)]
         if isinstance(data, dict):
+            flattened = [s for schedule in data.values() for s in _seasons_of(schedule)]
+            if flattened:
+                return flattened
             for key in cls._SCHEDULE_LIST_KEYS:
                 value = data.get(key)
                 if isinstance(value, list):
                     return [e for e in value if isinstance(e, dict)]
+            seasons = _seasons_of(data)
+            if seasons:
+                return seasons
             return [data]
         return []
+
+    @classmethod
+    def _entry_range(cls, entry: dict) -> tuple[datetime | None, datetime | None]:
+        """Extract (start, end) for one season entry.
+
+        Prefers the confirmed nested shape (``entry["reservableDates"] ==
+        {"start": ..., "end": ...}``); falls back to flat candidate keys for
+        an unrecon'd site.
+        """
+        nested = entry.get(cls._NESTED_RANGE_KEY)
+        if isinstance(nested, dict):
+            start = cls._parse_iso_datetime(nested.get("start"))
+            end = cls._parse_iso_datetime(nested.get("end"))
+            if start is not None or end is not None:
+                return start, end
+        return (
+            cls._first_datetime(entry, cls._RANGE_START_KEYS),
+            cls._first_datetime(entry, cls._RANGE_END_KEYS),
+        )
+
+    @classmethod
+    def _entry_go_live(cls, entry: dict, tz: Any) -> datetime | None:
+        """Return this season's confirmed go-live time (UTC), if published.
+
+        ``goLiveDateUtc`` is already UTC when present; ``_localize`` is a
+        no-op in that case and only does real work for the naive fallback
+        keys.
+        """
+        parsed = cls._first_datetime(entry, cls._GO_LIVE_KEYS)
+        if parsed is None:
+            return None
+        return cls._localize(parsed, tz)
 
     @staticmethod
     def _localize(dt: datetime, tz: Any) -> datetime:
@@ -501,8 +570,7 @@ class BaseCamisAdapter(BaseAdapter):
             )
 
         for entry in entries:
-            start = cls._first_datetime(entry, cls._RANGE_START_KEYS)
-            end = cls._first_datetime(entry, cls._RANGE_END_KEYS)
+            start, end = cls._entry_range(entry)
             if start is None and end is None:
                 continue
             if (start is None or target_date >= start.date()) and (
@@ -512,36 +580,30 @@ class BaseCamisAdapter(BaseAdapter):
                     is_open=True, evidence="target date is within a reservable range",
                 )
 
-        # No entry's reservable range covers target_date — treat it as not
-        # yet released. Use the earliest go-live/range-start we can parse as
-        # the arm time; a go-live field (when present) is treated as
-        # precise, a bare range-start as a best-effort fallback.
-        candidates: list[tuple[datetime, bool]] = []
-        for entry in entries:
-            go_live = cls._first_datetime(entry, cls._GO_LIVE_KEYS)
-            if go_live is not None:
-                candidates.append((go_live, True))
-                continue
-            start = cls._first_datetime(entry, cls._RANGE_START_KEYS)
-            if start is not None:
-                candidates.append((start, False))
+        # No entry's reservable range covers target_date. Only a confirmed
+        # go-live timestamp produces an arm time — see the module comment
+        # above for why a range's start date is never used as a stand-in.
+        candidates = [
+            go_live
+            for entry in entries
+            if (go_live := cls._entry_go_live(entry, tz)) is not None
+        ]
 
         if not candidates:
             return BookingWindowInfo(
                 is_open=True,
-                evidence="no reservable range or go-live date found — failing open",
+                evidence=(
+                    "target date not covered by any reservable range and no "
+                    "confirmed go-live date is published yet — failing open"
+                ),
             )
 
-        candidates.sort(key=lambda c: c[0])
-        open_dt, precise = candidates[0]
+        open_dt = min(candidates)
         return BookingWindowInfo(
             is_open=False,
-            opens_at=cls._localize(open_dt, tz),
-            opens_at_precise=precise,
-            evidence=(
-                f"target date not covered by any reservable range; earliest "
-                f"{'go-live' if precise else 'season start'} found is {open_dt.isoformat()}"
-            ),
+            opens_at=open_dt,
+            opens_at_precise=True,
+            evidence=f"target date not covered by any reservable range; earliest confirmed go-live is {open_dt.isoformat()}",
         )
 
     async def check_booking_window(self, params: dict) -> BookingWindowInfo:

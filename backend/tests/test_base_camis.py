@@ -666,12 +666,89 @@ def test_parse_booking_window_go_live_field_is_precise():
     assert window.opens_at == datetime(2026, 8, 1, 14, 0, tzinfo=timezone.utc)
 
 
-def test_parse_booking_window_falls_back_to_range_start_when_no_go_live():
+def test_parse_booking_window_fails_open_when_no_go_live_published():
+    # Confirmed live (recon 2026-07-07): a future not-yet-released season
+    # commonly has no go-live date published yet, and there's no reliable
+    # relationship between a season's start date and its actual go-live time
+    # to fall back on (see the module comment on BaseCamisAdapter) — BC
+    # go-lives ranged from ~11 months before to months after the season
+    # start, Ontario's is typically the start date itself. Guessing "opens on
+    # the range start" risks parking a job (polling fully off) until a wildly
+    # wrong date, so this must fail open instead.
     data = {"seasons": [{"reservableStartDate": "2026-08-01", "reservableEndDate": "2026-09-30"}]}
     window = BaseCamisAdapter._parse_booking_window(data, date_cls(2026, 7, 1), None)
+    assert window.is_open is True
+    assert "no confirmed go-live date" in window.evidence
+
+
+def test_parse_booking_window_matches_confirmed_live_schema():
+    # Real /api/dateschedule/resourcelocationid shape (BC + Ontario Parks,
+    # confirmed live 2026-07-07): a dict keyed by scheduleId, each holding a
+    # `reservableDates` list of per-season dicts with a same-named nested
+    # `reservableDates: {start, end}` plus goLiveDate/goLiveDateUtc.
+    data = {
+        "-2147483298": {
+            "displayOnline": False,
+            "reservableDates": [],
+            "operatingDates": [
+                {"start": "2022-01-01T05:00:00Z", "end": "9999-12-31T05:00:00Z"},
+            ],
+        },
+        "-2147483631": {
+            "displayOnline": True,
+            "reservableDates": [
+                {
+                    "reservableDates": {
+                        "start": "2026-05-13T07:00:00Z", "end": "2026-09-29T07:00:00Z",
+                    },
+                    "goLiveDate": None, "goLiveDateUtc": None,
+                    "goLiveTimeZone": "Pacific Standard Time",
+                },
+                {
+                    "reservableDates": {
+                        "start": "2027-05-21T07:00:00Z", "end": "2027-09-06T07:00:00Z",
+                    },
+                    "goLiveDate": None, "goLiveDateUtc": None,
+                    "goLiveTimeZone": "Pacific Standard Time",
+                },
+            ],
+        },
+    }
+    # Inside the 2026 season -> open. The displayOnline=False schedule (empty
+    # reservableDates) and the unrelated operatingDates range must not
+    # interfere.
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2026, 7, 7), None)
+    assert window.is_open is True
+
+    # Falls in the gap between the 2026 season's end (2026-09-29) and the
+    # 2027 season's start (2027-05-21); neither has a published go-live date
+    # yet -> fails open rather than guessing off the 2027 range's start date.
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2027, 1, 15), None)
+    assert window.is_open is True
+    assert "no confirmed go-live date" in window.evidence
+
+
+def test_parse_booking_window_confirmed_live_schema_with_go_live():
+    # goLiveDateUtc (already UTC) takes precedence and needs no localization.
+    data = {
+        "-2147483365": {
+            "displayOnline": True,
+            "reservableDates": [
+                {
+                    "reservableDates": {
+                        "start": "2023-05-19T07:00:00Z", "end": "2023-09-03T07:00:00Z",
+                    },
+                    "goLiveDate": "2022-06-28T07:00:00",
+                    "goLiveDateUtc": "2022-06-28T14:00:00Z",
+                    "goLiveTimeZone": "Pacific Standard Time",
+                },
+            ],
+        },
+    }
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2023, 1, 15), None)
     assert window.is_open is False
-    assert window.opens_at_precise is False
-    assert window.opens_at == datetime(2026, 8, 1, tzinfo=timezone.utc)
+    assert window.opens_at_precise is True
+    assert window.opens_at == datetime(2022, 6, 28, 14, 0, tzinfo=timezone.utc)
 
 
 def test_parse_booking_window_picks_earliest_candidate_across_entries():
@@ -712,7 +789,12 @@ async def test_check_booking_window_queries_dateschedule_and_parses(tmp_path):
 
     async def fake_fetch_json(path, params=None, **kwargs):
         seen_calls.append((path, params))
-        return {"schedules": [{"startDate": "2026-08-01", "endDate": "2026-08-31"}]}
+        return {
+            "schedules": [{
+                "startDate": "2026-08-01", "endDate": "2026-08-31",
+                "goLiveDateUtc": "2026-06-01T14:00:00Z",
+            }],
+        }
 
     adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
 
