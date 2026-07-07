@@ -47,3 +47,14 @@ class CamisParksCanadaAdapter(BaseCamisAdapter):
 
     # Westernmost of the 7 zones Parks Canada spans — see module docstring.
     booking_timezone = "America/Vancouver"
+
+    # THR-129 Finding C: reservation.pc.gc.ca's own Angular app sends
+    # equipmentCategoryId/subEquipmentCategoryId/peopleCapacityCategoryCounts/
+    # isReserving/filterData/numEquipment on /api/availability/map, confirmed
+    # live 2026-07-07 — this is the one adapter that shape was actually
+    # verified against (see base_camis.py's _INCLUDE_UI_QUERY_EXTRAS comment
+    # for why every other Camis adapter leaves this off).
+    _INCLUDE_UI_QUERY_EXTRAS = True
+    DEFAULT_EQUIPMENT_CATEGORY_ID = -32768
+    DEFAULT_SUB_EQUIPMENT_CATEGORY_ID = -32768
+    DEFAULT_CAPACITY_CATEGORY_ID = -32767
