@@ -304,6 +304,19 @@ class BaseAdapter(ABC):
         """
         return BookingWindowInfo(is_open=True)
 
+    def results_url(self, params: dict) -> str | None:
+        """THR-129: a deep-link to this adapter's booking-site results page
+        for the given job params, if the adapter can build one.
+
+        Default: None — most adapters don't have a stable, fully
+        URL-driven results page (or the frontend already builds an
+        equivalent link client-side from ``parseFacilityOption``, e.g. the
+        DOC adapters). ``BaseCamisAdapter`` overrides this to wrap
+        ``_results_deep_link`` (built for the THR-129 Finding E snapshot
+        fix) so the ShowJob info bar can hyperlink the selected park.
+        """
+        return None
+
     def is_expired(self, params: dict) -> bool:
         """Return True if the job's start date has passed this adapter's
         booking cutoff in its local timezone.

@@ -536,6 +536,17 @@ def test_results_deep_link_none_when_park_unresolved(tmp_path):
     assert adapter._results_deep_link({"resource_location_id": -999, "date": "01/08/2026"}) is None
 
 
+def test_results_url_wraps_results_deep_link(tmp_path):
+    # THR-129 item 2: the public `results_url` hook (used by job
+    # serialization to populate WatchJobRead.park_url) is just a thin
+    # wrapper around the private deep-link builder — same output, same
+    # fails-soft-to-None behavior.
+    adapter = _catalog_adapter(tmp_path)
+    params = {"resource_location_id": -100, "date": "01/08/2026", "nights": 2, "people": 3}
+    assert adapter.results_url(params) == adapter._results_deep_link(params)
+    assert adapter.results_url({}) is None
+
+
 class _FillFormFakePage:
     """Minimal Page stand-in for fill_form: records every goto() target."""
 

@@ -120,6 +120,11 @@ export interface WatchJob {
   // fallback (e.g. local midnight) rather than a confirmed go-live moment.
   window_opens_at: string | null
   window_opens_precise: boolean
+  // THR-129 item 2: deep-link to the booking site's results page for this
+  // job's current params (Camis only, today — see BaseAdapter.results_url
+  // on the backend). Null when the adapter has no such link or the params
+  // aren't resolvable yet (e.g. no park selected).
+  park_url: string | null
 }
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {

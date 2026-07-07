@@ -141,6 +141,17 @@ def _adapter_supports_automated_booking(adapter_id: str) -> bool:
     return adapter_supports_automated_booking(adapter_id)
 
 
+def _adapter_park_url(adapter_id: str, params: dict) -> str | None:
+    """Lazy-import wrapper (same circular-dependency reason as above).
+
+    THR-129 item 2: surfaces a deep-link to the adapter's results page for
+    the job's current params (Camis only, today) so the ShowJob info bar can
+    hyperlink the selected park. None for adapters that don't support one.
+    """
+    from app.adapters import adapter_park_url  # noqa: PLC0415
+    return adapter_park_url(adapter_id, params)
+
+
 class WatchJob(SQLModel, table=True):
     """A configured availability watch job."""
     __tablename__ = "watch_job"
@@ -285,6 +296,11 @@ class WatchJobRead(SQLModel):
     # fallback (see WatchJob.window_opens_precise). Null otherwise.
     window_opens_at: datetime | None = None
     window_opens_precise: bool = True
+    # THR-129 item 2: deep-link to the booking site's results page for this
+    # job's current params (Camis only, today — see BaseAdapter.results_url).
+    # Null when the adapter has no such link or the params aren't resolvable
+    # yet (e.g. no park selected).
+    park_url: str | None = None
 
     @classmethod
     def from_db(
@@ -376,4 +392,5 @@ class WatchJobRead(SQLModel):
             artifact_history=artifact_history,
             window_opens_at=as_optional_utc(job.window_opens_at),
             window_opens_precise=job.window_opens_precise,
+            park_url=_adapter_park_url(job.adapter_id, parsed_params),
         )

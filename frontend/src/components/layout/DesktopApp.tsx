@@ -59,6 +59,7 @@ export function DesktopApp({
             onOpenOccupants={() => setOccupantsOpen(true)}
             onOpenCredentials={() => setCredentialsOpen(true)}
             showNewHuntTile={false}
+            compact
           />
         </div>
 

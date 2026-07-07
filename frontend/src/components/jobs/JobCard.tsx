@@ -257,6 +257,7 @@ export function JobCard({
           <div className="sticky top-0 z-10 border-b border-border/70 bg-muted/80 px-4 py-3 backdrop-blur-sm sm:px-6">
             <HeaderParamSummary
               params={job.params}
+              parkUrl={job.park_url}
               onEdit={!isLocked ? () => handleEdit(1) : undefined}
               compact
             />

@@ -1,3 +1,4 @@
+import logging
 from app.adapters.base import BaseAdapter
 from app.adapters.camis_bc_parks import CamisBcParksAdapter
 from app.adapters.camis_ontario_parks import CamisOntarioParksAdapter
@@ -43,6 +44,25 @@ def adapter_supports_automated_booking(adapter_id: str) -> bool:
     (returns True) so callers validating other fields surface the real error."""
     cls = _REGISTRY.get(adapter_id)
     return bool(cls.supports_automated_booking) if cls else True
+
+
+def adapter_park_url(adapter_id: str, params: dict) -> str | None:
+    """THR-129 item 2: deep-link to the adapter's results page for these job
+    params, or None if the adapter doesn't support one / params aren't
+    resolvable yet. Tolerant of unknown adapters and of any error the
+    adapter's ``results_url`` raises — a broken link builder must never
+    break job serialization, it should just omit the link."""
+    try:
+        adapter = get_adapter(adapter_id)
+    except ValueError:
+        return None
+    try:
+        return adapter.results_url(params)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "results_url failed for adapter %s — omitting park_url", adapter_id,
+        )
+        return None
 
 
 def adapter_has_booking_windows(adapter_id: str) -> bool:
