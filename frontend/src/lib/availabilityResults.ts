@@ -136,14 +136,20 @@ export function getAvailabilityCopy(entry: AvailabilityResult): AvailabilityCopy
           ? [`${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} found`]
           : [],
       }
-    case 'unavailable':
+    case 'unavailable': {
+      // THR-129 Finding E: surface the evidence string instead of always
+      // rendering an empty details list — the backend now names actual
+      // site states (e.g. "67 sites restricted, 5 booked out") or the
+      // booking-window/no-data reason instead of a raw dict dump.
+      const evidence = entry.evidence?.trim()
       return {
         summary:
           peopleWanted != null
             ? `Unavailable for a party of ${peopleWanted}.`
             : 'No availability was found for this site.',
-        details: [],
+        details: evidence ? [evidence] : [],
       }
+    }
     default:
       if (entry.evidence.includes('not found in results table')) {
         return {

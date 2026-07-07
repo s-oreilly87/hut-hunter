@@ -142,6 +142,15 @@ _CATALOG = {
             "root_map_id": -900,
             "timezone": "America/Vancouver",
         },
+        {
+            # THR-129 Finding A live recon: Pukaskwa root map -2147483279
+            # (2026-07-23), Hattie Cove loop -2147483278, Hattie Cove
+            # Campground grandchild -2147483114.
+            "resource_location_id": -2147483555,
+            "full_name": "Pukaskwa National Park",
+            "root_map_id": -2147483279,
+            "timezone": "America/Toronto",
+        },
     ],
     "booking_categories": [
         {"booking_category_id": 0, "booking_model": 0, "name": "Campsite"},
@@ -230,7 +239,39 @@ def test_build_query_resolves_map_id_and_category_from_catalog(tmp_path):
         "startDate": "2026-08-01",
         "endDate": "2026-08-04",  # checkout date = start + nights
         "getDailyAvailability": "true",
+        # THR-129 Finding C: mirror the UI's query shape.
+        "isReserving": "true",
+        "filterData": [],
+        "numEquipment": 0,
+        "equipmentCategoryId": BaseCamisAdapter.DEFAULT_EQUIPMENT_CATEGORY_ID,
+        "subEquipmentCategoryId": BaseCamisAdapter.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID,
+        # no `people` in params → no peopleCapacityCategoryCounts key at all
     }
+
+
+def test_build_query_includes_party_size_when_people_given(tmp_path):
+    # THR-129 Finding C: party size is sent the way the Angular app's own
+    # query sends it — at minimum party size + equipment protects against
+    # divergence on parks that filter search results by either.
+    adapter = _catalog_adapter(tmp_path)
+    query = adapter._build_availability_query(
+        {"resource_location_id": -100, "date": "01/08/2026", "nights": 2, "people": 4}
+    )
+    assert query["peopleCapacityCategoryCounts"] == [{
+        "capacityCategoryId": BaseCamisAdapter.DEFAULT_CAPACITY_CATEGORY_ID,
+        "subCapacityCategoryId": None,
+        "count": 4,
+    }]
+
+
+def test_build_query_equipment_and_capacity_category_overridable(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    query = adapter._build_availability_query({
+        "resource_location_id": -100, "date": "01/08/2026",
+        "equipment_category_id": -32767, "sub_equipment_category_id": -32758,
+    })
+    assert query["equipmentCategoryId"] == -32767
+    assert query["subEquipmentCategoryId"] == -32758
 
 
 def test_build_query_explicit_values_win(tmp_path):
@@ -270,7 +311,9 @@ def test_build_query_unresolvable_map_id_raises(tmp_path):
 
 
 async def test_detect_availability_drills_open_loops(tmp_path):
-    """Park query returns loop aggregates; open loops are drilled for sites."""
+    """Park query returns loop aggregates; every loop is drilled (Finding
+    A), with links whose own aggregate reports an open night probed
+    first."""
     adapter = _catalog_adapter(tmp_path)
     calls: list[int] = []
 
@@ -278,37 +321,160 @@ async def test_detect_availability_drills_open_loops(tmp_path):
         calls.append(query["mapId"])
         if query["mapId"] == -900:  # park root map (from catalog)
             return {"mapLinkAvailabilities": {"-901": [0, 0, 0], "-902": [1, 1, 1]}}
-        assert query["mapId"] == -901  # only the open loop is drilled
+        if query["mapId"] == -901:
+            return {"resourceAvailabilities": {
+                "-50": [{"availability": 0}, {"availability": 0}, {"availability": 0}],
+                "-51": [{"availability": 1}, {"availability": 1}, {"availability": 1}],
+            }}
+        assert query["mapId"] == -902
         return {"resourceAvailabilities": {
-            "-50": [{"availability": 0}, {"availability": 0}, {"availability": 0}],
-            "-51": [{"availability": 1}, {"availability": 1}, {"availability": 1}],
+            "-52": [{"availability": 1}, {"availability": 1}, {"availability": 1}],
         }}
 
     adapter._get_map_availability = fake_get  # type: ignore[method-assign]
     results = await adapter.detect_availability(
         None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
     )
-    assert calls == [-900, -901]  # fully-booked loop -902 is never queried
+    # The open-looking loop (-901) is queried before the closed-looking one
+    # (-902), but THR-129 Finding A means both are queried — a closed
+    # aggregate can still hide open sites.
+    assert calls == [-900, -901, -902]
     assert len(results) == 1
     assert results[0].site == "Alice Lake Provincial Park"  # name from catalog
     assert results[0].status == AvailabilityStatus.AVAILABLE
     assert results[0].total_available == 1  # only -50 covers the full stay
 
 
-async def test_detect_availability_all_loops_booked_short_circuits(tmp_path):
+async def test_detect_availability_drills_every_loop_when_none_look_open(tmp_path):
+    """THR-129 Finding A: the old "fast path" skipped drilling entirely
+    when no loop's own aggregate looked open at the top, which is exactly
+    the bug live recon caught (a non-zero aggregate hid a code-0
+    descendant). Now every loop is drilled — bounded by
+    _MAX_DRILL_REQUESTS — until real per-site codes are found, and the
+    evidence names the actual site states rather than dumping the raw
+    aggregate dict."""
     adapter = _catalog_adapter(tmp_path)
     calls: list[int] = []
 
     async def fake_get(page, query):
         calls.append(query["mapId"])
-        return {"mapLinkAvailabilities": {"-901": [1, 1], "-902": [2, 6]}}
+        if query["mapId"] == -900:
+            return {"mapLinkAvailabilities": {"-901": [1, 1], "-902": [2, 6]}}
+        if query["mapId"] == -901:
+            return {"resourceAvailabilities": {
+                "-50": [{"availability": 1}, {"availability": 1}],
+            }}
+        assert query["mapId"] == -902
+        return {"resourceAvailabilities": {
+            "-51": [{"availability": 6}, {"availability": 6}],
+        }}
 
     adapter._get_map_availability = fake_get  # type: ignore[method-assign]
     results = await adapter.detect_availability(
         None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 2}
     )
-    assert calls == [-900]  # no drilling — nothing open
+    assert set(calls) == {-900, -901, -902}  # every loop drilled, not skipped
     assert results[0].status == AvailabilityStatus.UNAVAILABLE
+    # Evidence names real site states, not a raw dict dump (Finding B).
+    assert "unavailable" in results[0].evidence
+    assert "not operating" in results[0].evidence
+    assert "{" not in results[0].evidence
+
+
+async def test_detect_availability_pukaskwa_fixture_reaches_grandchild_sites(tmp_path):
+    """THR-129 Finding A — live recon fixture (Pukaskwa, 2026-07-23, 1
+    night). The root aggregate for the Hattie Cove loop is code 1
+    ("unavailable-ish"), but that loop's own mapLinkAvailabilities hides a
+    grandchild loop (Hattie Cove Campground) two levels down. The previous
+    code-based drill filter never reached it; this fixture proves the fix
+    does, and that the final evidence names site states, not raw dicts."""
+    adapter = _catalog_adapter(tmp_path)
+
+    root = {
+        "mapLinkAvailabilities": {
+            "-2147483278": [1, 1],  # Hattie Cove — non-zero, but not actually closed
+            "-2147483135": [6, 6],  # not operating
+            "-2147483134": [6, 6],  # not operating
+        }
+    }
+    hattie_cove = {
+        "mapAvailabilities": [1, 1],
+        "resourceAvailabilities": {
+            f"-otentik-{i}": [{"availability": 5}] for i in range(5)  # booked out
+        },
+        "mapLinkAvailabilities": {"-2147483114": [0, 0]},
+    }
+    hattie_cove_campground = {
+        "mapAvailabilities": [0, 0],
+        "resourceAvailabilities": {
+            f"-site-{i}": [{"availability": 3}] for i in range(67)  # restricted
+        },
+    }
+    # The two "not operating" siblings at root level (-2147483135,
+    # -2147483134) get drilled too now (Finding A) — leaf, no children.
+    not_operating_leaf = {"mapAvailabilities": [6, 6]}
+    responses = {
+        -2147483279: root,
+        -2147483278: hattie_cove,
+        -2147483114: hattie_cove_campground,
+        -2147483135: not_operating_leaf,
+        -2147483134: not_operating_leaf,
+    }
+    calls: list[int] = []
+
+    async def fake_get(page, query):
+        calls.append(query["mapId"])
+        return responses[query["mapId"]]
+
+    adapter._get_map_availability = fake_get  # type: ignore[method-assign]
+    results = await adapter.detect_availability(
+        None, {"resource_location_id": -2147483555, "date": "23/07/2026", "nights": 1}
+    )
+    # Drill reached the grandchild despite the code-1 parent aggregate.
+    assert -2147483114 in calls
+    # All real sites are restricted/booked out (3/5), so this really is
+    # UNAVAILABLE — but now for the right reason, with readable evidence.
+    assert results[0].status == AvailabilityStatus.UNAVAILABLE
+    assert "restricted" in results[0].evidence
+    assert "booked out" in results[0].evidence
+    assert "{" not in results[0].evidence  # no raw dict dump (Finding B)
+
+
+async def test_detect_availability_finds_available_site_hidden_under_nonzero_aggregate(tmp_path):
+    """Acceptance criterion: a park/date where a deeply-nested site shows
+    green (code 0) classifies AVAILABLE — the fast-path short-circuit must
+    not fire just because the top-level aggregate is non-zero."""
+    adapter = _catalog_adapter(tmp_path)
+
+    root = {"mapLinkAvailabilities": {"-2147483278": [1, 1], "-2147483135": [6, 6]}}
+    hattie_cove = {
+        "resourceAvailabilities": {
+            "-otentik-0": [{"availability": 5}],
+        },
+        "mapLinkAvailabilities": {"-2147483114": [0, 0]},
+    }
+    hattie_cove_campground = {
+        "resourceAvailabilities": {
+            "-site-open": [{"availability": 0}],
+            "-site-closed": [{"availability": 3}],
+        },
+    }
+    responses = {
+        -2147483279: root,
+        -2147483278: hattie_cove,
+        -2147483114: hattie_cove_campground,
+        -2147483135: {"mapAvailabilities": [6, 6]},  # not operating, leaf
+    }
+
+    async def fake_get(page, query):
+        return responses[query["mapId"]]
+
+    adapter._get_map_availability = fake_get  # type: ignore[method-assign]
+    results = await adapter.detect_availability(
+        None, {"resource_location_id": -2147483555, "date": "23/07/2026", "nights": 1}
+    )
+    assert results[0].status == AvailabilityStatus.AVAILABLE
+    assert results[0].total_available == 1
 
 
 async def test_detect_availability_empty_response_is_unknown(tmp_path):
@@ -328,6 +494,101 @@ async def test_detect_availability_bad_params_returns_unknown(tmp_path):
     adapter = _catalog_adapter(tmp_path)
     results = await adapter.detect_availability(None, {"resource_location_id": -100})
     assert results[0].status == AvailabilityStatus.UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# THR-129 Finding E — results deep-link for the fill_form snapshot
+# ---------------------------------------------------------------------------
+
+def test_results_deep_link_builds_full_query_url(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    url = adapter._results_deep_link(
+        {"resource_location_id": -100, "date": "01/08/2026", "nights": 2, "people": 3}
+    )
+    assert url == (
+        "https://camping.bcparks.ca/create-booking/results"
+        "?resourceLocationId=-100"
+        "&mapId=-900"
+        "&searchTabGroupId=0"
+        "&bookingCategoryId=0"
+        "&startDate=2026-08-01"
+        "&endDate=2026-08-03"
+        "&nights=2"
+        "&partySize=3"
+    )
+
+
+def test_results_deep_link_defaults_party_size_to_one(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    url = adapter._results_deep_link(
+        {"resource_location_id": -100, "date": "01/08/2026"}
+    )
+    assert url is not None
+    assert "partySize=1" in url
+    assert "nights=1" in url
+
+
+def test_results_deep_link_none_when_park_unresolved(tmp_path):
+    # No resource_location_id/date resolvable yet — fails soft to None so
+    # fill_form falls back to just the homepage snapshot.
+    adapter = _catalog_adapter(tmp_path)
+    assert adapter._results_deep_link({}) is None
+    assert adapter._results_deep_link({"resource_location_id": -999, "date": "01/08/2026"}) is None
+
+
+class _FillFormFakePage:
+    """Minimal Page stand-in for fill_form: records every goto() target."""
+
+    def __init__(self):
+        self.goto_calls: list[str] = []
+        self.url = "about:blank"
+
+    async def goto(self, url, wait_until=None, timeout=None):
+        self.goto_calls.append(url)
+        self.url = url
+
+    async def wait_for_load_state(self, state, timeout=None):
+        return None
+
+
+async def test_fill_form_navigates_to_results_deep_link_for_snapshot(tmp_path):
+    """THR-129 Finding E: previously fill_form only ever snapshotted the
+    bare homepage, which for an UNAVAILABLE result read as "the worker
+    never searched" even though the JSON query itself was correct. It must
+    navigate on to the real per-park/date results page before snapshotting."""
+    adapter = _catalog_adapter(tmp_path)
+    page = _FillFormFakePage()
+
+    async def fake_snapshot(_page, label, *, include_html=None):
+        return "snapshot"
+
+    adapter.snapshot = fake_snapshot  # type: ignore[method-assign]
+
+    await adapter.fill_form(
+        page, {"resource_location_id": -100, "date": "01/08/2026", "nights": 2, "people": 3}
+    )
+
+    assert page.goto_calls[0] == adapter.base_url  # still warms cookies first
+    results_url = page.goto_calls[-1]
+    assert results_url.startswith(f"{adapter.base_url}/create-booking/results?")
+    assert "resourceLocationId=-100" in results_url
+    assert "startDate=2026-08-01" in results_url
+    assert "partySize=3" in results_url
+
+
+async def test_fill_form_skips_deep_link_when_park_unresolved(tmp_path):
+    # No date/park yet (e.g. a not-fully-configured job) — must not crash;
+    # falls back to just the homepage snapshot.
+    adapter = _catalog_adapter(tmp_path)
+    page = _FillFormFakePage()
+
+    async def fake_snapshot(_page, label, *, include_html=None):
+        return "snapshot"
+
+    adapter.snapshot = fake_snapshot  # type: ignore[method-assign]
+
+    await adapter.fill_form(page, {})
+    assert page.goto_calls == [adapter.base_url]
 
 
 # ---------------------------------------------------------------------------
@@ -837,6 +1098,67 @@ def test_parse_booking_window_confirmed_live_schema_with_go_live():
     assert window.is_open is False
     assert window.opens_at_precise is True
     assert window.opens_at == datetime(2022, 6, 28, 14, 0, tzinfo=timezone.utc)
+
+
+def test_parse_booking_window_tolerates_empty_reservable_dates_schedule():
+    # THR-129 Finding D — live recon fixture (2026-07-07):
+    # GET /api/dateschedule/resourcelocationid?resourceLocationId=-2147483555
+    # shows the "Campsites (Hattie Cove)" schedule with `reservableDates:
+    # []` (its 2026 season only exists in `operatingDates`, which is NOT
+    # the reservable window), while sibling schedules (oTENTiks,
+    # backcountry) have normal published 2026 seasons with go-live already
+    # passed. The empty-list schedule must not crash or false-gate the
+    # window for the park overall.
+    data = {
+        "-2147483555": {  # "Campsites (Hattie Cove)" — no 2026 season published
+            "displayOnline": True,
+            "reservableDates": [],
+            "operatingDates": [
+                {"start": "2026-05-01T07:00:00Z", "end": "2026-10-15T07:00:00Z"},
+            ],
+        },
+        "-2147483556": {  # oTENTiks — normal published season, go-live passed
+            "displayOnline": True,
+            "reservableDates": [
+                {
+                    "reservableDates": {
+                        "start": "2026-05-01T07:00:00Z", "end": "2026-10-15T07:00:00Z",
+                    },
+                    "goLiveDate": "2026-02-02T07:00:00",
+                    "goLiveDateUtc": "2026-02-02T15:00:00Z",
+                    "goLiveTimeZone": "Pacific Standard Time",
+                },
+            ],
+        },
+    }
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2026, 7, 23), None)
+    assert window.is_open is True
+
+
+async def test_check_booking_window_tolerates_empty_reservable_dates_schedule(tmp_path):
+    # Same fixture, exercised through the full check_booking_window path
+    # (fetch_json + parse) rather than _parse_booking_window directly.
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_fetch_json(path, params=None, **kwargs):
+        return {
+            "-2147483555": {"displayOnline": True, "reservableDates": []},
+            "-2147483556": {
+                "displayOnline": True,
+                "reservableDates": [{
+                    "reservableDates": {
+                        "start": "2026-05-01T07:00:00Z", "end": "2026-10-15T07:00:00Z",
+                    },
+                    "goLiveDate": None, "goLiveDateUtc": None,
+                }],
+            },
+        }
+
+    adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
+    window = await adapter.check_booking_window(
+        {"resource_location_id": -100, "date": "23/07/2026"}
+    )
+    assert window.is_open is True
 
 
 def test_parse_booking_window_picks_earliest_candidate_across_entries():

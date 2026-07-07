@@ -230,11 +230,32 @@ class BaseCamisAdapter(BaseAdapter):
     # available" so a new code can't be misread as free.
     AVAILABILITY_AVAILABLE_CODE = 0
 
-    # Cap on drill-down requests per availability check: a park query only
-    # returns per-day aggregates per campground loop, so loops showing an
-    # available day are queried individually for per-site data. Parks have a
-    # handful of loops; the cap just bounds the worst case.
-    _MAX_DRILL_REQUESTS = 12
+    # Cap on drill-down requests per availability check. THR-129 Finding A:
+    # live recon proved a loop's own aggregate can be non-zero while still
+    # hiding a code-0 descendant several levels down (Parks Canada nests
+    # loops 3 deep, e.g. park -> campground loop -> sub-loop), so every
+    # discovered link is now drilled rather than only ones whose own code
+    # looks open (see ``_collect_site_days``) — raised from 12 so a 3-level
+    # park doesn't get truncated before reaching real per-site data.
+    _MAX_DRILL_REQUESTS = 40
+
+    # THR-129 Finding C: the Angular app's own /api/availability/map call
+    # additionally sends equipmentCategoryId/subEquipmentCategoryId,
+    # peopleCapacityCategoryCounts, isReserving=true, filterData=[], and
+    # numEquipment=0 (confirmed live 2026-07-07 against reservation.pc.gc.ca).
+    # Our simpler query already returns identical codes for the recon'd
+    # case, but matching the UI's shape — at minimum party size + equipment
+    # — protects against divergence on parks that filter by one of these
+    # (e.g. equipment-gated backcountry sites). Confirmed via GET
+    # /api/equipment: category -32768/"Equipment" + sub -32768/"Small Tent"
+    # is the frontcountry default; category -32767/"Backcountry" + sub
+    # -32758/"Single Tent" is its backcountry equivalent (not defaulted to,
+    # since most watch jobs target frontcountry campsites).
+    DEFAULT_EQUIPMENT_CATEGORY_ID = -32768
+    DEFAULT_SUB_EQUIPMENT_CATEGORY_ID = -32768
+    # capacityCategoryId used by the Angular app's own party-size query
+    # (peopleCapacityCategoryCounts) — confirmed live 2026-07-07.
+    DEFAULT_CAPACITY_CATEGORY_ID = -32767
 
     # ------------------------------------------------------------------
     # JSON API access (the catalog + availability read path)
@@ -883,14 +904,44 @@ class BaseCamisAdapter(BaseAdapter):
             datetime.strptime(date_str, "%d/%m/%Y") + timedelta(days=nights)
         ).strftime("%Y-%m-%d")
 
-        return {
+        query: dict[str, Any] = {
             "resourceLocationId": int(rl_id),
             "mapId": int(map_id),
             "bookingCategoryId": int(category_id),
             "startDate": start_iso,
             "endDate": end_iso,
             "getDailyAvailability": "true",
+            # THR-129 Finding C: mirror the UI's own query shape so a
+            # filtered park can't silently diverge from our simpler query.
+            "isReserving": "true",
+            "filterData": [],
+            "numEquipment": 0,
         }
+
+        equipment_category_id = params.get(
+            "equipment_category_id", self.DEFAULT_EQUIPMENT_CATEGORY_ID
+        )
+        sub_equipment_category_id = params.get(
+            "sub_equipment_category_id", self.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID
+        )
+        if equipment_category_id is not None:
+            query["equipmentCategoryId"] = int(equipment_category_id)
+        if sub_equipment_category_id is not None:
+            query["subEquipmentCategoryId"] = int(sub_equipment_category_id)
+
+        people = params.get("people")
+        try:
+            party_size = int(people) if people not in (None, "") else None
+        except (TypeError, ValueError):
+            party_size = None
+        if party_size:
+            query["peopleCapacityCategoryCounts"] = [{
+                "capacityCategoryId": self.DEFAULT_CAPACITY_CATEGORY_ID,
+                "subCapacityCategoryId": None,
+                "count": party_size,
+            }]
+
+        return query
 
     async def _get_map_availability(self, page: Page | None, query: dict) -> dict:
         """GET ``/api/availability/map``.
@@ -936,6 +987,16 @@ class BaseCamisAdapter(BaseAdapter):
         Day arrays span check-in through checkout inclusive; only the first
         ``nights`` entries are stay nights, so the trailing checkout-day code
         is ignored (a loop free only on the checkout day is not bookable).
+
+        THR-129 Finding A: this is no longer used to decide what to SKIP
+        drilling — live recon proved a link's own aggregate can be non-zero
+        while still hiding a code-0 descendant several levels down, so a
+        "closed" aggregate can't be trusted. It's used only to PRIORITISE
+        which links ``_collect_site_days`` visits first (so a request-cap
+        cutoff still finds real availability before it finds confirmation of
+        unavailability), and by the hold funnel's best-effort loop pick
+        (``_open_loop_map_id``), where a wrong guess just costs a worse
+        landing page, not a data-integrity bug.
         """
         links = (data or {}).get("mapLinkAvailabilities") or {}
         return [
@@ -943,6 +1004,16 @@ class BaseCamisAdapter(BaseAdapter):
             for link_id, days in links.items()
             if any(c == self.AVAILABILITY_AVAILABLE_CODE for c in (days or [])[:nights])
         ]
+
+    def _drill_children(self, node: Any, nights: int) -> list[str]:
+        """All child link ids under ``node``, open-looking ones first.
+
+        Helper for ``_collect_site_days``'s breadth-first drill (Finding A).
+        """
+        all_ids = list(((node or {}).get("mapLinkAvailabilities") or {}).keys())
+        open_ids = self._open_link_ids(node, nights)
+        open_set = set(open_ids)
+        return open_ids + [link_id for link_id in all_ids if link_id not in open_set]
 
     async def _collect_site_days(
         self, page: Page | None, query: dict, data: Any, nights: int
@@ -952,12 +1023,23 @@ class BaseCamisAdapter(BaseAdapter):
         A query at the park's root map usually returns only per-loop
         aggregates (``mapLinkAvailabilities``); per-site codes
         (``resourceAvailabilities``) appear when querying a leaf (loop) map.
-        Breadth-first drill into every link that shows an available day,
-        bounded by ``_MAX_DRILL_REQUESTS``. Links with no available day are
-        skipped — their sites can't contribute a bookable stay.
+
+        THR-129 Finding A: live recon against Pukaskwa (root map
+        -2147483279, 2026-07-23) proved a loop's own aggregate can't be
+        trusted to decide whether it's worth drilling — the root reported
+        code 1 ("unavailable-ish") for the Hattie Cove loop, but that loop's
+        OWN ``mapLinkAvailabilities`` contained a grandchild loop
+        (Hattie Cove Campground) reporting code 0. The previous drill only
+        followed links whose own code equalled ``AVAILABILITY_AVAILABLE_CODE``
+        and would have stopped at the root without ever seeing it. Every
+        discovered link is now drilled — breadth-first, open-looking links
+        first so a request-cap cutoff still finds real availability first —
+        bounded by ``_MAX_DRILL_REQUESTS`` (raised to 40 to cover Parks
+        Canada's 3-level nesting).
         """
         sites = self._extract_site_days(data)
-        queue = self._open_link_ids(data, nights)
+        queue = self._drill_children(data, nights)
+        seen = set(queue)
         requests = 0
         while queue and requests < self._MAX_DRILL_REQUESTS:
             link_id = queue.pop(0)
@@ -966,8 +1048,63 @@ class BaseCamisAdapter(BaseAdapter):
             )
             requests += 1
             sites.update(self._extract_site_days(sub))
-            queue.extend(self._open_link_ids(sub, nights))
+            for child_id in self._drill_children(sub, nights):
+                if child_id not in seen:
+                    seen.add(child_id)
+                    queue.append(child_id)
         return sites
+
+    # THR-129 Finding B: Camis's site-level availability code is a 6-state
+    # enum per the UI legend (Available/green, Partial Availability/purple,
+    # Restrictions/orange, Unavailable/red, Not Operating/black, Held in
+    # Cart/blue), but only a subset was confirmed against a live response
+    # (Pukaskwa, 2026-07-07): 0=Available, 1=Unavailable, 3=Restrictions
+    # (verified live: clicking one of these sites yields "is not reservable
+    # ... Select a reservable location to continue"), 5=booked-out (observed
+    # on already-reserved oTENTiks), 6=Not Operating. Codes 2/4 (Partial
+    # Availability / Held in Cart per the legend) were never observed live
+    # and are labelled generically below. This mapping is for READABLE
+    # evidence text only — ``AVAILABILITY_AVAILABLE_CODE`` still treats
+    # everything but 0 as "not bookable" (the correct conservative default).
+    _SITE_STATE_LABELS = {
+        0: "available",
+        1: "unavailable",
+        2: "partially available",
+        3: "restricted",
+        4: "held in cart",
+        5: "booked out",
+        6: "not operating",
+    }
+
+    @classmethod
+    def _site_state_label(cls, code: int) -> str:
+        return cls._SITE_STATE_LABELS.get(code, f"code {code}")
+
+    @classmethod
+    def _summarize_site_states(cls, stay: dict[str, list[int]]) -> str:
+        """Human-readable breakdown of site states, e.g. "67 sites
+        restricted, 5 booked out" — instead of dumping a raw aggregate dict
+        (THR-129 Finding B). Sites whose stay-night codes aren't uniform are
+        grouped as "mixed across the stay" rather than picking one code
+        arbitrarily.
+        """
+        counts: dict[str, int] = {}
+        order: list[str] = []
+        for codes in stay.values():
+            if not codes:
+                continue
+            label = (
+                cls._site_state_label(codes[0])
+                if len(set(codes)) == 1
+                else "mixed across the stay"
+            )
+            if label not in counts:
+                order.append(label)
+            counts[label] = counts.get(label, 0) + 1
+        return ", ".join(
+            f"{counts[label]} site{'s' if counts[label] != 1 else ''} {label}"
+            for label in order
+        )
 
     def _classify_site_days(
         self, site_days: dict[str, list[int]], site: str, nights: int
@@ -1008,19 +1145,60 @@ class BaseCamisAdapter(BaseAdapter):
             site=site,
             status=status,
             evidence=(
-                f"sites free for the full stay: {len(full_stay)}/{len(site_days)}; "
-                f"sites with ≥1 free night: {any_night} (0=available)"
+                f"{self._summarize_site_states(stay)} "
+                f"({len(full_stay)}/{len(site_days)} sites free for the full "
+                f"{nights}-night stay, {any_night} with ≥1 free night)"
             ),
             total_available=len(full_stay),
         )
 
+    def _results_deep_link(self, params: dict) -> str | None:
+        """Build the ``/create-booking/results`` deep-link for the requested
+        park/dates (THR-129 Finding E) — confirmed live and fully
+        URL-driven, no form interaction required:
+        ``{base_url}/create-booking/results?resourceLocationId={rl}&mapId={
+        root_map_id}&searchTabGroupId=0&bookingCategoryId={cat}&startDate=
+        YYYY-MM-DD&endDate=YYYY-MM-DD&nights={n}&partySize={p}``. Returns
+        ``None`` when the params can't be resolved yet (e.g. no park
+        selected), in which case the bare homepage snapshot is all we can
+        show.
+        """
+        resolved = self._resolve_params(params)
+        try:
+            query = self._build_availability_query(resolved)
+        except (ValueError, KeyError):
+            return None
+        nights = int(resolved.get("nights", 1) or 1)
+        people = resolved.get("people")
+        try:
+            party_size = int(people) if people not in (None, "") else 1
+        except (TypeError, ValueError):
+            party_size = 1
+        return (
+            f"{self.base_url}/create-booking/results"
+            f"?resourceLocationId={query['resourceLocationId']}"
+            f"&mapId={query['mapId']}"
+            f"&searchTabGroupId=0"
+            f"&bookingCategoryId={query['bookingCategoryId']}"
+            f"&startDate={query['startDate']}"
+            f"&endDate={query['endDate']}"
+            f"&nights={nights}"
+            f"&partySize={party_size}"
+        )
+
     async def fill_form(self, page: Page, params: dict) -> None:
-        """Warm the browser context and snapshot the search page.
+        """Warm the browser context and snapshot the search results.
 
         Availability itself comes from the JSON API in ``detect_availability``;
-        this navigates to the site (clearing Queue-it if present) so the context
-        carries valid cookies for the subsequent API call, and captures a
-        snapshot for debugging.
+        this navigates to the site (clearing Queue-it if present) so the
+        context carries valid cookies for the subsequent API call. THR-129
+        Finding E: previously this snapshotted the bare homepage — for an
+        UNAVAILABLE result the artifact showed today's date and "All
+        Locations", which reads as "the worker never searched" even though
+        the JSON query itself was correct. Navigate on to the real,
+        fully URL-driven results deep-link when the params resolve, so the
+        snapshot shows the park/dates actually queried; fails soft to the
+        homepage snapshot otherwise.
         """
         await page.goto(self.base_url, wait_until="domcontentloaded", timeout=60_000)
         await self._pass_queue_it(page)
@@ -1028,6 +1206,20 @@ class BaseCamisAdapter(BaseAdapter):
             await page.wait_for_load_state("networkidle", timeout=15_000)
         except PlaywrightTimeoutError:
             pass
+
+        results_url = self._results_deep_link(params)
+        if results_url is not None:
+            try:
+                await page.goto(results_url, wait_until="domcontentloaded", timeout=60_000)
+                await page.wait_for_load_state("networkidle", timeout=15_000)
+            except PlaywrightTimeoutError:
+                pass
+            except Exception as exc:
+                logger.warning(
+                    "could not navigate to Camis results deep-link %s: %s",
+                    results_url, exc,
+                )
+
         await self.snapshot(page, "camis_search")
 
     async def detect_availability(
@@ -1035,13 +1227,19 @@ class BaseCamisAdapter(BaseAdapter):
     ) -> list[AvailabilityResult]:
         """Read park availability for the requested dates from the JSON API.
 
-        One watch job → one park (resource location). Queries the park's map,
-        short-circuits to UNAVAILABLE when every campground loop reports no
-        available day, and otherwise drills into the open loops for per-site
+        One watch job → one park (resource location). Queries the park's map
+        and drills into every discovered loop (bounded by
+        ``_MAX_DRILL_REQUESTS``, open-looking loops first) for per-site
         codes — a stay is only real if a single site is free every night
         (day-wise aggregates can show "available" when no site covers the
-        whole stay). Returns a single-element list to match ``BaseAdapter``'s
-        contract; callers already handle the all/any/partial cases generically.
+        whole stay). THR-129 Finding A: this used to short-circuit straight
+        to UNAVAILABLE whenever no loop's own aggregate looked open, without
+        drilling at all — live recon proved that aggregate can't be trusted
+        (a non-zero parent can still hide a code-0 descendant), so that
+        short-circuit is gone; ``_collect_site_days`` always drills, bounded
+        by the request cap. Returns a single-element list to match
+        ``BaseAdapter``'s contract; callers already handle the
+        all/any/partial cases generically.
         """
         params = self._resolve_params(params)
         park = self._park_by_resource_location_id(int(params["resource_location_id"])) \
@@ -1093,16 +1291,13 @@ class BaseCamisAdapter(BaseAdapter):
                 status=AvailabilityStatus.UNKNOWN,
                 evidence="availability/map returned no links or site data for this park",
             )]
-        # Fast path — every loop reports zero available nights, so there is
-        # nothing to drill into (the common polling case).
-        if not has_sites and not self._open_link_ids(data, nights):
-            return [AvailabilityResult(
-                site=site_name,
-                status=AvailabilityStatus.UNAVAILABLE,
-                evidence=f"all campground loops report no available nights: {links}",
-                total_available=0,
-            )]
 
+        # THR-129 Finding A: no fast-path short-circuit here anymore — a
+        # loop's own aggregate can't be trusted to mean "nothing available"
+        # (live Pukaskwa recon: a code-1 parent hid a code-0 grandchild two
+        # levels down), so every loop is always drilled, bounded by
+        # _MAX_DRILL_REQUESTS, rather than skipped the moment none look open
+        # at the top.
         site_days = await self._collect_site_days(page, query, data, nights)
         return [self._classify_site_days(site_days, site_name, nights)]
 

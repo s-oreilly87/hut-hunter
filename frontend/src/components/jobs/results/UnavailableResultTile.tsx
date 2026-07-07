@@ -26,6 +26,10 @@ export function UnavailableResultTile({
   const summary = siteCount === 1
     ? (firstCopy?.summary ?? 'No availability was found for this site.')
     : `No availability was found for ${siteCount} selected sites.`
+  // THR-129 Finding E: only meaningful for the single-site case — a bundled
+  // tile's entries can each have different evidence, so it isn't shown
+  // there (the summary/chip-per-site treatment already covers that case).
+  const evidenceLine = siteCount === 1 ? firstCopy?.details[0] : undefined
 
   return (
     <div className={`rounded-[1.25rem] border px-4 py-4 ${visual.tileClass}`}>
@@ -42,6 +46,11 @@ export function UnavailableResultTile({
               <p className="mt-1 text-sm leading-5 text-foreground/85">
                 {summary}
               </p>
+              {evidenceLine && (
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {evidenceLine}
+                </p>
+              )}
             </div>
             <Badge className={`shrink-0 ${visual.badgeClass}`}>
               Unavailable
