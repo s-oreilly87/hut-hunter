@@ -71,6 +71,7 @@ from app.adapters.base import (
     CredentialVerificationResult,
     OccupantField,
     ParamField,
+    UnexpectedHoldFailure,
     VerificationStatus,
 )
 from app.core.config import settings
@@ -145,6 +146,23 @@ class BaseCamisAdapter(BaseAdapter):
     # schedule (unlike the DOC adapters, which are always bookable). See
     # check_booking_window below.
     has_booking_windows: bool = True
+
+    # THR-126: BC/Ontario's PRIMARY release mechanic is a rolling
+    # per-arrival-date window (BC opens 3 months before arrival, Ontario 5) —
+    # the dateschedule season go-live date only covers fixed-date season
+    # launches, which turned out to be the minority case, so gating on it
+    # alone (the THR-124 shape) meant the feature could never engage for the
+    # common case (confirmed live: a next-summer BC hunt was created active,
+    # not AWAITING_WINDOW, because no goLiveDate was published for a season
+    # that far out). None (the default) means "no confirmed rolling cadence
+    # for this adapter" — falls back to go-live-only gating, i.e. exactly the
+    # pre-THR-126 behavior; set per-province below.
+    advance_booking_months: int | None = None
+    # Local time of day the rolling window opens, in booking_timezone. Ticket
+    # text: "7am PT / 7am ET" — not independently re-confirmed live in this
+    # change; if a province's actual cutover time turns out to differ this is
+    # the one place to correct it.
+    window_open_local_time: time = time(7, 0)
 
     # Booking window. Subclasses set the province timezone; the cutoff default
     # is intentionally the base 23:59 until a real booking cutoff is confirmed.
@@ -561,9 +579,53 @@ class BaseCamisAdapter(BaseAdapter):
             return dt.replace(tzinfo=tz).astimezone(timezone.utc)
         return dt.replace(tzinfo=timezone.utc)
 
+    @staticmethod
+    def _subtract_months(d: date_cls, months: int) -> date_cls:
+        """Subtract ``months`` calendar months from ``d``.
+
+        Clamps the day to the last valid day of the resulting month (e.g.
+        Mar 31 minus 1 month -> Feb 28/29) rather than raising or rolling
+        over into the following month.
+        """
+        total_months = d.year * 12 + (d.month - 1) - months
+        year, month0 = divmod(total_months, 12)
+        month = month0 + 1
+        next_month_first = (
+            date_cls(year + 1, 1, 1) if month == 12 else date_cls(year, month + 1, 1)
+        )
+        last_day_of_month = (next_month_first - timedelta(days=1)).day
+        return date_cls(year, month, min(d.day, last_day_of_month))
+
+    @classmethod
+    def _entry_for_target_date(cls, entries: list[dict], target_date: date_cls) -> dict | None:
+        """Pick the single season entry most relevant to ``target_date``.
+
+        THR-126: fixes the previous behavior of taking ``min()`` of every
+        entry's go-live date regardless of which season it belongs to, which
+        could surface a past or otherwise unrelated season's go-live. Entries
+        with no parseable range at all can't be scored and are ignored;
+        among the rest this picks whichever range's start date is CLOSEST to
+        ``target_date`` (in either direction) — the season actually adjacent
+        to the requested date, rather than whichever happens to sort first.
+        """
+        scored = [
+            (entry, start)
+            for entry in entries
+            if (start := cls._entry_range(entry)[0]) is not None
+        ]
+        if not scored:
+            return None
+        return min(scored, key=lambda pair: abs((pair[1].date() - target_date).days))[0]
+
     @classmethod
     def _parse_booking_window(
-        cls, data: Any, target_date: date_cls, tz: Any,
+        cls,
+        data: Any,
+        target_date: date_cls,
+        tz: Any,
+        *,
+        advance_booking_months: int | None = None,
+        window_open_local_time: time = time(7, 0),
     ) -> BookingWindowInfo:
         entries = cls._schedule_entries(data)
         if not entries:
@@ -582,21 +644,39 @@ class BaseCamisAdapter(BaseAdapter):
                     is_open=True, evidence="target date is within a reservable range",
                 )
 
-        # No entry's reservable range covers target_date. Only a confirmed
-        # go-live timestamp produces an arm time — see the module comment
-        # above for why a range's start date is never used as a stand-in.
-        candidates = [
-            go_live
-            for entry in entries
-            if (go_live := cls._entry_go_live(entry, tz)) is not None
-        ]
+        # No entry's reservable range covers target_date. THR-126: combine
+        # two independent signals and arm on the EARLIEST one available —
+        # arming early just means the poll worker sees "not released yet" a
+        # bit longer, arming late risks missing the window outright:
+        #  - the hardcoded rolling-release window (advance_booking_months),
+        #    this platform's PRIMARY release mechanic and the one the
+        #    dateschedule payload never encodes at all;
+        #  - a genuinely published go-live date for the season relevant to
+        #    target_date (a fixed-date season launch, or this season
+        #    releasing off-cadence) — scoped to the one relevant entry via
+        #    _entry_for_target_date, not every season on file (see its
+        #    docstring for the bug that fixes).
+        candidates: list[datetime] = []
+
+        if advance_booking_months is not None:
+            rolling_open_date = cls._subtract_months(target_date, advance_booking_months)
+            candidates.append(
+                cls._localize(datetime.combine(rolling_open_date, window_open_local_time), tz)
+            )
+
+        relevant_entry = cls._entry_for_target_date(entries, target_date)
+        if relevant_entry is not None:
+            confirmed_go_live = cls._entry_go_live(relevant_entry, tz)
+            if confirmed_go_live is not None:
+                candidates.append(confirmed_go_live)
 
         if not candidates:
             return BookingWindowInfo(
                 is_open=True,
                 evidence=(
-                    "target date not covered by any reservable range and no "
-                    "confirmed go-live date is published yet — failing open"
+                    "target date not covered by any reservable range, no rolling "
+                    "advance-booking window is configured for this adapter, and "
+                    "no confirmed go-live date is published yet — failing open"
                 ),
             )
 
@@ -605,7 +685,10 @@ class BaseCamisAdapter(BaseAdapter):
             is_open=False,
             opens_at=open_dt,
             opens_at_precise=True,
-            evidence=f"target date not covered by any reservable range; earliest confirmed go-live is {open_dt.isoformat()}",
+            evidence=(
+                "target date not covered by any reservable range; earliest "
+                f"computed open time is {open_dt.isoformat()}"
+            ),
         )
 
     async def check_booking_window(self, params: dict) -> BookingWindowInfo:
@@ -646,7 +729,13 @@ class BaseCamisAdapter(BaseAdapter):
 
         tz = ZoneInfo(self.booking_timezone) if self.booking_timezone else None
         try:
-            return self._parse_booking_window(data, target_date, tz)
+            return self._parse_booking_window(
+                data,
+                target_date,
+                tz,
+                advance_booking_months=self.advance_booking_months,
+                window_open_local_time=self.window_open_local_time,
+            )
         except Exception as exc:
             logger.warning("failed to parse dateschedule response: %s — treating window as open", exc)
             return BookingWindowInfo(is_open=True, evidence=f"dateschedule parse error: {exc}")
@@ -877,6 +966,34 @@ class BaseCamisAdapter(BaseAdapter):
             if params.get("resource_location_id") is not None else None
         site_name = (park or {}).get("full_name") or str(params.get("resource_location_id", "(unknown park)"))
 
+        # THR-126 (fixes THR-124 §4b): a date outside the computed booking
+        # window can never be AVAILABLE, no matter what the availability/map
+        # codes say. Recon confirmed beyond-window dates can still return
+        # site-level code 0 ("available") even though the UI shows every
+        # site Closed — that's exactly how the poll worker false-positived
+        # into a hold attempt on a not-yet-released Golden Ears date.
+        # check_booking_window fails open on any lookup hiccup (missing
+        # params, network error, unparseable response), so this can only
+        # ever make an otherwise-AVAILABLE result MORE conservative, never
+        # less — it never invents unavailability the site itself wouldn't.
+        try:
+            window = await self.check_booking_window(params)
+        except Exception as exc:
+            logger.warning(
+                "booking-window check failed during detect_availability for "
+                "resource_location_id=%s: %s — proceeding without the window gate",
+                params.get("resource_location_id"), exc,
+            )
+            window = BookingWindowInfo(is_open=True)
+        if not window.is_open:
+            opens_at_text = window.opens_at.isoformat() if window.opens_at else "an unconfirmed date"
+            return [AvailabilityResult(
+                site=site_name,
+                status=AvailabilityStatus.UNAVAILABLE,
+                evidence=f"outside the booking window (opens {opens_at_text}): {window.evidence}",
+                total_available=0,
+            )]
+
         try:
             query = self._build_availability_query(params)
         except (ValueError, KeyError) as e:
@@ -1039,10 +1156,23 @@ class BaseCamisAdapter(BaseAdapter):
         site_name = (park or {}).get("full_name") or str(query["resourceLocationId"])
 
         # 1. Authenticate (the cart is account-scoped).
-        try:
-            await self._login(page)
-        except RuntimeError as e:
-            return BookingResult(success=False, held=False, message=str(e))
+        #
+        # THR-126 (fixes THR-122 §2): this used to catch RuntimeError here and
+        # report it as a clean BookingResult(held=False) "Hold Failed" — which
+        # is exactly why the noVNC takeover never fired for a stuck consent
+        # banner: attempt_hold() swallowed the failure before hold_worker's
+        # takeover except-block ever saw it. Login is no longer attempted here
+        # unless the credential already PASSED verify_credentials_task (the
+        # hold worker skips straight to a clean BookingResult before ever
+        # opening a browser when the stored credential is missing or FAILED —
+        # see attempt_hold_task). So a rejection THIS deep in the funnel means
+        # something changed since it verified, or the site hit an unexpected
+        # state (stuck consent gate, a redesigned login form) — either way a
+        # human should look at it via takeover, not have the hold silently
+        # reported as failed. Any exception from _login (RuntimeError,
+        # UnexpectedHoldFailure, a bare Playwright timeout) is now left to
+        # propagate to the hold worker's takeover handler.
+        await self._login(page)
 
         # 2. Open the results page at an available loop map so the per-site list
         #    renders directly (JSON-first — skips the flaky Leaflet loop drill).
@@ -1081,10 +1211,13 @@ class BaseCamisAdapter(BaseAdapter):
         await page.wait_for_timeout(3_000)
         reserve = page.locator("mat-expansion-panel.mat-expanded [id^=reserveButton]")
         if await reserve.count() == 0:
+            # THR-126: an "available" site with no Reserve control is an
+            # unexpected page state this deep in the funnel (equipment not
+            # set, a layout change) rather than a known clean negative — park
+            # for takeover instead of a silent Hold Failed (ticket §2 audit).
             await self.snapshot(page, "camis_no_reserve_button")
-            return BookingResult(
-                success=False, held=False,
-                message="Expanded a site but found no Reserve control (equipment not set?)",
+            raise UnexpectedHoldFailure(
+                "Expanded a site but found no Reserve control (equipment not set?)"
             )
         await reserve.first.click(force=True)
         await page.wait_for_timeout(6_000)
@@ -1116,10 +1249,15 @@ class BaseCamisAdapter(BaseAdapter):
         #    item and the /cart page must expose Proceed to Checkout.
         proceed = page.locator("#proceedToCheckout")
         if await self._cart_item_count(page) < 1 or await proceed.count() == 0:
+            # THR-126: the browser is already deep in the funnel (past
+            # Reserve + Confirm) — a missing cart item here is more likely an
+            # unexpected mid-funnel hiccup than "availability dropped" in the
+            # ordinary sense already handled earlier, so park for takeover
+            # rather than reporting a plain Hold Failed (ticket §2 audit).
             await self.snapshot(page, "camis_hold_not_confirmed")
-            return BookingResult(
-                success=False, held=False,
-                message="Reservation did not land in the cart — availability may have dropped",
+            raise UnexpectedHoldFailure(
+                "Reservation did not land in the cart — availability may have "
+                "dropped, or the confirm step silently failed"
             )
 
         # 7. Proceed to the payment page (the noVNC hand-off point) and park it.
@@ -1183,7 +1321,21 @@ class BaseCamisAdapter(BaseAdapter):
     # be actionable. There's no button-text match here (Ontario serves both
     # en-CA and fr-CA), so this stays ID-based; new consent IDs (a future
     # province, an A/B variant) just get appended to the tuple.
-    _CONSENT_SELECTORS = ("#login-cookie-consent", "#consentButton")
+    #
+    # THR-126 (fixes THR-122 §1, confirmed against a live hold failure):
+    # ``#login-cookie-consent`` is almost certainly the banner's CONTAINER —
+    # recon (HH-100, camis-recon.md:78) describes it as "the cookie-consent
+    # gate" — not the "I consent" button itself. Clicking it lands on the
+    # container (its paragraph text, typically), which does nothing: the
+    # click "succeeds" (no exception) while the banner stays up and the
+    # subsequent #email wait times out. ``#consentButton`` reads as the real
+    # control, so it's tried FIRST; the container is kept as a fallback for a
+    # build where it really is the clickable element (or delegates the click
+    # to its child). ``_resolve_consent_click_target`` below is what actually
+    # decides which one to click — ``_CONSENT_SELECTORS`` / ``_consent_locator``
+    # stay as the combined "is *a* consent element present" check used by the
+    # login race.
+    _CONSENT_SELECTORS = ("#consentButton", "#login-cookie-consent")
     _EMAIL_SELECTOR = "#email"
     _PASSWORD_SELECTOR = "#password"
 
@@ -1191,6 +1343,80 @@ class BaseCamisAdapter(BaseAdapter):
         """A single locator matching any known consent-button selector."""
         selector = ", ".join(self._CONSENT_SELECTORS)
         return page.locator(selector).first
+
+    async def _resolve_consent_click_target(self, page: Page):
+        """Return the locator to actually click to dismiss the consent gate.
+
+        THR-126: tries each known selector in preference order (real button
+        first, container fallback last) and clicks whichever one is actually
+        present/visible, instead of always clicking the combined locator's
+        first DOM match (which could resolve to the container even when the
+        real button selector is also present elsewhere on the page).
+        """
+        for selector in self._CONSENT_SELECTORS:
+            candidate = page.locator(selector).first
+            try:
+                if await candidate.count() > 0 and await candidate.is_visible():
+                    return candidate
+            except PlaywrightTimeoutError:
+                continue
+        return self._consent_locator(page)
+
+    async def _snapshot_consent_blocked(self, page: Page, label: str) -> None:
+        """Snapshot the stuck consent banner for diagnosis (THR-126).
+
+        In addition to the usual screenshot, this captures the banner
+        container's ``outerHTML`` directly into the log so a future selector
+        drift (a changed id, a re-templated banner) is diagnosable from the
+        artifacts alone rather than requiring someone to reproduce it live.
+        Best-effort — a failure here must never mask the real error.
+        """
+        await self.snapshot(page, label)
+        try:
+            html = await page.evaluate(
+                "(sel) => { const el = document.querySelector(sel); "
+                "return el ? el.outerHTML : null; }",
+                self._CONSENT_SELECTORS[-1],
+            )
+            if html:
+                logger.warning("Camis consent banner outerHTML at failure: %s", html[:4000])
+        except Exception:
+            pass
+
+    async def _dismiss_consent_banner(self, page: Page, *, attempts: int = 3) -> bool:
+        """Click the actual consent control and VERIFY the banner is gone.
+
+        THR-126 (fixes THR-122 §1): the old code treated ``consent.click()``
+        not raising as proof of dismissal. That's exactly how this bug
+        shipped — clicking the container "succeeds" while the banner stays
+        on screen. This re-checks the banner's own visibility after every
+        click and retries up to ``attempts`` times (a mis-timed click can
+        also just get swallowed) before giving up.
+
+        Returns True once the banner is confirmed gone (hidden or no longer
+        matching any known selector), False if it's still visible after
+        every attempt.
+        """
+        for attempt in range(1, attempts + 1):
+            target = await self._resolve_consent_click_target(page)
+            try:
+                await target.click()
+            except PlaywrightTimeoutError:
+                pass
+            await page.wait_for_timeout(600)
+            still_visible = False
+            try:
+                combined = self._consent_locator(page)
+                still_visible = await combined.count() > 0 and await combined.is_visible()
+            except PlaywrightTimeoutError:
+                still_visible = False
+            if not still_visible:
+                return True
+            logger.warning(
+                "Camis consent banner still visible after click attempt %d/%d",
+                attempt, attempts,
+            )
+        return False
 
     async def _accept_cookie_consent(
         self, page: Page, *, timeout_ms: int = 15_000
@@ -1200,12 +1426,21 @@ class BaseCamisAdapter(BaseAdapter):
         THR-122: replaces the old fixed 1.5s delay + single count()/is_visible()
         check, which missed banners that render later than 1.5s. Instead this
         polls (bounded to ``timeout_ms``, ~15s) for EITHER the consent button
-        or ``#email`` to become visible — whichever shows up first. If consent
-        wins the race, click it and then wait for ``#email`` to be visible
-        before returning, since dismissing the banner is itself what un-covers
-        the login form. If neither ever appears, snapshot the page for the run
-        artifacts and raise so the caller doesn't fill a hidden/non-actionable
-        field and time out with a less useful error.
+        or ``#email`` to become visible — whichever shows up first.
+
+        THR-126: if consent wins the race, dismissal is now VERIFIED
+        (``_dismiss_consent_banner`` re-checks the banner's own visibility
+        and retries) rather than assumed from the click not raising — see the
+        module note above on why that assumption was wrong. Only once
+        dismissal is confirmed does this wait for ``#email`` to become
+        visible. Any unresolved case (banner won't dismiss, or dismisses but
+        #email never shows, or neither ever appears at all) raises
+        ``UnexpectedHoldFailure`` instead of ``RuntimeError`` — THR-122 fixed
+        the race but a stuck banner here was still being swallowed by
+        ``attempt_hold``'s login handler as a clean "login rejected" negative,
+        so no takeover ever fired for it (THR-122 §2 in the THR-126 writeup).
+        A snapshot (screenshot + banner outerHTML) is always taken first so
+        the failure is diagnosable from artifacts alone.
         """
         consent = self._consent_locator(page)
         email = page.locator(self._EMAIL_SELECTOR)
@@ -1216,13 +1451,19 @@ class BaseCamisAdapter(BaseAdapter):
                 if await email.is_visible():
                     return
                 if await consent.count() > 0 and await consent.is_visible():
-                    await consent.click()
-                    await page.wait_for_timeout(800)
+                    dismissed = await self._dismiss_consent_banner(page)
+                    if not dismissed:
+                        await self._snapshot_consent_blocked(page, "camis_consent_blocked")
+                        raise UnexpectedHoldFailure(
+                            "Camis cookie-consent banner would not dismiss after "
+                            "repeated clicks — the click target may have drifted "
+                            "from the real 'I consent' control"
+                        )
                     try:
                         await email.wait_for(state="visible", timeout=timeout_ms - elapsed_ms)
                     except PlaywrightTimeoutError:
-                        await self.snapshot(page, "camis_consent_blocked")
-                        raise RuntimeError(
+                        await self._snapshot_consent_blocked(page, "camis_consent_blocked")
+                        raise UnexpectedHoldFailure(
                             "Camis cookie-consent banner was dismissed but #email "
                             "never became visible"
                         )
@@ -1232,8 +1473,8 @@ class BaseCamisAdapter(BaseAdapter):
             await page.wait_for_timeout(poll_ms)
             elapsed_ms += poll_ms
 
-        await self.snapshot(page, "camis_consent_blocked")
-        raise RuntimeError(
+        await self._snapshot_consent_blocked(page, "camis_consent_blocked")
+        raise UnexpectedHoldFailure(
             "Camis login form did not become visible — cookie-consent banner "
             "may be blocking #email"
         )
@@ -1272,11 +1513,17 @@ class BaseCamisAdapter(BaseAdapter):
 
         # Re-check immediately before filling: a banner that re-renders after
         # the first check (e.g. a second consent prompt) would otherwise still
-        # cover #email and time out the fill.
+        # cover #email and time out the fill. THR-126: uses the same
+        # verified-dismissal helper as the initial check rather than a bare
+        # click, for the same reason (see _accept_cookie_consent).
         consent = self._consent_locator(page)
         if await consent.count() > 0 and await consent.is_visible():
-            await consent.click()
-            await page.wait_for_timeout(800)
+            if not await self._dismiss_consent_banner(page):
+                await self._snapshot_consent_blocked(page, "camis_consent_blocked")
+                raise UnexpectedHoldFailure(
+                    "Camis cookie-consent banner re-appeared before login and "
+                    "would not dismiss"
+                )
             await page.locator(self._EMAIL_SELECTOR).wait_for(state="visible", timeout=15_000)
 
         await page.locator(self._EMAIL_SELECTOR).fill(credentials.username)
@@ -1313,10 +1560,14 @@ class BaseCamisAdapter(BaseAdapter):
             await self._pass_queue_it(page)
             await self._accept_cookie_consent(page)
 
+            # THR-126: same verified-dismissal helper as _login — this is the
+            # root cause of THR-123's false INCONCLUSIVEs on valid credentials
+            # (§3a): a bare consent.click() here could "succeed" while the
+            # banner stayed up, so the fill below never found #email.
             consent = self._consent_locator(page)
             if await consent.count() > 0 and await consent.is_visible():
-                await consent.click()
-                await page.wait_for_timeout(800)
+                if not await self._dismiss_consent_banner(page):
+                    raise UnexpectedHoldFailure("Camis consent banner would not dismiss")
                 await page.locator(self._EMAIL_SELECTOR).wait_for(state="visible", timeout=15_000)
         except Exception as e:
             await self.snapshot(page, "camis_verify_inconclusive")

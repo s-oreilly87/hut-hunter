@@ -62,6 +62,10 @@ class BaseDOCAdapter(BaseAdapter):
     cart_inactive_after_minutes: int = 15
     cart_keepalive_interval_minutes: int = 5
     requires_credentials: bool = True
+    # THR-126: DocGreatWalkAdapter and DocStandardHutAdapter are both
+    # bookings.doc.govt.nz accounts — one saved+verified sign-in covers both
+    # rather than asking the user to enter (and verify) the same login twice.
+    credential_realm: str | None = "doc_govt_nz"
 
     # ------------------------------------------------------------------
     # Low-level Playwright helpers

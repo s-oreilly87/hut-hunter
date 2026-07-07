@@ -15,6 +15,7 @@ from app.adapters import (
     get_adapter,
 )
 from app.core.adapter_credentials import get_adapter_credential_record, get_user_adapter_credentials
+from app.models.credential import CredentialVerificationState
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notification_settings import get_user_notification_settings_secret
@@ -80,7 +81,12 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
         auto_book = job.auto_book
         user_credentials = await get_user_adapter_credentials(session, job.user_id or "", job.adapter_id)
         credential_record = await get_adapter_credential_record(session, job.user_id or "", job.adapter_id)
-        credential_failed = credential_record is not None and credential_record.is_verified is False
+        # THR-126: keys off verification_status, not the legacy is_verified
+        # boolean — INCONCLUSIVE/PENDING must not be treated as failed.
+        credential_failed = (
+            credential_record is not None
+            and credential_record.verification_status == CredentialVerificationState.FAILED.value
+        )
         # THR-123: a credential that failed verification is treated as no
         # usable credential at all — same gate as missing credentials.
         credentials_configured = (

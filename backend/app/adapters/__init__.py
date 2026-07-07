@@ -54,6 +54,36 @@ def adapter_has_booking_windows(adapter_id: str) -> bool:
     return bool(cls.has_booking_windows) if cls else False
 
 
+def credential_key_for_adapter(adapter_id: str) -> str:
+    """The key stored credentials are actually keyed by (THR-126).
+
+    Most adapters key by their own adapter_id. Adapters that declare a
+    ``credential_realm`` (the two DOC adapters — both bookings.doc.govt.nz
+    accounts) share one key so one saved+verified sign-in covers the whole
+    realm. Unknown adapters degrade to their literal id — same fail-open
+    posture as the rest of this module.
+    """
+    cls = _REGISTRY.get(adapter_id)
+    if cls is None:
+        return adapter_id
+    return cls.credential_realm or adapter_id
+
+
+def adapter_ids_for_credential_key(key: str) -> list[str]:
+    """Every concrete adapter_id that resolves to ``key`` (THR-126).
+
+    Inverse of ``credential_key_for_adapter`` — used to expand a stored
+    credential row's key back into the set of adapters it actually covers
+    (for ``credentials_configured`` checks) and to pick a canonical, real
+    adapter_id to display a shared-realm credential under (the API/UI never
+    show the bare realm string — see ``_credential_record_to_read``).
+    Degrades to ``[key]`` if nothing in the registry maps to it (e.g. stale
+    data from a removed adapter) so callers never get an empty set back.
+    """
+    ids = [aid for aid in _REGISTRY if credential_key_for_adapter(aid) == key]
+    return ids or [key]
+
+
 def list_adapters() -> list[dict]:
     return [
         {
@@ -67,6 +97,11 @@ def list_adapters() -> list[dict]:
             # real, expected state (Camis) — tells the frontend whether it's
             # worth calling POST /jobs/window-check at all.
             "has_booking_windows": cls.has_booking_windows,
+            # THR-126: non-null when this adapter shares a saved sign-in with
+            # one or more other adapters (e.g. both DOC adapters are
+            # "doc_govt_nz") — the frontend groups adapters with the same
+            # realm into a single Sign-Ins card.
+            "credential_realm": cls.credential_realm,
             # Expiry metadata — None means the adapter has no booking cutoff.
             # Consumed by the frontend for date validation and by the worker
             # to gate availability checks.
