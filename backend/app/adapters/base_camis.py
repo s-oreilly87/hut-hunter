@@ -67,7 +67,9 @@ from app.adapters.base import (
     AvailabilityStatus,
     BaseAdapter,
     BookingResult,
+    BookingWindowClosedDuringHold,
     BookingWindowInfo,
+    CredentialsRejectedError,
     CredentialVerificationResult,
     OccupantField,
     ParamField,
@@ -468,6 +470,24 @@ class BaseCamisAdapter(BaseAdapter):
     # the real release. Only a genuinely present `goLiveDate`/`goLiveDateUtc`
     # produces an arm time; everything else fails OPEN (``is_open=True``,
     # i.e. "poll normally, exactly like before THR-124").
+    #
+    # THR-127: the rolling advance-booking window (``advance_booking_months``,
+    # this platform's PRIMARY release mechanic per THR-126) is an INDEPENDENT
+    # constraint from the reservable-range check above — a season's range
+    # describes the operating SEASON, not the released subset of it. The
+    # original THR-126 implementation only ever consulted
+    # ``advance_booking_months`` in the "target date isn't covered by any
+    # range" branch, so any in-season date (the common case once a season's
+    # range is published, which happens well before the rolling window
+    # itself opens) short-circuited straight to ``is_open=True`` at the
+    # in-range check and never asked the rolling-window question at all —
+    # confirmed live: a BC Golden Ears hunt (arrival Oct 8, ~3 months out)
+    # was reported AVAILABLE and its hold died on a "Cannot Reserve ... not
+    # yet allowed" modal at exactly the rolling-window instant this code
+    # would have computed had it run. The fix: check the rolling window
+    # FIRST, unconditionally — it can close a date that's otherwise "in
+    # range" — and only fall through to the range/go-live checks once it's
+    # satisfied (or not configured at all).
     # ------------------------------------------------------------------
 
     _SCHEDULE_LIST_KEYS = ("dateSchedules", "schedules", "seasons", "items", "results")
@@ -626,9 +646,59 @@ class BaseCamisAdapter(BaseAdapter):
         *,
         advance_booking_months: int | None = None,
         window_open_local_time: time = time(7, 0),
+        now: datetime | None = None,
     ) -> BookingWindowInfo:
+        # THR-127: threaded through (rather than reading the wall clock
+        # directly) so tests can pin "now" without monkeypatching datetime —
+        # this method was a pure classmethod with no prior notion of "now"
+        # at all, since the THR-126 rolling-gate candidate only ever fed a
+        # min()-across-candidates comparison, never a direct now-vs-open_dt
+        # check.
+        now = now if now is not None else datetime.now(timezone.utc)
+
+        rolling_open_dt: datetime | None = None
+        if advance_booking_months is not None:
+            rolling_open_date = cls._subtract_months(target_date, advance_booking_months)
+            rolling_open_dt = cls._localize(
+                datetime.combine(rolling_open_date, window_open_local_time), tz
+            )
+
+        def _rolling_gate_still_closed() -> BookingWindowInfo | None:
+            """THR-127 (the actual fix): the rolling window is an
+            independent constraint from the dateschedule season ranges —
+            those describe the operating SEASON, not the released subset of
+            it — so it must be checked wherever this module would otherwise
+            report ``is_open=True`` (an in-range date, or a dateschedule
+            response with nothing usable at all), NOT only in the
+            already-out-of-range fallback below. Returns the closed
+            ``BookingWindowInfo`` if the rolling window hasn't opened yet,
+            or ``None`` if it's not configured or has already opened (in
+            which case the caller proceeds to its own logic unchanged).
+            """
+            if rolling_open_dt is not None and now < rolling_open_dt:
+                return BookingWindowInfo(
+                    is_open=False,
+                    opens_at=rolling_open_dt,
+                    opens_at_precise=True,
+                    evidence=(
+                        "rolling advance-booking window has not opened yet "
+                        f"(opens {rolling_open_dt.isoformat()}) — this applies "
+                        "even though the date may already be inside a "
+                        "published reservable range, since that range "
+                        "describes the operating season, not the released "
+                        "subset of it"
+                    ),
+                )
+            return None
+
         entries = cls._schedule_entries(data)
         if not entries:
+            # THR-127: a dateschedule response with nothing parseable at all
+            # doesn't mean the rolling constraint no longer applies — check
+            # it before failing open.
+            blocked = _rolling_gate_still_closed()
+            if blocked is not None:
+                return blocked
             return BookingWindowInfo(
                 is_open=True, evidence="dateschedule returned no parseable entries",
             )
@@ -640,17 +710,32 @@ class BaseCamisAdapter(BaseAdapter):
             if (start is None or target_date >= start.date()) and (
                 end is None or target_date <= end.date()
             ):
+                # THR-127 (the actual fix): a season range being published
+                # does NOT mean the rolling window has opened — this is the
+                # exact short-circuit that made advance_booking_months dead
+                # code for the common case (see the module comment above).
+                blocked = _rolling_gate_still_closed()
+                if blocked is not None:
+                    return blocked
                 return BookingWindowInfo(
                     is_open=True, evidence="target date is within a reservable range",
                 )
 
-        # No entry's reservable range covers target_date. THR-126: combine
-        # two independent signals and arm on the EARLIEST one available —
+        # No entry's reservable range covers target_date — the rolling gate
+        # (if configured) either isn't blocking or has already opened, so it
+        # can't cover this case unconditionally the way it does above; fold
+        # it back in as a candidate instead. THR-126: combine the remaining
+        # independent signal(s) and arm on the EARLIEST one available —
         # arming early just means the poll worker sees "not released yet" a
-        # bit longer, arming late risks missing the window outright:
-        #  - the hardcoded rolling-release window (advance_booking_months),
-        #    this platform's PRIMARY release mechanic and the one the
-        #    dateschedule payload never encodes at all;
+        # bit longer, arming late risks missing the window outright. This
+        # branch is UNCHANGED by THR-127 — out-of-range dates already
+        # combined these signals correctly; only the in-range short-circuit
+        # above was the bug:
+        #  - the rolling-release window computed above, if configured
+        #    (may be in the past OR future here — a still-in-the-future
+        #    rolling date can legitimately be the earliest candidate for an
+        #    out-of-range date too, e.g. next season hasn't been published
+        #    at all yet);
         #  - a genuinely published go-live date for the season relevant to
         #    target_date (a fixed-date season launch, or this season
         #    releasing off-cadence) — scoped to the one relevant entry via
@@ -658,11 +743,8 @@ class BaseCamisAdapter(BaseAdapter):
         #    docstring for the bug that fixes).
         candidates: list[datetime] = []
 
-        if advance_booking_months is not None:
-            rolling_open_date = cls._subtract_months(target_date, advance_booking_months)
-            candidates.append(
-                cls._localize(datetime.combine(rolling_open_date, window_open_local_time), tz)
-            )
+        if rolling_open_dt is not None:
+            candidates.append(rolling_open_dt)
 
         relevant_entry = cls._entry_for_target_date(entries, target_date)
         if relevant_entry is not None:
@@ -1057,6 +1139,29 @@ class BaseCamisAdapter(BaseAdapter):
     # so match both; ``_select_equipment`` falls back to the first option.
     _DEFAULT_EQUIPMENT_RE = re.compile(r"(?:1|single)\s+tent", re.I)
 
+    # THR-127: the "Cannot Reserve" modal's wording confirmed live (BC Parks,
+    # Golden Ears repro): "Reserving these dates is not yet allowed. These
+    # dates cannot be reserved until {date} at {time} UTC." Matched loosely
+    # (either phrase alone is enough) so a minor copy tweak on either site
+    # doesn't silently stop being recognized.
+    _CANNOT_RESERVE_RE = re.compile(r"not yet allowed|cannot be reserved until", re.I)
+
+    async def _detect_window_closed_modal(self, page: Page) -> bool:
+        """Best-effort check for the booking-window "Cannot Reserve" modal
+        that can block the funnel right after clicking Reserve on an
+        in-season-but-unreleased date (see ``_CANNOT_RESERVE_RE``).
+
+        Fails closed on any read error (returns ``False``) so a page-read
+        hiccup falls through to the existing generic "could not confirm"
+        Hold Failed message rather than silently mis-reporting a real,
+        different failure as a window-closed one.
+        """
+        try:
+            text = await page.locator("body").inner_text()
+        except Exception:
+            return False
+        return bool(self._CANNOT_RESERVE_RE.search(text or ""))
+
     @classmethod
     def occupant_fields(cls) -> list[OccupantField]:
         """Occupant fields collected during the Camis booking.
@@ -1172,6 +1277,13 @@ class BaseCamisAdapter(BaseAdapter):
         # reported as failed. Any exception from _login (RuntimeError,
         # UnexpectedHoldFailure, a bare Playwright timeout) is now left to
         # propagate to the hold worker's takeover handler.
+        #
+        # THR-127: the one exception this deliberately does NOT catch here
+        # either, but which the hold worker treats differently on the way
+        # out, is CredentialsRejectedError — a CONFIRMED rejection (not an
+        # unknown state) that should demote the credential and report a
+        # clean Hold Failed instead of parking for takeover. See
+        # attempt_hold_task's except-clause ordering.
         await self._login(page)
 
         # 2. Open the results page at an available loop map so the per-site list
@@ -1236,6 +1348,18 @@ class BaseCamisAdapter(BaseAdapter):
         if await confirm.count() == 0:
             confirm = page.get_by_role("button", name=re.compile(r"confirm reservation", re.I))
         if await confirm.count() == 0:
+            # THR-127: the "Cannot Reserve ... not yet allowed" modal blocks
+            # the funnel right here on an in-season-but-unreleased date —
+            # this used to fall straight through to the generic "could not
+            # confirm" message below, which is exactly how the live Golden
+            # Ears hold died silently as a plain Hold Failed instead of
+            # self-healing back to AWAITING_WINDOW. Recompute the window
+            # (rather than parsing the modal's own locale-formatted date
+            # text) and let the hold worker map it accordingly.
+            if await self._detect_window_closed_modal(page):
+                await self.snapshot(page, "camis_cannot_reserve_window_closed")
+                window = await self.check_booking_window(params)
+                raise BookingWindowClosedDuringHold(window)
             await self.snapshot(page, "camis_no_confirm_button")
             return BookingResult(
                 success=False, held=False,
@@ -1536,7 +1660,16 @@ class BaseCamisAdapter(BaseAdapter):
         except PlaywrightTimeoutError:
             if not await self._is_logged_in(page):
                 await self.snapshot(page, "camis_login_failed")
-                raise RuntimeError("Camis login did not complete — check the stored credentials")
+                # THR-127: the form has been filled AND submitted, and there's
+                # no redirect and no signed-in affordance — the same
+                # FAILED-vs-INCONCLUSIVE signal verify_credentials trusts as a
+                # confirmed rejection (see its docstring). A distinct
+                # exception type (rather than string-matching RuntimeError)
+                # lets the hold worker demote the stored credential and report
+                # a clean Hold Failed instead of parking for takeover.
+                raise CredentialsRejectedError(
+                    "Camis login did not complete — check the stored credentials"
+                )
         logger.info("Camis login successful")
 
     async def verify_credentials(self, page: Page) -> CredentialVerificationResult:

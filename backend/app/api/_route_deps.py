@@ -120,15 +120,18 @@ async def _latest_cart(session: AsyncSession, job_id: str) -> CartSession | None
 
 def _job_has_required_credentials(
     adapter_id: str,
-    configured_adapter_ids: set[str],
-    failed_adapter_ids: set[str] = frozenset(),
+    verified_adapter_ids: set[str],
 ) -> bool:
-    """THR-123: a credential that failed verification is treated the same
-    as no credential at all — both block auto-book/manual-book."""
+    """THR-127: auto-book (and manual "Book Now", which drives the exact
+    same hold funnel) requires a credential that has actually PASSED
+    verification — not merely "stored and not FAILED". THR-123 only ever
+    excluded FAILED, so an unverified/pending/inconclusive credential (an
+    UNTESTED login) could still enable auto-book; ``verified_adapter_ids``
+    (see ``get_user_verified_adapter_ids``) is the positive verified-only
+    set instead of "configured minus failed". Adapters with
+    ``requires_credentials = False`` stay exempt regardless."""
     try:
-        return not adapter_requires_credentials(adapter_id) or (
-            adapter_id in configured_adapter_ids and adapter_id not in failed_adapter_ids
-        )
+        return not adapter_requires_credentials(adapter_id) or adapter_id in verified_adapter_ids
     except ValueError:
         return True
 

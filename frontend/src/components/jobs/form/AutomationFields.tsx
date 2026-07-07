@@ -23,6 +23,7 @@ export function AutomationFields({
   setIntervalMinutes,
   selectedOccupantsPresent,
   hasCredentialsForSelectedAdapter,
+  credentialVerifiedForSelectedAdapter,
   selectedOccupantDetailsComplete,
   onOpenCredentials,
 }: {
@@ -35,6 +36,9 @@ export function AutomationFields({
   setIntervalMinutes: (v: string) => void
   selectedOccupantsPresent: boolean
   hasCredentialsForSelectedAdapter: boolean
+  // THR-127: gates the toggle itself — stricter than
+  // hasCredentialsForSelectedAdapter (stored but not necessarily verified).
+  credentialVerifiedForSelectedAdapter: boolean
   selectedOccupantDetailsComplete: boolean
   onOpenCredentials?: () => void
 }) {
@@ -75,7 +79,7 @@ export function AutomationFields({
             id="auto-book"
             disabled={
               !selectedOccupantsPresent
-              || !hasCredentialsForSelectedAdapter
+              || !credentialVerifiedForSelectedAdapter
               || !selectedOccupantDetailsComplete
             }
           />
@@ -94,6 +98,30 @@ export function AutomationFields({
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
               A saved sign-in for this booking site is required before enabling auto-book.
+            </p>
+            {onOpenCredentials && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={onOpenCredentials}
+              >
+                <LockKeyhole className="size-3.5" />
+                Manage Sign-ins
+              </Button>
+            )}
+          </div>
+        )}
+        {/* THR-127: a sign-in is saved but hasn't passed verification —
+            distinct message + same affordance as the "nothing saved" case
+            above (only one of the two ever renders, since this adapter has
+            requires_credentials implied by hasCredentialsForSelectedAdapter
+            being true here). */}
+        {selectedOccupantsPresent && hasCredentialsForSelectedAdapter && !credentialVerifiedForSelectedAdapter && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Verify your sign-in first — this booking site's saved sign-in hasn't passed verification yet.
             </p>
             {onOpenCredentials && (
               <Button

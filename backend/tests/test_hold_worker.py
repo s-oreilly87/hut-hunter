@@ -18,9 +18,13 @@ from app.adapters.base import (
     AvailabilityResult,
     AvailabilityStatus,
     BookingResult,
+    BookingWindowClosedDuringHold,
+    BookingWindowInfo,
+    CredentialsRejectedError,
     UnexpectedHoldFailure,
 )
-from app.models.job import JobStatus, utcnow
+from app.core.adapter_credentials import get_adapter_credential_record
+from app.models.job import JobStatus, as_utc, utcnow
 from app.models.session import CartSession
 
 pytestmark = pytest.mark.asyncio
@@ -298,3 +302,183 @@ async def test_successful_hold_is_unaffected_by_needs_attention_branch(
     assert job.id in hold_worker.LIVE_BROWSERS
     assert len(notifications) == 1
     assert notifications[0]["title"] == "🏕️ Hold Secured!"
+
+
+# ---------------------------------------------------------------------------
+# THR-127 §3 — verified-only credential gate (a stored-but-not-FAILED
+# credential used to be enough; now it must have actually PASSED
+# verification).
+# ---------------------------------------------------------------------------
+
+async def test_hold_skipped_when_credential_not_yet_verified(
+    monkeypatch, seed_job, seed_credential, fetch_job, notifications,
+):
+    """A credential that's stored but never verified (unverified/pending/
+    inconclusive — as opposed to actively FAILED) must also skip the hold,
+    not just a FAILED one — THR-123's original gate only excluded FAILED."""
+    adapter = _FakeAdapter(
+        hold_effect=BookingResult(success=True, held=True, reservation_url="http://testserver/pay/x", message="ok"),
+    )
+    monkeypatch.setattr(hold_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(hold_worker, "adapter_requires_credentials", lambda adapter_id: True)
+    monkeypatch.setattr(hold_worker, "_browser_page", _fake_browser_page)
+
+    await seed_credential(adapter_id="doc_great_walk")  # defaults to "unverified"
+    job = await seed_job(adapter_id="doc_great_walk", status=JobStatus.CHECKING.value, enable_monitoring=False)
+
+    result = await hold_worker.attempt_hold_task({}, job.id)
+
+    assert result["status"] == "hold_failed"
+    assert "not been verified yet" in result["message"]
+
+    refreshed = await fetch_job(job.id)
+    assert refreshed.status == JobStatus.PAUSED.value
+    assert job.id not in hold_worker.LIVE_BROWSERS
+
+
+async def test_hold_proceeds_when_credential_is_verified(
+    monkeypatch, seed_job, seed_credential, fetch_job,
+):
+    """The positive case: a VERIFIED credential passes the gate and the hold
+    actually runs (proven by hold_effect's success reaching HOLD_PLACED)."""
+    adapter = _FakeAdapter(
+        hold_effect=BookingResult(success=True, held=True, reservation_url="http://testserver/pay/x", message="ok"),
+    )
+    monkeypatch.setattr(hold_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(hold_worker, "adapter_requires_credentials", lambda adapter_id: True)
+    monkeypatch.setattr(hold_worker, "_browser_page", _fake_browser_page)
+
+    await seed_credential(adapter_id="doc_great_walk", is_verified=True)
+    job = await seed_job(adapter_id="doc_great_walk", status=JobStatus.CHECKING.value)
+
+    result = await hold_worker.attempt_hold_task({}, job.id)
+
+    assert result["status"] == "held"
+    refreshed = await fetch_job(job.id)
+    assert refreshed.status == JobStatus.HOLD_PLACED.value
+
+
+# ---------------------------------------------------------------------------
+# THR-127 §4 — CredentialsRejectedError: a CONFIRMED login rejection during a
+# hold attempt is a CLEAN negative (demote + normal Hold Failed), NOT the
+# THR-122 takeover path, and NOT a silent Hold Failed that leaves a
+# known-bad credential sitting there as VERIFIED.
+# ---------------------------------------------------------------------------
+
+async def test_credentials_rejected_during_hold_demotes_credential_and_reports_hold_failed(
+    monkeypatch, seed_job, seed_credential, fetch_job, notifications, session_factory,
+):
+    adapter = _FakeAdapter(hold_effect=CredentialsRejectedError("Camis login did not complete"))
+    monkeypatch.setattr(hold_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(hold_worker, "adapter_requires_credentials", lambda adapter_id: True)
+    monkeypatch.setattr(hold_worker, "_browser_page", _fake_browser_page)
+
+    await seed_credential(adapter_id="doc_great_walk", is_verified=True)
+    job = await seed_job(adapter_id="doc_great_walk", status=JobStatus.CHECKING.value, enable_monitoring=True)
+
+    result = await hold_worker.attempt_hold_task({}, job.id)
+
+    # Clean Hold Failed, NOT needs_attention — the whole point of the split.
+    assert result["status"] == "hold_failed"
+    refreshed = await fetch_job(job.id)
+    assert refreshed.status == JobStatus.WAITING.value
+    assert job.id not in hold_worker.LIVE_BROWSERS
+
+    # The credential is demoted to FAILED — blocks further auto-book via the
+    # verified-only gate and surfaces in Sign-Ins/JobBlockingNotices.
+    async with session_factory() as session:
+        record = await get_adapter_credential_record(session, job.user_id, "doc_great_walk")
+        assert record.verification_status == "failed"
+        assert record.is_verified is False
+        assert "hold attempt" in record.verification_message
+
+    assert len(notifications) == 1
+    assert notifications[0]["title"] == "🏕️ Sign-in rejected"
+
+
+async def test_infra_login_failure_during_hold_does_not_demote_and_still_takes_over(
+    monkeypatch, seed_job, seed_credential, fetch_job, notifications, session_factory,
+):
+    """The THR-126 §2 split this must preserve: an infra-flavored failure
+    (stuck consent gate, queue-it, an unrecognized state) is NOT a
+    credentials rejection — it must still take the existing
+    UnexpectedHoldFailure/generic-exception takeover path, and must NOT
+    demote the credential (it says nothing about whether the login itself
+    is good or bad)."""
+    adapter = _FakeAdapter(hold_effect=UnexpectedHoldFailure("Camis cookie-consent banner would not dismiss"))
+    monkeypatch.setattr(hold_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(hold_worker, "adapter_requires_credentials", lambda adapter_id: True)
+    monkeypatch.setattr(hold_worker, "_browser_page", _fake_browser_page)
+
+    await seed_credential(adapter_id="doc_great_walk", is_verified=True)
+    job = await seed_job(adapter_id="doc_great_walk", status=JobStatus.CHECKING.value, enable_monitoring=True)
+
+    result = await hold_worker.attempt_hold_task({}, job.id)
+
+    assert result["status"] == "needs_attention"
+    refreshed = await fetch_job(job.id)
+    assert refreshed.status == JobStatus.NEEDS_ATTENTION.value
+    assert job.id in hold_worker.LIVE_BROWSERS
+
+    # Credential untouched — still VERIFIED.
+    async with session_factory() as session:
+        record = await get_adapter_credential_record(session, job.user_id, "doc_great_walk")
+        assert record.verification_status == "verified"
+
+
+# ---------------------------------------------------------------------------
+# THR-127 §1 — BookingWindowClosedDuringHold: the site's own "Cannot Reserve
+# ... not yet allowed" modal maps to AWAITING_WINDOW, not Hold Failed and not
+# the needs-attention takeover.
+# ---------------------------------------------------------------------------
+
+async def test_booking_window_closed_during_hold_maps_to_awaiting_window(
+    monkeypatch, seed_job, fetch_job, notifications,
+):
+    opens_at = utcnow() + timedelta(days=10)
+    window = BookingWindowInfo(is_open=False, opens_at=opens_at, opens_at_precise=True)
+    adapter = _FakeAdapter(hold_effect=BookingWindowClosedDuringHold(window))
+    _install_fake_adapter(monkeypatch, adapter)  # requires_credentials=False, irrelevant here
+
+    job = await seed_job(status=JobStatus.CHECKING.value, enable_monitoring=True)
+
+    result = await hold_worker.attempt_hold_task({}, job.id)
+
+    assert result["status"] == "awaiting_window"
+    refreshed = await fetch_job(job.id)
+    assert refreshed.status == JobStatus.AWAITING_WINDOW.value
+    assert refreshed.enable_monitoring is True
+    assert as_utc(refreshed.window_opens_at) == opens_at
+    assert refreshed.window_opens_precise is True
+    assert refreshed.next_check_at is None
+
+    # No live browser left registered — same as a normal Hold Failed, not a
+    # parked takeover session.
+    assert job.id not in hold_worker.LIVE_BROWSERS
+
+    assert len(notifications) == 1
+    assert notifications[0]["title"] == "🏕️ Not released yet"
+
+
+async def test_window_closed_during_hold_without_opens_at_does_not_strand(
+    monkeypatch, seed_job, fetch_job, notifications,
+):
+    """THR-127: if the recomputed window carries no opens_at (fail-open
+    lookup error, or the window opened between the modal and the recompute),
+    the job must NOT be parked AWAITING_WINDOW — scheduler Pass 0 only arms
+    rows with a non-null window_opens_at, so that would strand it forever.
+    It falls back to the normal WAITING retry instead."""
+    window = BookingWindowInfo(is_open=True)  # opens_at is None
+    adapter = _FakeAdapter(hold_effect=BookingWindowClosedDuringHold(window))
+    _install_fake_adapter(monkeypatch, adapter)
+
+    job = await seed_job(status=JobStatus.CHECKING.value, enable_monitoring=True)
+
+    result = await hold_worker.attempt_hold_task({}, job.id)
+
+    assert result["status"] == "hold_failed"
+    refreshed = await fetch_job(job.id)
+    assert refreshed.status == JobStatus.WAITING.value
+    assert refreshed.window_opens_at is None
+    assert refreshed.next_check_at is not None
+    assert job.id not in hold_worker.LIVE_BROWSERS

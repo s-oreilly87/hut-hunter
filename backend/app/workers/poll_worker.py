@@ -8,7 +8,7 @@ from typing import cast
 from arq import cron
 from arq.connections import RedisSettings
 
-from app.adapters.base import AvailabilityStatus
+from app.adapters.base import AvailabilityStatus, BookingWindowInfo
 from app.adapters import (
     adapter_requires_credentials,
     adapter_supports_automated_booking,
@@ -97,6 +97,43 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
         # Snapshot the previous result to suppress repeat partial notifications
         # (we only alert when status *changes* to partial, not on every check).
         prev_last_result: str | None = job.last_result
+
+        # THR-127 defense-in-depth: re-check the booking window here, before
+        # ever trusting the adapter's own availability codes. The
+        # THR-124/126 gate lives in check_booking_window and is the
+        # authoritative computation, but a job can be sitting in
+        # CHECKING/WAITING from before that gate existed for its case at all
+        # (the bug this ticket fixes — an in-season-but-unreleased date
+        # never got gated) — this self-heals it on the next poll instead of
+        # requiring the job to be deleted/recreated. Recon confirmed a
+        # beyond-window date can still return availability code 0
+        # ("available") from the raw API, so skipping this and trusting
+        # detect_availability's result alone is not sufficient defense on
+        # its own. Only adapters that declare has_booking_windows are
+        # checked; every other adapter (DOC) is completely unaffected.
+        if adapter.has_booking_windows:
+            try:
+                window = await adapter.check_booking_window(params)
+            except Exception as exc:
+                logger.warning(
+                    f"Poll re-gate: check_booking_window failed for job {job_id}: "
+                    f"{exc} — proceeding with the normal detect phase"
+                )
+                window = BookingWindowInfo(is_open=True)
+            if not window.is_open:
+                logger.info(
+                    f"Job {job_id} is outside its booking window — parking "
+                    f"AWAITING_WINDOW instead of polling (opens {window.opens_at})"
+                )
+                job.status = JobStatus.AWAITING_WINDOW.value
+                job.enable_monitoring = True
+                job.next_check_at = None
+                job.window_burst_until = None
+                job.window_opens_at = window.opens_at
+                job.window_opens_precise = window.opens_at_precise
+                session.add(job)
+                await session.commit()
+                return {"job_id": job_id, "status": "awaiting_window"}
 
     await _clear_unavailable_snapshot(job_id)
 

@@ -31,6 +31,7 @@ from app.adapters.base import (
     AvailabilityResult,
     AvailabilityStatus,
     BookingResult,
+    CredentialsRejectedError,
     ParamField,
 )
 from app.adapters.base_doc import BaseDOCAdapter, MONTHS, PEOPLE_OPTIONS
@@ -1289,9 +1290,16 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         # login modal when the user isn't authenticated.  After a successful
         # login, DOC stays on the current page — no re-click needed since the
         # site remembers the selection.
+        #
+        # THR-127: CredentialsRejectedError (a CONFIRMED rejection) is
+        # deliberately NOT caught here — see doc_great_walk.attempt_hold's
+        # matching comment. Only the remaining infra-flavored RuntimeErrors
+        # still resolve locally to a plain BookingResult.
         try:
             await self._login_if_prompted(page)
             await page.wait_for_timeout(600)
+        except CredentialsRejectedError:
+            raise
         except RuntimeError as e:
             await self.snapshot(page, "login_error")
             return BookingResult(success=False, held=False, message=str(e))

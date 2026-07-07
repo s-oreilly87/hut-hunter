@@ -57,6 +57,11 @@ export interface JobFormController {
   // Derived
   selectedAdapter: AdapterInfo | undefined
   hasCredentialsForSelectedAdapter: boolean
+  // THR-127: distinct from hasCredentialsForSelectedAdapter — a credential
+  // can be STORED but not yet (or no longer) VERIFIED. Auto-book gates on
+  // this stricter flag; hasCredentialsForSelectedAdapter stays the looser
+  // "is anything saved at all" check used for the generic sign-in notice.
+  credentialVerifiedForSelectedAdapter: boolean
   selectedOccupantCount: number
   selectedOccupantsPresent: boolean
   selectedOccupantDetailsComplete: boolean
@@ -158,9 +163,18 @@ export function useJobForm({
 
   // ── Derived ──
   const selectedAdapter = adapters.find((a) => a.adapter_id === selectedAdapterId)
+  const credentialForSelectedAdapter = credentials.find(
+    (credential) => credential.adapter_id === selectedAdapterId,
+  )
   const hasCredentialsForSelectedAdapter =
     !selectedAdapter?.requires_credentials
-    || credentials.some((credential) => credential.adapter_id === selectedAdapterId)
+    || Boolean(credentialForSelectedAdapter)
+  // THR-127: auto-book requires the stored credential to have actually
+  // PASSED verification — a stored-but-unverified/pending/inconclusive/
+  // failed credential is untested (or known-bad) and must not enable it.
+  const credentialVerifiedForSelectedAdapter =
+    !selectedAdapter?.requires_credentials
+    || credentialForSelectedAdapter?.verification_status === 'verified'
 
   // THR-124: live "is this date released yet?" check. Only the date +
   // park/booking-category fields matter for window gating (see the
@@ -226,7 +240,7 @@ export function useJobForm({
     // Watch/notify-only sites (third-party-SSO sign-in) never auto-book.
     (selectedAdapter?.supports_automated_booking ?? true)
     && selectedOccupantsPresent
-    && hasCredentialsForSelectedAdapter
+    && credentialVerifiedForSelectedAdapter
     && selectedOccupantDetailsComplete
   const effectiveAutoBook = autoBook && canAutoBook
 
@@ -380,8 +394,8 @@ export function useJobForm({
       setError('Select campers before enabling auto-book')
       return
     }
-    if (effectiveAutoBook && !hasCredentialsForSelectedAdapter) {
-      setError('Save a sign-in for this booking site before enabling auto-book')
+    if (effectiveAutoBook && !credentialVerifiedForSelectedAdapter) {
+      setError('Verify your sign-in for this booking site before enabling auto-book')
       return
     }
     if (selectedOccupantsPresent && selectedOccupantsMissingFromRoster) {
@@ -498,6 +512,7 @@ export function useJobForm({
     occupantsLoading,
     selectedAdapter,
     hasCredentialsForSelectedAdapter,
+    credentialVerifiedForSelectedAdapter,
     selectedOccupantCount,
     selectedOccupantsPresent,
     selectedOccupantDetailsComplete,

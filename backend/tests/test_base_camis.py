@@ -8,13 +8,19 @@ cart/hold flow lands in HH-100 and is tested there.
 from __future__ import annotations
 
 import json
-from datetime import date as date_cls, datetime, timezone
+from datetime import date as date_cls, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.adapters.base import AvailabilityStatus, BaseAdapter, UnexpectedHoldFailure
+from app.adapters.base import (
+    AvailabilityStatus,
+    BaseAdapter,
+    CredentialsRejectedError,
+    UnexpectedHoldFailure,
+)
 from app.adapters.base_camis import BaseCamisAdapter
+from app.models.credential import AdapterCredentialSecret
 
 
 class _StubCamisAdapter(BaseCamisAdapter):
@@ -1064,3 +1070,278 @@ async def test_detect_availability_proceeds_when_window_open(tmp_path):
         None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 1}
     )
     assert results[0].status == AvailabilityStatus.AVAILABLE
+
+
+# ---------------------------------------------------------------------------
+# THR-127 — the rolling window must gate an in-season-but-unreleased date,
+# not just an out-of-range one. Live repro: a BC Golden Ears hunt (arrival
+# Oct 8, ~3 months out) was reported AVAILABLE — the season's range was
+# already published (June 2026), so the OLD code's in-range check returned
+# is_open=True before ever consulting advance_booking_months — and the hold
+# died on a live "Cannot Reserve ... not yet allowed" modal at exactly the
+# rolling-window instant this code should have computed.
+# ---------------------------------------------------------------------------
+
+def test_parse_booking_window_in_season_but_rolling_window_not_open():
+    # THE key regression case: the season range already covers target_date
+    # (the old code short-circuited straight to is_open=True right here),
+    # but the rolling advance-booking window (BC: 3 months before arrival)
+    # has not opened yet.
+    data = {"schedules": [{"startDate": "2026-01-01", "endDate": "2026-12-31"}]}
+    tz = ZoneInfo("America/Vancouver")
+    now = datetime(2026, 7, 7, 12, 0, tzinfo=timezone.utc)  # "today" in the live repro
+    window = BaseCamisAdapter._parse_booking_window(
+        data, date_cls(2026, 10, 8), tz,
+        advance_booking_months=3, now=now,
+    )
+    assert window.is_open is False
+    assert window.opens_at_precise is True
+    # Arrival (Oct 8) minus 3 months = Jul 8, 7am Pacific (PDT, UTC-7) ->
+    # 14:00 UTC — exactly the instant the live "Cannot Reserve" modal quoted
+    # ("...until July 8, 2026 at 02:00 p.m. UTC").
+    assert window.opens_at == datetime(2026, 7, 8, 14, 0, tzinfo=timezone.utc)
+    assert "reservable range" in window.evidence
+
+
+def test_parse_booking_window_in_season_and_rolling_window_already_open_stays_open():
+    # Same in-season setup, but "now" is already past the rolling-window
+    # instant — must poll/hold exactly as it did before this fix (and as it
+    # already did for any date fully within the rolling window).
+    data = {"schedules": [{"startDate": "2026-01-01", "endDate": "2026-12-31"}]}
+    tz = ZoneInfo("America/Vancouver")
+    now = datetime(2026, 7, 9, 12, 0, tzinfo=timezone.utc)  # one day after the rolling open
+    window = BaseCamisAdapter._parse_booking_window(
+        data, date_cls(2026, 10, 8), tz,
+        advance_booking_months=3, now=now,
+    )
+    assert window.is_open is True
+
+
+def test_parse_booking_window_no_advance_booking_months_in_season_stays_open():
+    # An adapter with no confirmed rolling cadence (advance_booking_months is
+    # None — e.g. Parks Canada) must behave exactly as before THR-127 for an
+    # in-range date: the new gate only ever engages when it's configured.
+    data = {"schedules": [{"startDate": "2026-01-01", "endDate": "2026-12-31"}]}
+    window = BaseCamisAdapter._parse_booking_window(
+        data, date_cls(2026, 10, 8), None,
+    )
+    assert window.is_open is True
+
+
+def test_parse_booking_window_out_of_range_still_picks_earliest_across_signals():
+    # Regression guard for the fix's scoping: THR-127 must NOT touch the
+    # already-correct out-of-range fallback. An out-of-season date (no
+    # published range covers it at all) still combines the rolling
+    # candidate and a confirmed go-live and arms on whichever is EARLIEST —
+    # unchanged THR-126 behavior ("out-of-season keeps existing behavior").
+    data = [{
+        "startDate": "2026-05-01", "endDate": "2026-09-30",
+        "goLiveDateUtc": "2027-03-01T14:00:00Z",
+    }]
+    now = datetime(2026, 7, 7, tzinfo=timezone.utc)
+    window = BaseCamisAdapter._parse_booking_window(
+        data, date_cls(2027, 7, 20), None, advance_booking_months=3, now=now,
+    )
+    assert window.is_open is False
+    # The confirmed go-live (2027-03-01) is EARLIER than the rolling default
+    # (2027-04-20) — earliest-wins still applies here, exactly as before.
+    assert window.opens_at == datetime(2027, 3, 1, 14, 0, tzinfo=timezone.utc)
+
+
+def test_parse_booking_window_no_entries_still_respects_rolling_gate():
+    # A genuinely empty entries list (as opposed to the single blank dict
+    # `_schedule_entries` produces for a bare `{}`) must still respect a
+    # configured rolling window rather than unconditionally failing open —
+    # the rolling constraint is independent of season coverage, including a
+    # dateschedule response with nothing usable in it at all.
+    now = datetime(2026, 7, 7, tzinfo=timezone.utc)
+    tz = ZoneInfo("America/Vancouver")
+    window = BaseCamisAdapter._parse_booking_window(
+        {"schedules": []}, date_cls(2026, 10, 8), tz,
+        advance_booking_months=3, now=now,
+    )
+    assert window.is_open is False
+    assert window.opens_at == datetime(2026, 7, 8, 14, 0, tzinfo=timezone.utc)
+
+
+async def test_check_booking_window_in_season_but_rolling_not_open(tmp_path):
+    """Integration through check_booking_window (threads the adapter's real
+    advance_booking_months / booking_timezone config), computed relative to
+    real "now" rather than a frozen clock: an arrival ~4 months out (outside
+    the 3-month BC rolling window) with a season range that already covers
+    it — mirroring the live Golden Ears repro where the season was on file
+    long before the rolling window opened."""
+    adapter = _catalog_adapter(tmp_path)
+    adapter.advance_booking_months = 3
+    adapter.booking_timezone = "America/Vancouver"
+
+    today = datetime.now(timezone.utc).date()
+    arrival = today + timedelta(days=120)
+
+    async def fake_fetch_json(path, params=None, **kwargs):
+        return {"schedules": [{
+            "startDate": (today - timedelta(days=30)).isoformat(),
+            "endDate": (today + timedelta(days=365)).isoformat(),
+        }]}
+
+    adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
+
+    window = await adapter.check_booking_window(
+        {"resource_location_id": -100, "date": arrival.strftime("%d/%m/%Y")}
+    )
+    assert window.is_open is False
+    assert window.opens_at is not None
+
+
+async def test_check_booking_window_in_season_and_within_rolling_window_stays_open(tmp_path):
+    """Same setup, but the arrival is well within the rolling window (< 3
+    months out) — must poll exactly as before this fix."""
+    adapter = _catalog_adapter(tmp_path)
+    adapter.advance_booking_months = 3
+    adapter.booking_timezone = "America/Vancouver"
+
+    today = datetime.now(timezone.utc).date()
+    arrival = today + timedelta(days=30)
+
+    async def fake_fetch_json(path, params=None, **kwargs):
+        return {"schedules": [{
+            "startDate": (today - timedelta(days=30)).isoformat(),
+            "endDate": (today + timedelta(days=365)).isoformat(),
+        }]}
+
+    adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
+
+    window = await adapter.check_booking_window(
+        {"resource_location_id": -100, "date": arrival.strftime("%d/%m/%Y")}
+    )
+    assert window.is_open is True
+
+
+# ---------------------------------------------------------------------------
+# THR-127 — "Cannot Reserve" modal detection (hold-flow recognition)
+# ---------------------------------------------------------------------------
+
+class _BodyTextPage:
+    """Page stand-in exposing only ``locator("body").inner_text()``."""
+    def __init__(self, text: str):
+        self._text = text
+
+    def locator(self, selector):
+        assert selector == "body"
+        return self
+
+    async def inner_text(self):
+        return self._text
+
+
+async def test_detect_window_closed_modal_matches_confirmed_live_wording():
+    # Exact wording confirmed live on BC Parks (Golden Ears repro).
+    adapter = _StubCamisAdapter()
+    page = _BodyTextPage(
+        "Reserving these dates is not yet allowed. These dates cannot be "
+        "reserved until July 8, 2026 at 02:00 p.m. UTC"
+    )
+    assert await adapter._detect_window_closed_modal(page) is True
+
+
+async def test_detect_window_closed_modal_false_for_unrelated_text():
+    adapter = _StubCamisAdapter()
+    page = _BodyTextPage("Review Reservation Details")
+    assert await adapter._detect_window_closed_modal(page) is False
+
+
+async def test_detect_window_closed_modal_fails_closed_on_read_error():
+    # A page-read hiccup must fall through to the generic "could not
+    # confirm" Hold Failed message, never crash attempt_hold outright.
+    class _BrokenPage:
+        def locator(self, selector):
+            raise RuntimeError("boom")
+
+    adapter = _StubCamisAdapter()
+    assert await adapter._detect_window_closed_modal(_BrokenPage()) is False
+
+
+# ---------------------------------------------------------------------------
+# THR-127 — CredentialsRejectedError: a CONFIRMED login rejection (form
+# filled + submitted, no redirect, not logged in) is a clean negative,
+# distinct from the infra-flavored failures that still raise
+# UnexpectedHoldFailure / propagate uncaught for takeover (THR-126 §2).
+# ---------------------------------------------------------------------------
+
+class _FillableLocator:
+    async def fill(self, _value):
+        return None
+
+
+class _LoginFunnelPage:
+    """Minimal Page stand-in for exercising _login's confirmed-rejection
+    branch directly — only implements what that method touches."""
+    def __init__(self):
+        self.goto_calls: list[str] = []
+
+    async def goto(self, url, wait_until=None, timeout=None):
+        self.goto_calls.append(url)
+
+    def locator(self, _selector):
+        return _FillableLocator()
+
+    async def focus(self, _selector):
+        return None
+
+    @property
+    def keyboard(self):
+        return self
+
+    async def press(self, _key):
+        return None
+
+    async def wait_for_url(self, _pattern, timeout=None):
+        raise __import__("playwright.async_api", fromlist=["TimeoutError"]).TimeoutError("timeout")
+
+
+class _NeverVisibleLocator:
+    async def count(self):
+        return 0
+
+
+async def test_login_raises_credentials_rejected_on_confirmed_rejection():
+    """The form was filled and submitted (Enter pressed), there's no
+    /account redirect, and the page still doesn't show a signed-in
+    affordance — the exact FAILED signal verify_credentials already trusts.
+    _login must raise CredentialsRejectedError, not a plain RuntimeError, so
+    the hold worker can demote the credential instead of treating it as an
+    unknown state."""
+    adapter = _StubCamisAdapter()
+    adapter.set_login_credentials(AdapterCredentialSecret(username="user@example.com", password="hunter2"))
+    page = _LoginFunnelPage()
+
+    async def no_queue(_page, settle_ms=2_000):
+        return False
+    adapter._pass_queue_it = no_queue  # type: ignore[method-assign]
+
+    async def no_consent(_page, timeout_ms=15_000):
+        return None
+    adapter._accept_cookie_consent = no_consent  # type: ignore[method-assign]
+    adapter._consent_locator = lambda _page: _NeverVisibleLocator()  # type: ignore[method-assign]
+
+    async def not_logged_in(_page):
+        return False
+    adapter._is_logged_in = not_logged_in  # type: ignore[method-assign]
+
+    async def fake_snapshot(_page, label, *, include_html=None):
+        return f"artifacts/{label}"
+    adapter.snapshot = fake_snapshot  # type: ignore[method-assign]
+
+    with pytest.raises(CredentialsRejectedError):
+        await adapter._login(page)
+
+
+async def test_login_raises_plain_runtime_error_when_no_credentials_configured():
+    # Unrelated to a rejection — missing config stays a plain RuntimeError,
+    # not the confirmed-rejection signal.
+    adapter = _StubCamisAdapter()
+    page = _LoginFunnelPage()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        await adapter._login(page)
+    assert not isinstance(exc_info.value, CredentialsRejectedError)

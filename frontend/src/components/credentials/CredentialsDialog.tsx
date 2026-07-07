@@ -112,7 +112,35 @@ function CredentialCard({
   const configured = Boolean(credential)
   const canSave = draft.username.trim().length > 0 && (configured || draft.password.trim().length > 0)
   const badge = verificationBadge(credential)
-  const showVerifyButton = configured && credential?.verification_status !== 'verified' && !verifying
+
+  // THR-127: a separate "Verify" button used to run against whatever
+  // credential is currently STORED, regardless of what the user just typed
+  // into the fields — so typing a new password and clicking Verify silently
+  // checked the OLD one. There is now exactly one primary action, derived
+  // from (stored?, verification_status, fields dirty?):
+  //   - dirty (either field differs from the pristine/saved state) → always
+  //     "Save & Verify", never a verify-only action against stale creds.
+  //     The save path (credentialsApi.upsert) already re-verifies on its
+  //     own (mark_credential_pending + verify_credentials_task), so this is
+  //     a single round trip.
+  //   - not dirty + nothing stored → disabled (nothing to verify or save).
+  //   - not dirty + stored + already verified → disabled "Verified" state.
+  //   - not dirty + stored + unverified/inconclusive/failed → "Verify"
+  //     (trigger-verify against the stored credential).
+  // Clearing a field back to its pristine value naturally falls back to the
+  // verify-only branch since `dirty` is recomputed on every render, not
+  // tracked as separate state.
+  const pristineUsername = (credential?.username ?? accountEmail).trim()
+  const dirty = draft.username.trim() !== pristineUsername || draft.password.trim().length > 0
+
+  type PrimaryAction = 'save' | 'verify' | 'verified' | 'none'
+  const primaryAction: PrimaryAction = dirty
+    ? 'save'
+    : !configured
+      ? 'none'
+      : credential?.verification_status === 'verified'
+        ? 'verified'
+        : 'verify'
 
   return (
     <section className="rounded-[1.5rem] border border-border/70 bg-secondary/35 p-4 sm:p-5">
@@ -176,23 +204,39 @@ function CredentialCard({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button
-          onClick={() => save.mutate()}
-          disabled={!canSave || save.isPending || remove.isPending}
-        >
-          {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <LockKeyhole className="size-4" />}
-          {configured ? 'Update Sign-In' : 'Save Sign-In'}
-        </Button>
-        {showVerifyButton && (
+        {primaryAction === 'save' && (
+          <Button
+            onClick={() => save.mutate()}
+            disabled={!canSave || save.isPending || remove.isPending}
+          >
+            {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <LockKeyhole className="size-4" />}
+            Save &amp; Verify
+          </Button>
+        )}
+        {primaryAction === 'verify' && (
           <Button
             variant="outline"
             onClick={() => verifyNow.mutate()}
-            disabled={verifyNow.isPending || save.isPending || remove.isPending}
+            disabled={verifying || verifyNow.isPending || save.isPending || remove.isPending}
           >
-            {verifyNow.isPending ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-            {credential?.verification_status === 'failed' || credential?.verification_status === 'inconclusive'
-              ? 'Re-verify'
-              : 'Verify now'}
+            {verifying || verifyNow.isPending ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+            {verifying
+              ? 'Verifying…'
+              : credential?.verification_status === 'failed' || credential?.verification_status === 'inconclusive'
+                ? 'Re-verify'
+                : 'Verify'}
+          </Button>
+        )}
+        {primaryAction === 'verified' && (
+          <Button variant="outline" disabled>
+            <ShieldCheck className="size-4" />
+            Verified
+          </Button>
+        )}
+        {primaryAction === 'none' && (
+          <Button disabled>
+            <LockKeyhole className="size-4" />
+            Save Sign-In
           </Button>
         )}
         {configured && (

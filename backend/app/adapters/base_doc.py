@@ -19,6 +19,7 @@ from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 from app.adapters.base import (
     BaseAdapter,
     BookingResult,
+    CredentialsRejectedError,
     CredentialVerificationResult,
     VerificationStatus,
 )
@@ -131,7 +132,17 @@ class BaseDOCAdapter(BaseAdapter):
             logger.info("DOC login successful")
         except PlaywrightTimeoutError:
             await self.snapshot(page, "login_failed")
-            raise RuntimeError(
+            # THR-127: the form was filled and submitted and the modal is
+            # still up — the same confirmed-rejection signal
+            # verify_credentials already trusts as FAILED (as opposed to a
+            # timeout/queue-it/consent state before the form was ever
+            # submitted, which stays infra-flavored). A distinct exception
+            # type (rather than string-matching RuntimeError) lets the hold
+            # worker demote the stored credential and report a clean Hold
+            # Failed instead of parking for takeover. Subclasses
+            # RuntimeError, so the existing `except RuntimeError` in
+            # verify_credentials below still catches it unchanged.
+            raise CredentialsRejectedError(
                 "DOC login modal did not close — check the stored username/password"
             )
 

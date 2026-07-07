@@ -87,6 +87,49 @@ async def test_create_job_rejects_auto_book_without_credentials(
     assert fake_redis.calls == []
 
 
+async def test_create_job_rejects_auto_book_with_unverified_credential(
+    client,
+    fake_redis,
+    seed_credential,
+    make_job_payload,
+):
+    """THR-127: a stored credential that hasn't (yet) passed verification is
+    NOT enough for auto-book — only VERIFIED is. THR-123's original gate
+    only excluded FAILED, so an unverified/pending/inconclusive credential
+    used to sail through here."""
+    await seed_credential(adapter_id="doc_great_walk")  # defaults to "unverified"
+
+    response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(auto_book=True),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Stored booking credentials are required before auto-book can be enabled."
+    )
+    assert fake_redis.calls == []
+
+
+async def test_create_job_allows_auto_book_with_verified_credential(
+    client,
+    fake_redis,
+    seed_credential,
+    make_job_payload,
+):
+    """The positive case: a VERIFIED credential clears the gate."""
+    await seed_credential(adapter_id="doc_great_walk", is_verified=True)
+
+    response = await client.post(
+        "/api/v1/jobs",
+        json=make_job_payload(auto_book=True, enable_monitoring=True),
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["auto_book"] is True
+
+
 async def test_create_job_rejects_auto_book_on_watch_only_adapter(
     client,
     fake_redis,
@@ -432,6 +475,43 @@ async def test_update_job_rejects_auto_book_without_credentials(
     )
 
 
+async def test_update_job_rejects_auto_book_with_unverified_credential(
+    client,
+    seed_job,
+    seed_credential,
+):
+    """THR-127: same verified-only gate as create_job."""
+    await seed_credential(adapter_id="doc_great_walk")  # defaults to "unverified"
+    job = await seed_job(auto_book=False)
+
+    response = await client.patch(
+        f"/api/v1/jobs/{job.id}",
+        json={"auto_book": True},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Stored booking credentials are required before auto-book can be enabled."
+    )
+
+
+async def test_update_job_allows_auto_book_with_verified_credential(
+    client,
+    seed_job,
+    seed_credential,
+):
+    await seed_credential(adapter_id="doc_great_walk", is_verified=True)
+    job = await seed_job(auto_book=False)
+
+    response = await client.patch(
+        f"/api/v1/jobs/{job.id}",
+        json={"auto_book": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["auto_book"] is True
+
+
 async def test_update_job_rejects_past_start_date_in_adapter_timezone(
     client,
     seed_job,
@@ -583,7 +663,10 @@ async def test_trigger_job_allows_retry_after_hold_expired(
 
 
 async def test_book_job_requires_full_recent_availability(client, seed_job, seed_credential):
-    await seed_credential(adapter_id="doc_great_walk")
+    # THR-127: book_job now gates on a VERIFIED credential — seed one so this
+    # test exercises the intended partial-availability 409, not the
+    # credentials one.
+    await seed_credential(adapter_id="doc_great_walk", is_verified=True)
     job = await seed_job(
         last_result=[
             {
@@ -638,6 +721,25 @@ async def test_book_job_blocks_when_credential_failed_verification(client, seed_
     """THR-123: a credential that failed its login check is treated the same
     as no credential at all — same 409 as test_book_job_requires_credentials_on_job."""
     await seed_credential(adapter_id="doc_great_walk", is_verified=False)
+    job = await seed_job(
+        last_result=[
+            {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
+        ],
+    )
+
+    response = await client.post(f"/api/v1/jobs/{job.id}/book")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Stored booking credentials are required on this job before booking can start."
+    )
+
+
+async def test_book_job_blocks_when_credential_stored_but_unverified(client, seed_job, seed_credential):
+    """THR-127: verified-only gate — a credential that's merely stored
+    (never verified, not actively FAILED) must also block manual Book Now,
+    same 409 as the missing/failed cases."""
+    await seed_credential(adapter_id="doc_great_walk")  # defaults to "unverified"
     job = await seed_job(
         last_result=[
             {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
@@ -708,7 +810,8 @@ async def test_book_job_enqueues_hold_worker_when_all_sites_available(
     seed_credential,
     fetch_job,
 ):
-    await seed_credential(adapter_id="doc_great_walk")
+    # THR-127: verified-only gate.
+    await seed_credential(adapter_id="doc_great_walk", is_verified=True)
     job = await seed_job(
         last_result=[
             {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
@@ -740,7 +843,8 @@ async def test_book_job_allows_retry_after_hold_expired(
     seed_cart,
     fetch_job,
 ):
-    await seed_credential(adapter_id="doc_great_walk")
+    # THR-127: verified-only gate.
+    await seed_credential(adapter_id="doc_great_walk", is_verified=True)
     job = await seed_job(
         status=JobStatus.HOLD_PLACED.value,
         last_result=[

@@ -31,6 +31,7 @@ export function JobFormGrid({
     adapters,
     handleAdapterChange,
     hasCredentialsForSelectedAdapter,
+    credentialVerifiedForSelectedAdapter,
     params,
     roster,
     occupantsLoading,
@@ -123,6 +124,7 @@ export function JobFormGrid({
               setIntervalMinutes={setIntervalMinutes}
               selectedOccupantsPresent={selectedOccupantsPresent}
               hasCredentialsForSelectedAdapter={hasCredentialsForSelectedAdapter}
+              credentialVerifiedForSelectedAdapter={credentialVerifiedForSelectedAdapter}
               selectedOccupantDetailsComplete={selectedOccupantDetailsComplete}
               onOpenCredentials={onOpenCredentials}
             />
