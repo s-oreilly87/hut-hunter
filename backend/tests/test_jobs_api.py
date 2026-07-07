@@ -634,6 +634,40 @@ async def test_book_job_requires_credentials_on_job(client, seed_job):
     )
 
 
+async def test_book_job_blocks_when_credential_failed_verification(client, seed_job, seed_credential):
+    """THR-123: a credential that failed its login check is treated the same
+    as no credential at all — same 409 as test_book_job_requires_credentials_on_job."""
+    await seed_credential(adapter_id="doc_great_walk", is_verified=False)
+    job = await seed_job(
+        last_result=[
+            {"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"},
+        ],
+    )
+
+    response = await client.post(f"/api/v1/jobs/{job.id}/book")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Stored booking credentials are required on this job before booking can start."
+    )
+
+
+async def test_job_serialization_distinguishes_failed_from_missing_credentials(
+    client, seed_job, seed_credential, fetch_job,
+):
+    """THR-123: credentials_configured is false for both missing and failed
+    credentials, but credentials_failed disambiguates for the UI."""
+    await seed_credential(adapter_id="doc_great_walk", is_verified=False)
+    job = await seed_job(adapter_id="doc_great_walk")
+
+    response = await client.get(f"/api/v1/jobs/{job.id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["credentials_configured"] is False
+    assert body["credentials_failed"] is True
+
+
 async def test_book_job_requires_adapter_specific_occupant_details(
     client,
     seed_job,

@@ -242,12 +242,14 @@ def seed_credential(session_factory, auth_user):
         adapter_id: str = "doc_great_walk",
         username: str = "doc-user@example.com",
         password: str = "doc-password",
+        is_verified: bool | None = None,
     ) -> AdapterCredential:
         credential = AdapterCredential(
             user_id=user_id or auth_user.id,
             adapter_id=adapter_id,
             encrypted_username=encrypt(username),
             encrypted_password=encrypt(password),
+            is_verified=is_verified,
         )
         async with session_factory() as session:
             session.add(credential)

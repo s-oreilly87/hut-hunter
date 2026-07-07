@@ -320,6 +320,12 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         park_id, facility_id, _ = self._resolve_site(params)
         return self.base_url.format(park_id=park_id, facility_id=facility_id)
 
+    def _login_check_url(self) -> str:
+        # THR-123: base_url is a per-park template — verify_credentials has
+        # no job params to resolve it, so use the park-agnostic landing page.
+        # The top-nav login button is global, not park-specific.
+        return "https://bookings.doc.govt.nz/Web/Default.aspx"
+
     def _date_range(self, params: dict) -> tuple[_DateParts, _DateParts]:
         start = _DateParts.from_ddmmyyyy(params["date"])
         nights = int(params.get("nights", 1))

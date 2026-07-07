@@ -14,7 +14,7 @@ from app.adapters import (
     adapter_supports_automated_booking,
     get_adapter,
 )
-from app.core.adapter_credentials import get_user_adapter_credentials
+from app.core.adapter_credentials import get_adapter_credential_record, get_user_adapter_credentials
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notification_settings import get_user_notification_settings_secret
@@ -79,8 +79,13 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
 
         auto_book = job.auto_book
         user_credentials = await get_user_adapter_credentials(session, job.user_id or "", job.adapter_id)
+        credential_record = await get_adapter_credential_record(session, job.user_id or "", job.adapter_id)
+        credential_failed = credential_record is not None and credential_record.is_verified is False
+        # THR-123: a credential that failed verification is treated as no
+        # usable credential at all — same gate as missing credentials.
         credentials_configured = (
-            not adapter_requires_credentials(job.adapter_id) or user_credentials is not None
+            not adapter_requires_credentials(job.adapter_id)
+            or (user_credentials is not None and not credential_failed)
         )
         notification_settings = await get_user_notification_settings_secret(session, job.user_id or "")
         # Snapshot the previous result to suppress repeat partial notifications
@@ -165,14 +170,19 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
         )
     elif all_fully_available and auto_book and not credentials_configured:
         lines = [f"- {r.site}: {r.total_available} spot(s)" for r in fully_available]
+        credentials_reason = (
+            "the saved sign-in for its adapter failed verification"
+            if credential_failed else
+            "no stored booking credentials for its adapter"
+        )
         await dispatch_notification_targets(
             notification_settings,
             title="🏕️ Availability Detected!",
             message=(
-                f"All sites fully available on {params.get('date')} but this job "
-                "has no stored booking credentials for its adapter, so booking could not start.\n"
+                f"All sites fully available on {params.get('date')} but this job has "
+                f"{credentials_reason}, so booking could not start.\n"
                 + "\n".join(lines)
-                + "\n\nSave booking credentials for this adapter, then book manually."
+                + "\n\nFix the sign-in for this adapter, then book manually."
             ),
             priority=8,
         )

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, LockKeyhole, Trash2 } from 'lucide-react'
+import { Loader2, LockKeyhole, ShieldCheck, Trash2 } from 'lucide-react'
 
 import {
   adaptersApi,
@@ -15,6 +15,30 @@ import { Label } from '../ui/Label'
 type DraftState = {
   username: string
   password: string
+}
+
+// THR-123: while a verification is in flight (just saved, or "Verify
+// now"/"Re-verify" clicked), poll the credentials list on a short interval so
+// is_verified flipping to true/false shows up without a manual refresh.
+// Bounded by VERIFYING_TIMEOUT_MS so a slow/never-completing worker doesn't
+// spin the badge forever — the user can just click again.
+const VERIFYING_POLL_MS = 2_000
+const VERIFYING_TIMEOUT_MS = 25_000
+
+function verificationBadge(credential: AdapterCredential | undefined, verifying: boolean) {
+  if (!credential) {
+    return { label: 'Missing', className: 'bg-amber-500/12 text-amber-700' }
+  }
+  if (verifying) {
+    return { label: 'Verifying…', className: 'bg-sky-500/12 text-sky-700' }
+  }
+  if (credential.is_verified === true) {
+    return { label: 'Verified', className: 'bg-emerald-500/12 text-emerald-700' }
+  }
+  if (credential.is_verified === false) {
+    return { label: 'Sign-in failed', className: 'bg-destructive/12 text-destructive' }
+  }
+  return { label: 'Not yet verified', className: 'bg-amber-500/12 text-amber-700' }
 }
 
 function CredentialCard({
@@ -39,6 +63,23 @@ function CredentialCard({
     password: '',
   })
   const [error, setError] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState(false)
+
+  // Shares the ['credentials'] cache with the dialog's own list query — this
+  // just adds a tight refetchInterval while a check is in flight so the
+  // shared data (and this card's `credential` prop) picks up the result.
+  useQuery({
+    queryKey: ['credentials'],
+    queryFn: credentialsApi.list,
+    refetchInterval: verifying ? VERIFYING_POLL_MS : false,
+    enabled: verifying,
+  })
+
+  useEffect(() => {
+    if (!verifying) return
+    const timeout = setTimeout(() => setVerifying(false), VERIFYING_TIMEOUT_MS)
+    return () => clearTimeout(timeout)
+  }, [verifying])
 
   const save = useMutation({
     mutationFn: () => credentialsApi.upsert(adapterId, draft),
@@ -47,6 +88,7 @@ function CredentialCard({
       onSaved()
       setDraft((current) => ({ ...current, password: '' }))
       setError(null)
+      setVerifying(true) // save always re-triggers server-side verification
     },
     onError: (err: Error) => setError(err.message),
   })
@@ -58,12 +100,21 @@ function CredentialCard({
       onSaved()
       setDraft({ username: '', password: '' })
       setError(null)
+      setVerifying(false)
     },
+    onError: (err: Error) => setError(err.message),
+  })
+
+  const verifyNow = useMutation({
+    mutationFn: () => credentialsApi.verify(adapterId),
+    onSuccess: () => setVerifying(true),
     onError: (err: Error) => setError(err.message),
   })
 
   const configured = Boolean(credential)
   const canSave = draft.username.trim().length > 0 && (configured || draft.password.trim().length > 0)
+  const badge = verificationBadge(credential, verifying)
+  const showVerifyButton = configured && credential?.is_verified !== true && !verifying
 
   return (
     <section className="rounded-[1.5rem] border border-border/70 bg-secondary/35 p-4 sm:p-5">
@@ -77,15 +128,12 @@ function CredentialCard({
               ? 'Configured. Save again to rotate the password or update the username.'
               : 'No saved sign-in yet.'}
           </p>
+          {credential?.is_verified === false && !verifying && (
+            <p className="mt-1 text-xs text-destructive">Sign-in failed — check your password.</p>
+          )}
         </div>
-        <span
-          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-            configured
-              ? 'bg-emerald-500/12 text-emerald-700'
-              : 'bg-amber-500/12 text-amber-700'
-          }`}
-        >
-          {configured ? 'Configured' : 'Missing'}
+        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${badge.className}`}>
+          {badge.label}
         </span>
       </div>
 
@@ -128,6 +176,16 @@ function CredentialCard({
           {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <LockKeyhole className="size-4" />}
           {configured ? 'Update Sign-In' : 'Save Sign-In'}
         </Button>
+        {showVerifyButton && (
+          <Button
+            variant="outline"
+            onClick={() => verifyNow.mutate()}
+            disabled={verifyNow.isPending || save.isPending || remove.isPending}
+          >
+            {verifyNow.isPending ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+            {credential?.is_verified === false ? 'Re-verify' : 'Verify now'}
+          </Button>
+        )}
         {configured && (
           <Button
             variant="outline"
@@ -200,7 +258,11 @@ export function CredentialsDialog({
           ) : (
             credentialAdapters.map((adapter) => (
               <CredentialCard
-                key={`${adapter.adapter_id}:${byAdapterId.get(adapter.adapter_id)?.id ?? 'new'}:${byAdapterId.get(adapter.adapter_id)?.username ?? ''}`}
+                // THR-123: stable across save/verify — a key that changes when
+                // a credential is first created (id/username flipping from
+                // 'new'/'') would remount the card and drop its in-flight
+                // `verifying` state right as the badge should be animating.
+                key={adapter.adapter_id}
                 adapterId={adapter.adapter_id}
                 adapterName={adapter.name}
                 credential={byAdapterId.get(adapter.adapter_id)}

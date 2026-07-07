@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import uuid
 
-from sqlalchemy import Column, DateTime, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.models.job import utcnow
@@ -29,6 +29,17 @@ class AdapterCredential(SQLModel, table=True):
         default_factory=utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+    # THR-123: null = never checked (legacy rows, or a fresh save whose
+    # verify_credentials_task hasn't landed yet). True/False are only ever
+    # set by verify_credentials_task after an actual login attempt.
+    is_verified: bool | None = Field(
+        default=None,
+        sa_column=Column(Boolean, nullable=True),
+    )
+    verified_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
 
 
 @dataclass(frozen=True)
@@ -47,6 +58,8 @@ class AdapterCredentialRead(SQLModel):
     adapter_id: str
     username: str
     has_password: bool
+    is_verified: bool | None
+    verified_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

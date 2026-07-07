@@ -1,4 +1,4 @@
-import { BadgeInfo } from 'lucide-react'
+import { BadgeInfo, ShieldAlert } from 'lucide-react'
 
 /**
  * Inline informational banners that the JobCard may stack above its
@@ -39,6 +39,20 @@ export function MissingCredentialsNotice() {
       <p className="text-sm text-muted-foreground flex items-center">
         <BadgeInfo className="inline-block size-5 mr-2 h-full text-gray-400" />
         A saved sign-in is required on this hunt before booking can start. Add it from Booking Site Sign-Ins in the header.
+      </p>
+    </div>
+  )
+}
+
+// THR-123: distinct from MissingCredentialsNotice — this is a known-bad
+// sign-in (a login check actually ran and failed), not just an absent one,
+// so it gets a destructive tint instead of the quiet informational ones.
+export function FailedCredentialsNotice() {
+  return (
+    <div className="rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3">
+      <p className="text-sm text-muted-foreground flex items-center">
+        <ShieldAlert className="inline-block size-5 mr-2 h-full text-destructive/70" />
+        The saved sign-in for this hunt failed verification — booking is blocked until it's fixed. Check it in Booking Site Sign-Ins.
       </p>
     </div>
   )

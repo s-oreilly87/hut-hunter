@@ -14,7 +14,7 @@ from sqlmodel import select
 
 from app.adapters import adapter_requires_credentials, get_adapter
 from app.adapters.base import BookingWindowInfo
-from app.core.adapter_credentials import get_user_configured_adapter_ids
+from app.core.adapter_credentials import get_user_configured_adapter_ids, get_user_failed_adapter_ids
 from app.core.config import settings
 from app.core.crypto import decrypt
 from app.models.credential import AdapterCredential, AdapterCredentialRead
@@ -118,9 +118,17 @@ async def _latest_cart(session: AsyncSession, job_id: str) -> CartSession | None
     )).scalars().first()
 
 
-def _job_has_required_credentials(adapter_id: str, configured_adapter_ids: set[str]) -> bool:
+def _job_has_required_credentials(
+    adapter_id: str,
+    configured_adapter_ids: set[str],
+    failed_adapter_ids: set[str] = frozenset(),
+) -> bool:
+    """THR-123: a credential that failed verification is treated the same
+    as no credential at all — both block auto-book/manual-book."""
     try:
-        return not adapter_requires_credentials(adapter_id) or adapter_id in configured_adapter_ids
+        return not adapter_requires_credentials(adapter_id) or (
+            adapter_id in configured_adapter_ids and adapter_id not in failed_adapter_ids
+        )
     except ValueError:
         return True
 
@@ -130,20 +138,28 @@ async def _serialize_job(
     job: WatchJob,
     *,
     configured_adapter_ids: set[str] | None = None,
+    failed_adapter_ids: set[str] | None = None,
 ) -> WatchJobRead:
     cart = await _latest_cart(session, job.id)
     cart_expires_at = cart.expires_at if cart is not None else None
     if configured_adapter_ids is None:
         configured_adapter_ids = await get_user_configured_adapter_ids(session, job.user_id or "")
+    if failed_adapter_ids is None:
+        failed_adapter_ids = await get_user_failed_adapter_ids(session, job.user_id or "")
     try:
         needs_credentials = adapter_requires_credentials(job.adapter_id)
     except ValueError:
         needs_credentials = False
-    credentials_configured = not needs_credentials or job.adapter_id in configured_adapter_ids
+    credentials_failed = needs_credentials and job.adapter_id in failed_adapter_ids
+    credentials_configured = (
+        not needs_credentials
+        or (job.adapter_id in configured_adapter_ids and not credentials_failed)
+    )
     return WatchJobRead.from_db(
         job,
         cart_expires_at=cart_expires_at,
         credentials_configured=credentials_configured,
+        credentials_failed=credentials_failed,
     )
 
 
@@ -153,6 +169,8 @@ def _credential_record_to_read(credential: AdapterCredential) -> AdapterCredenti
         adapter_id=credential.adapter_id,
         username=decrypt(credential.encrypted_username),
         has_password=True,
+        is_verified=credential.is_verified,
+        verified_at=credential.verified_at,
         created_at=credential.created_at,
         updated_at=credential.updated_at,
     )

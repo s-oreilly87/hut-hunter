@@ -25,7 +25,7 @@ from app.api._route_deps import (
 )
 from app.adapters import adapter_supports_automated_booking
 from app.adapters.base import BookingWindowInfo
-from app.core.adapter_credentials import get_user_configured_adapter_ids
+from app.core.adapter_credentials import get_user_configured_adapter_ids, get_user_failed_adapter_ids
 from app.core.database import get_session
 from app.models.job import (
     JobStatus,
@@ -55,11 +55,16 @@ async def list_jobs(
     current_user: AppUser = Depends(get_current_user),
 ):
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
+    failed_adapter_ids = await get_user_failed_adapter_ids(session, current_user.id)
     jobs = (await session.execute(
         select(WatchJob).where(WatchJob.user_id == current_user.id)
     )).scalars().all()
     return [
-        await _serialize_job(session, job, configured_adapter_ids=configured_adapter_ids)
+        await _serialize_job(
+            session, job,
+            configured_adapter_ids=configured_adapter_ids,
+            failed_adapter_ids=failed_adapter_ids,
+        )
         for job in jobs
     ]
 
@@ -74,12 +79,13 @@ async def create_job(
     interval = _clamp_interval(body.interval_minutes)
     now = utcnow()
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
+    failed_adapter_ids = await get_user_failed_adapter_ids(session, current_user.id)
 
     if body.auto_book and not adapter_supports_automated_booking(body.adapter_id):
         raise HTTPException(status_code=409, detail="This booking site does not support automated booking.")
     if body.auto_book and not _params_have_occupants(body.params):
         raise HTTPException(status_code=409, detail="Occupants are required before auto-book can be enabled.")
-    if body.auto_book and not _job_has_required_credentials(body.adapter_id, configured_adapter_ids):
+    if body.auto_book and not _job_has_required_credentials(body.adapter_id, configured_adapter_ids, failed_adapter_ids):
         raise HTTPException(status_code=409, detail="Stored booking credentials are required before auto-book can be enabled.")
     _validate_job_start_date_for_adapter(body.adapter_id, body.params)
     if _params_have_occupants(body.params):
@@ -110,7 +116,11 @@ async def create_job(
         session.add(job)
         await session.commit()
         await session.refresh(job)
-        return await _serialize_job(session, job, configured_adapter_ids=configured_adapter_ids)
+        return await _serialize_job(
+            session, job,
+            configured_adapter_ids=configured_adapter_ids,
+            failed_adapter_ids=failed_adapter_ids,
+        )
 
     job = WatchJob(
         user_id=current_user.id,
@@ -133,7 +143,11 @@ async def create_job(
         except Exception:
             logger.exception(f"Failed to enqueue first check for new job {job.id}")
 
-    return await _serialize_job(session, job, configured_adapter_ids=configured_adapter_ids)
+    return await _serialize_job(
+        session, job,
+        configured_adapter_ids=configured_adapter_ids,
+        failed_adapter_ids=failed_adapter_ids,
+    )
 
 
 @router.post("/jobs/window-check", response_model=WindowCheckResponse)
@@ -163,7 +177,12 @@ async def get_job(
 ):
     job = await _get_owned_job(session, current_user.id, job_id)
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
-    return await _serialize_job(session, job, configured_adapter_ids=configured_adapter_ids)
+    failed_adapter_ids = await get_user_failed_adapter_ids(session, current_user.id)
+    return await _serialize_job(
+        session, job,
+        configured_adapter_ids=configured_adapter_ids,
+        failed_adapter_ids=failed_adapter_ids,
+    )
 
 
 @router.patch("/jobs/{job_id}", response_model=WatchJobRead)
@@ -191,6 +210,7 @@ async def update_job(
     patch = body.model_dump(exclude_unset=True)
     next_params = patch["params"] if "params" in patch else json.loads(job.params)
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
+    failed_adapter_ids = await get_user_failed_adapter_ids(session, current_user.id)
 
     if "params" in patch:
         _validate_job_start_date_for_adapter(job.adapter_id, next_params)
@@ -205,7 +225,7 @@ async def update_job(
             raise HTTPException(status_code=409, detail="This booking site does not support automated booking.")
         if patch["auto_book"] and not _params_have_occupants(next_params):
             raise HTTPException(status_code=409, detail="Occupants are required before auto-book can be enabled.")
-        if patch["auto_book"] and not _job_has_required_credentials(job.adapter_id, configured_adapter_ids):
+        if patch["auto_book"] and not _job_has_required_credentials(job.adapter_id, configured_adapter_ids, failed_adapter_ids):
             raise HTTPException(status_code=409, detail="Stored booking credentials are required before auto-book can be enabled.")
         if patch["auto_book"]:
             _validate_job_occupants_for_adapter(job.adapter_id, next_params)
@@ -295,7 +315,11 @@ async def update_job(
         except Exception:
             logger.exception(f"Failed to enqueue check on monitoring-enable for {job.id}")
 
-    return await _serialize_job(session, job, configured_adapter_ids=configured_adapter_ids)
+    return await _serialize_job(
+        session, job,
+        configured_adapter_ids=configured_adapter_ids,
+        failed_adapter_ids=failed_adapter_ids,
+    )
 
 
 @router.delete("/jobs/{job_id}", status_code=204)
@@ -411,7 +435,8 @@ async def book_job(
     _validate_job_occupants_for_adapter(job.adapter_id, params)
 
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
-    if not _job_has_required_credentials(job.adapter_id, configured_adapter_ids):
+    failed_adapter_ids = await get_user_failed_adapter_ids(session, current_user.id)
+    if not _job_has_required_credentials(job.adapter_id, configured_adapter_ids, failed_adapter_ids):
         raise HTTPException(status_code=409, detail="Stored booking credentials are required on this job before booking can start.")
 
     raw = json.loads(job.last_result) if job.last_result else None

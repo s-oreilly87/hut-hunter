@@ -68,8 +68,10 @@ from app.adapters.base import (
     BaseAdapter,
     BookingResult,
     BookingWindowInfo,
+    CredentialVerificationResult,
     OccupantField,
     ParamField,
+    VerificationStatus,
 )
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -1289,6 +1291,60 @@ class BaseCamisAdapter(BaseAdapter):
                 await self.snapshot(page, "camis_login_failed")
                 raise RuntimeError("Camis login did not complete — check the stored credentials")
         logger.info("Camis login successful")
+
+    async def verify_credentials(self, page: Page) -> CredentialVerificationResult:
+        """Drive just the sign-in steps (no booking funnel) to check the bound
+        credentials, without the rest of ``_login``'s funnel-oriented framing.
+
+        THR-123: distinguishes "login was rejected" (FAILED) from "the check
+        itself couldn't complete" (INCONCLUSIVE) — queue-it, the consent gate,
+        or navigation are all infra, not a verdict on the credential. Once the
+        form has been filled and submitted, a non-redirect is the one signal
+        we can trust as an actual rejection.
+        """
+        credentials = self._login_credentials
+        if credentials is None:
+            return CredentialVerificationResult(
+                VerificationStatus.INCONCLUSIVE, "No stored credentials to verify"
+            )
+
+        try:
+            await page.goto(f"{self.base_url}/login", wait_until="domcontentloaded", timeout=60_000)
+            await self._pass_queue_it(page)
+            await self._accept_cookie_consent(page)
+
+            consent = self._consent_locator(page)
+            if await consent.count() > 0 and await consent.is_visible():
+                await consent.click()
+                await page.wait_for_timeout(800)
+                await page.locator(self._EMAIL_SELECTOR).wait_for(state="visible", timeout=15_000)
+        except Exception as e:
+            await self.snapshot(page, "camis_verify_inconclusive")
+            return CredentialVerificationResult(
+                VerificationStatus.INCONCLUSIVE, f"Could not reach the login form: {e}"
+            )
+
+        try:
+            await page.locator(self._EMAIL_SELECTOR).fill(credentials.username)
+            await page.locator(self._PASSWORD_SELECTOR).fill(credentials.password)
+            await page.focus(self._PASSWORD_SELECTOR)
+            await page.keyboard.press("Enter")
+        except Exception as e:
+            await self.snapshot(page, "camis_verify_inconclusive")
+            return CredentialVerificationResult(
+                VerificationStatus.INCONCLUSIVE, f"Could not submit the login form: {e}"
+            )
+
+        try:
+            await page.wait_for_url("**/account", timeout=20_000)
+            return CredentialVerificationResult(VerificationStatus.VERIFIED, "Signed in successfully")
+        except PlaywrightTimeoutError:
+            if await self._is_logged_in(page):
+                return CredentialVerificationResult(VerificationStatus.VERIFIED, "Signed in successfully")
+            await self.snapshot(page, "camis_verify_failed")
+            return CredentialVerificationResult(
+                VerificationStatus.FAILED, "Login was rejected — check the stored username/password"
+            )
 
     async def _login_if_prompted(self, page: Page, timeout_ms: int = 6_000) -> bool:
         """Log in only if the current page is showing the login form.
