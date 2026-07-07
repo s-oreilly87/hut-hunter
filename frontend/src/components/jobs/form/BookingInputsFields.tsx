@@ -1,4 +1,5 @@
-import type { AdapterInfo, Occupant, ParamField } from '@/lib/api'
+import type { AdapterInfo, Occupant, ParamField, WindowCheckResult } from '@/lib/api'
+import { BookingWindowNotice } from './BookingWindowNotice'
 import { OccupantSelector } from './OccupantSelector'
 import { ParamFieldInput } from './ParamFieldInput'
 import { ParamLabel } from './ParamLabel'
@@ -29,6 +30,9 @@ export function BookingInputsFields({
   resolveOptions,
   handleParamChange,
   onOpenOccupants,
+  windowCheck,
+  windowAcknowledged,
+  acknowledgeWindow,
 }: {
   selectedAdapter: AdapterInfo
   params: Record<string, unknown>
@@ -42,6 +46,12 @@ export function BookingInputsFields({
   resolveOptions: (field: ParamField, params: Record<string, unknown>) => string[] | null
   handleParamChange: (key: string, value: unknown) => void
   onOpenOccupants?: () => void
+  // THR-124 — optional so JobFormGrid/JobFormWizard callers that don't pass
+  // them (there are none currently, but keeps this component defensively
+  // usable) just never render the notice.
+  windowCheck?: WindowCheckResult
+  windowAcknowledged?: boolean
+  acknowledgeWindow?: () => void
 }) {
   return (
     <>
@@ -96,6 +106,13 @@ export function BookingInputsFields({
           </div>
         )
       })}
+      {windowCheck && !windowCheck.is_open && (
+        <BookingWindowNotice
+          windowCheck={windowCheck}
+          acknowledged={Boolean(windowAcknowledged)}
+          onAcknowledge={() => acknowledgeWindow?.()}
+        />
+      )}
     </>
   )
 }

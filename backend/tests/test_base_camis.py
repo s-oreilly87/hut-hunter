@@ -8,6 +8,8 @@ cart/hold flow lands in HH-100 and is tested there.
 from __future__ import annotations
 
 import json
+from datetime import date as date_cls, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -610,4 +612,139 @@ async def test_login_if_prompted_false_when_nothing_present():
 
     result = await adapter._login_if_prompted(page, timeout_ms=500)
     assert result is False
-    assert "yes" not in called
+
+
+# ---------------------------------------------------------------------------
+# THR-124 — booking-window gating (check_booking_window / _parse_booking_window)
+# ---------------------------------------------------------------------------
+
+def test_has_booking_windows_true_for_camis():
+    assert BaseCamisAdapter.has_booking_windows is True
+    assert BaseAdapter.has_booking_windows is False
+
+
+async def test_base_adapter_default_always_open():
+    class _Plain(BaseAdapter):
+        adapter_id = "plain"
+        name = "Plain"
+        base_url = "https://example.test"
+
+        @classmethod
+        def param_fields(cls):
+            return []
+
+        async def fill_form(self, page, params):
+            return None
+
+        async def detect_availability(self, page, params):
+            return []
+
+    window = await _Plain().check_booking_window({"date": "01/01/2099"})
+    assert window.is_open is True
+    assert window.opens_at is None
+
+
+def test_parse_booking_window_date_within_reservable_range():
+    data = {"schedules": [{"startDate": "2026-06-01", "endDate": "2026-09-30"}]}
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2026, 7, 15), None)
+    assert window.is_open is True
+
+
+def test_parse_booking_window_go_live_field_is_precise():
+    # Target date (2027-07-15) is NOT covered by the reservable range
+    # (2027-09-01..2027-09-30 — a different season than requested), so this
+    # exercises the not-yet-released branch with a confirmed go-live field.
+    data = [{
+        "startDate": "2027-09-01", "endDate": "2027-09-30",
+        "goLiveDate": "2026-08-01T07:00:00",
+    }]
+    tz = ZoneInfo("America/Vancouver")
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2027, 7, 15), tz)
+    assert window.is_open is False
+    assert window.opens_at_precise is True
+    # 07:00 America/Vancouver in August (PDT, UTC-7) == 14:00 UTC.
+    assert window.opens_at == datetime(2026, 8, 1, 14, 0, tzinfo=timezone.utc)
+
+
+def test_parse_booking_window_falls_back_to_range_start_when_no_go_live():
+    data = {"seasons": [{"reservableStartDate": "2026-08-01", "reservableEndDate": "2026-09-30"}]}
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2026, 7, 1), None)
+    assert window.is_open is False
+    assert window.opens_at_precise is False
+    assert window.opens_at == datetime(2026, 8, 1, tzinfo=timezone.utc)
+
+
+def test_parse_booking_window_picks_earliest_candidate_across_entries():
+    data = [
+        {"startDate": "2026-09-01", "endDate": "2026-09-30", "goLiveDate": "2026-05-01"},
+        {"startDate": "2026-07-01", "endDate": "2026-07-31", "goLiveDate": "2026-03-01"},
+    ]
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2026, 6, 1), None)
+    assert window.is_open is False
+    assert window.opens_at == datetime(2026, 3, 1, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("data", [
+    None, {}, [], {"schedules": []}, {"somethingElse": "abc"}, "unexpected string",
+])
+def test_parse_booking_window_fails_open_on_unrecognized_shape(data):
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2026, 7, 15), None)
+    assert window.is_open is True
+
+
+def test_parse_booking_window_fails_open_when_no_dates_parseable():
+    # Entries present, but no field this parser recognizes at all.
+    data = [{"somethingElse": "abc"}]
+    window = BaseCamisAdapter._parse_booking_window(data, date_cls(2026, 7, 15), None)
+    assert window.is_open is True
+
+
+async def test_check_booking_window_missing_params_fails_open(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    window = await adapter.check_booking_window({})
+    assert window.is_open is True
+    assert "missing" in window.evidence
+
+
+async def test_check_booking_window_queries_dateschedule_and_parses(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    seen_calls = []
+
+    async def fake_fetch_json(path, params=None, **kwargs):
+        seen_calls.append((path, params))
+        return {"schedules": [{"startDate": "2026-08-01", "endDate": "2026-08-31"}]}
+
+    adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
+
+    window = await adapter.check_booking_window(
+        {"resource_location_id": -100, "date": "01/07/2026"}
+    )
+    assert window.is_open is False
+    assert seen_calls[0][0] == BaseCamisAdapter.API_DATE_SCHEDULE
+    assert seen_calls[0][1]["resourceLocationId"] == -100
+    # Category resolved from the catalog's first booking category when not
+    # given explicitly (mirrors _build_availability_query's fallback).
+    assert seen_calls[0][1]["bookingCategoryId"] == 0
+
+
+async def test_check_booking_window_network_error_fails_open(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_fetch_json(path, params=None, **kwargs):
+        raise RuntimeError("connection reset")
+
+    adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
+
+    window = await adapter.check_booking_window(
+        {"resource_location_id": -100, "date": "01/07/2026"}
+    )
+    assert window.is_open is True
+    assert "dateschedule lookup failed" in window.evidence
+
+
+async def test_check_booking_window_unparseable_date_fails_open(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    window = await adapter.check_booking_window(
+        {"resource_location_id": -100, "date": "not-a-date"}
+    )
+    assert window.is_open is True

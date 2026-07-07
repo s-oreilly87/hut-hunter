@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { jobsApi, type WatchJob } from '@/lib/api'
 import { type DisplayStatus } from '@/lib/availability'
-import { formatCountdown, formatRelativeTimeFromNow } from '@/lib/time'
+import { formatCountdown, formatDateTime, formatRelativeTimeFromNow } from '@/lib/time'
 import { Button } from '@/components/ui/Button'
 import {
   AutoBookBadge,
@@ -85,6 +85,7 @@ export function MonitoringSection({
     displayStatus === 'cancelled'
     || displayStatus === 'expired'
   )
+  const isAwaitingWindow = displayStatus === 'awaiting_window'
   const isTransient = (
     displayStatus === 'checking'
     || displayStatus === 'attempting_hold'
@@ -93,6 +94,11 @@ export function MonitoringSection({
     // active hold does — there's a live browser sitting on the booking site.
     || displayStatus === 'needs_attention'
     || displayStatus === 'booking'
+    // THR-124: no toggle while parked awaiting the booking window — turning
+    // monitoring off here cancels the pending auto-arm (see the backend's
+    // update_job), which isn't what "Pause" should mean for a hunt that
+    // hasn't started monitoring yet.
+    || isAwaitingWindow
   )
   const showToggle = !isTerminal && !isTransient
   const countdownSeconds = isOn && job.next_check_at
@@ -144,12 +150,20 @@ export function MonitoringSection({
         </div>
 
         <div className="mt-3 space-y-1 text-xs text-muted-foreground/85">
-          {displayStatus === 'checking' ? (
+          {isAwaitingWindow ? (
+            <p>Not yet checked — awaiting the booking window.</p>
+          ) : displayStatus === 'checking' ? (
             <p>Checking now…</p>
           ) : (
             <p>{formatRelativeTime(job.last_checked_at)}</p>
           )}
-          {holdPausesMonitoring ? (
+          {isAwaitingWindow ? (
+            <p>
+              {job.window_opens_at
+                ? `Booking opens ${formatDateTime(job.window_opens_at)}${job.window_opens_precise ? '' : ' (approx.)'} — this hunt will arm and start checking automatically.`
+                : 'Waiting for the booking window to open — this hunt will arm and start checking automatically.'}
+            </p>
+          ) : holdPausesMonitoring ? (
             <p>
               {displayStatus === 'hold_placed'
                 ? 'Paused while the active hold waits for payment.'

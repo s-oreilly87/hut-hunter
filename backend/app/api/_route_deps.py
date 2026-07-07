@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.adapters import adapter_requires_credentials, get_adapter
+from app.adapters.base import BookingWindowInfo
 from app.core.adapter_credentials import get_user_configured_adapter_ids
 from app.core.config import settings
 from app.core.crypto import decrypt
@@ -275,6 +276,27 @@ def _validate_job_occupants_for_adapter(adapter_id: str, params: dict) -> None:
             status_code=409,
             detail=f"Selected occupants are missing required {adapter.name} details: {'; '.join(problems)}.",
         )
+
+
+async def _check_booking_window(adapter_id: str, params: dict) -> BookingWindowInfo:
+    """THR-124: check whether ``params``'s requested date is inside the
+    adapter's booking window. Double fail-open: an unknown adapter, an
+    adapter without a rolling window, or any error raised while checking all
+    return ``is_open=True`` — a broken lookup must never block job creation
+    or force a job into AWAITING_WINDOW that would otherwise work exactly as
+    it did before this feature existed.
+    """
+    try:
+        adapter = get_adapter(adapter_id)
+    except ValueError:
+        return BookingWindowInfo(is_open=True)
+    if not adapter.has_booking_windows:
+        return BookingWindowInfo(is_open=True)
+    try:
+        return await adapter.check_booking_window(params)
+    except Exception:
+        logger.exception("check_booking_window failed for %s — treating window as open", adapter_id)
+        return BookingWindowInfo(is_open=True)
 
 
 def _validate_job_start_date_for_adapter(adapter_id: str, params: dict) -> None:

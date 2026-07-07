@@ -63,6 +63,32 @@ class ArtifactSnapshot:
 
 
 @dataclass
+class BookingWindowInfo:
+    """Result of checking whether a job's requested date is inside the
+    adapter's current booking window (THR-124).
+
+    ``is_open=True`` covers two cases: the adapter has no rolling-window
+    concept at all (the default — every DOC adapter), or it does but the
+    requested date is already released. ``is_open=False`` means the poll
+    worker should park the job in ``JobStatus.AWAITING_WINDOW`` instead of
+    checking availability.
+
+    A job is only ever parked in AWAITING_WINDOW when ``opens_at`` is set —
+    if an adapter can tell a date isn't released yet but can't compute *when*
+    it will be, it should fail open (return ``is_open=True``) rather than
+    park a job with no way to ever auto-arm. ``opens_at_precise`` says
+    whether ``opens_at`` is a confirmed go-live timestamp or a best-effort
+    fallback (e.g. local midnight on the first day the season calendar
+    considers reservable) — surfaced so the UI can hedge ("opens {date}" vs
+    "opens sometime on {date}").
+    """
+    is_open: bool
+    opens_at: datetime | None = None
+    opens_at_precise: bool = True
+    evidence: str = ""
+
+
+@dataclass
 class ParamField:
     key: str
     label: str
@@ -125,6 +151,12 @@ class BaseAdapter(ABC):
     # session-linking ships (THR-119). Gates auto_book and manual booking in
     # both the API and the UI.
     supports_automated_booking: bool = True
+    # THR-124: True for adapters with a rolling booking window (Camis — dates
+    # release on a per-park/per-province schedule rather than always being
+    # bookable). Gates whether the API/wizard bother calling
+    # check_booking_window at all; False adapters keep the pre-THR-124
+    # behavior exactly (every job is immediately checkable).
+    has_booking_windows: bool = False
 
     def __init__(self) -> None:
         self._artifact_log: list[ArtifactSnapshot] = []
@@ -157,6 +189,18 @@ class BaseAdapter(ABC):
         Override in adapters that support it.
         """
         raise NotImplementedError(f"{self.__class__.__name__} does not support holds yet")
+
+    async def check_booking_window(self, params: dict) -> BookingWindowInfo:
+        """Whether ``params``'s requested date is inside a rolling booking
+        window (THR-124).
+
+        Default: no such concept — always open. ``BaseCamisAdapter``
+        overrides this using the ``/api/dateschedule`` season calendar; DOC
+        adapters (and any future adapter without a rolling window) keep this
+        default, so job creation/monitoring behaves exactly as it did before
+        THR-124.
+        """
+        return BookingWindowInfo(is_open=True)
 
     def is_expired(self, params: dict) -> bool:
         """Return True if the job's start date has passed this adapter's

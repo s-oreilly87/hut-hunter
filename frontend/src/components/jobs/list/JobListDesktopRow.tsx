@@ -50,6 +50,8 @@ function JobStatusMeta({
             jobId={job.id}
             cartExpiresAt={job.cart_expires_at}
             artifactUrl={job.last_artifact_png}
+            windowOpensAt={job.window_opens_at}
+            windowOpensPrecise={job.window_opens_precise}
           />
         )}
       </div>

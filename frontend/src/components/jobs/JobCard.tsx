@@ -198,6 +198,10 @@ export function JobCard({
   const hideTrigger =
     isBookingComplete
     || job.status === 'expired'
+    // THR-124: nothing to check yet — the hunt hasn't reached its booking
+    // window, so a manual "Check Now" would just poll a not-yet-released
+    // date. The scheduler auto-arms it the moment the window opens.
+    || job.status === 'awaiting_window'
     || isMidBookingFlow
 
   const queued = optimisticTriggers.has(job.id)
