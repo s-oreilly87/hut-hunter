@@ -18,6 +18,7 @@ On that page:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -225,6 +226,56 @@ def _build_booking_bar_regexes(start: _DateParts, end: _DateParts) -> dict:
 
 
 # -------------------------------------------------------------------------- #
+# THR-128 — month-awareness helpers.
+#
+# The original fast path (`_target_day_in_visible_table`) and the table
+# parser (`_extract_column_data`) both matched on day-of-month alone. DOC's
+# default ~3-week Site List window always has *some* column for any day
+# 1-28, so a Dec 25 hunt checked while the page still shows its default July
+# window silently matched the Jul 25 column and read July's availability as
+# December's. These helpers give both call sites a way to notice "the
+# month I'm looking at disagrees with the month I was asked for" from
+# whatever month text is actually on screen (the booking-bar label and/or a
+# month heading rendered in the table) — day number alone is never
+# sufficient.
+# -------------------------------------------------------------------------- #
+
+_MONTH_TOKEN_RE = re.compile(
+    r"\b(" + "|".join(MONTHS) + "|" + "|".join(MONTH_SHORT.values()) + r")\b",
+    re.IGNORECASE,
+)
+
+# Matches a cell whose ENTIRE text is a month label, e.g. "July", "Jul",
+# "Jul.", "July 2026" — as opposed to `_MONTH_TOKEN_RE`, which finds a month
+# name anywhere inside a larger string (like the booking-bar sentence).
+_MONTH_LABEL_RE = re.compile(
+    r"^(" + "|".join(MONTHS) + "|" + "|".join(MONTH_SHORT.values()) + r")\.?(?:\s+\d{4})?$",
+    re.IGNORECASE,
+)
+
+
+def _month_tokens_in_text(text: str) -> set[str]:
+    """Return the lowercased set of month names/abbreviations found in *text*."""
+    return {m.lower() for m in _MONTH_TOKEN_RE.findall(text or "")}
+
+
+def _text_contradicts_month(text: str, month: str) -> bool:
+    """Return True if *text* names a month, and it isn't *month*.
+
+    Text with no month mentioned at all (e.g. a bare day number) is not a
+    contradiction — it's simply uninformative. This is intentionally a
+    "nothing visible disagrees" check rather than a positive proof: neither
+    the booking-bar text nor most table month headings carry a year, so we
+    can't always affirmatively confirm the year matches too.
+    """
+    tokens = _month_tokens_in_text(text)
+    if not tokens:
+        return False
+    target_tokens = {month.lower(), MONTH_SHORT[month].lower()}
+    return tokens.isdisjoint(target_tokens)
+
+
+# -------------------------------------------------------------------------- #
 # Adapter
 # -------------------------------------------------------------------------- #
 
@@ -343,15 +394,34 @@ class DocStandardHutAdapter(BaseDOCAdapter):
     # Small Playwright helpers
     # ---------------------------------------------------------------- #
 
-    async def _first_visible(self, loc: Locator) -> Locator:
-        count = await loc.count()
-        for i in range(count):
-            item = loc.nth(i)
-            try:
-                if await item.is_visible():
-                    return item
-            except Exception:
-                continue
+    async def _first_visible(
+        self, loc: Locator, timeout_ms: int = 5000, poll_ms: int = 200
+    ) -> Locator:
+        """Return the first visible match in *loc*, polling for up to *timeout_ms*.
+
+        THR-128: this used to take a single pass over *loc*'s matches and
+        raise immediately if none were visible yet — a race against the DOC
+        SPA's hydration that started losing more often once the site added
+        the "Park & Facility Alerts (2)" banner and slowed down first
+        paint. Every caller here is reading state on a page that may still
+        be settling, so poll for a bounded window instead of sampling once.
+        The final error stays the same so existing callers/tests that match
+        on the message keep working.
+        """
+        elapsed = 0
+        while True:
+            count = await loc.count()
+            for i in range(count):
+                item = loc.nth(i)
+                try:
+                    if await item.is_visible():
+                        return item
+                except Exception:
+                    continue
+            if elapsed >= timeout_ms:
+                break
+            await asyncio.sleep(poll_ms / 1000)
+            elapsed += poll_ms
         raise RuntimeError("No visible matching locator found")
 
     # ---------------------------------------------------------------- #
@@ -367,6 +437,11 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         r"|[A-Z][a-z]{2},\s*[A-Z][a-z]{2}\s*\d{2}\s*-\s*End Date"
     )
     _NIGHT_TEXT_RE = re.compile(r"^\d+\s*Night(s)?$", re.IGNORECASE)
+    # THR-128: DOC now sometimes loads the booking bar with no default range
+    # pre-filled at all — just this placeholder. It never matches
+    # `_DATE_RANGE_TEXT_RE`, so it needs to be recognised as its own state
+    # rather than treated as "the bar hasn't loaded".
+    _DATE_PLACEHOLDER_RE = re.compile(r"Select\s+Arrival\s*-\s*End\s*Date", re.IGNORECASE)
 
     async def _get_date_range_locator(self, page: Page) -> Locator:
         return await self._first_visible(page.get_by_text(self._DATE_RANGE_TEXT_RE))
@@ -374,20 +449,92 @@ class DocStandardHutAdapter(BaseDOCAdapter):
     async def _get_night_locator(self, page: Page) -> Locator:
         return await self._first_visible(page.get_by_text(self._NIGHT_TEXT_RE))
 
+    async def _get_date_placeholder_locator(self, page: Page) -> Locator:
+        return await self._first_visible(page.get_by_text(self._DATE_PLACEHOLDER_RE))
+
     async def _read_booking_bar_text(self, page: Page) -> str:
         """Return the full booking-bar string, normalised.
 
         The bar sits in a container with both "1 Night" and "Wed, Apr 01 -
         Thu, Apr 02" children. We anchor on the date-range text and climb
         one level up to capture the surrounding container.
+
+        THR-128: a freshly-loaded (or slow-hydrating) page can show the
+        "Select Arrival - End Date" placeholder instead of a date range —
+        that never matches `_DATE_RANGE_TEXT_RE`, so this used to raise
+        RuntimeError("No visible matching locator found") on a perfectly
+        normal "no dates chosen yet" state. Treat the placeholder as "no
+        dates selected" and return its text (or "" if even that can't be
+        found) instead of crashing — callers already treat a `before`
+        string that doesn't match the target-range regexes as "not yet the
+        target range" and fall through to `_set_date_range`.
         """
-        date_loc = await self._get_date_range_locator(page)
+        try:
+            date_loc = await self._get_date_range_locator(page)
+        except RuntimeError:
+            try:
+                placeholder = await self._get_date_placeholder_locator(page)
+            except RuntimeError:
+                return ""
+            container = placeholder.locator("xpath=ancestor::div[1]")
+            try:
+                txt = await container.inner_text()
+            except Exception:
+                txt = await placeholder.inner_text()
+            return _normalize(txt)
+
         container = date_loc.locator("xpath=ancestor::div[1]")
         try:
             txt = await container.inner_text()
         except Exception:
             txt = await date_loc.inner_text()
         return _normalize(txt)
+
+    async def _wait_for_booking_bar_ready(
+        self, page: Page, timeout_ms: int = 30_000
+    ) -> None:
+        """Poll until the booking bar has rendered, in ANY of its states.
+
+        THR-128: `fill_form` used to follow page load with a single fixed
+        ``wait_for_timeout(5000)`` and assume the bar would be readable by
+        then. DOC has since added a slower-hydrating "Park & Facility
+        Alerts (2)" banner and started loading some facilities with the bar
+        in its bare "Select Arrival - End Date" placeholder state (no
+        default range at all) — either one can push first-readable well
+        past 5s, or land on a state the fixed sleep never accounted for.
+        Poll for up to ``timeout_ms`` for a date range, the placeholder, or
+        "N Night(s)" text — whichever the bar happens to be showing — and
+        fail loudly (with a snapshot) if none of them ever show up, rather
+        than silently proceeding to read a bar that never loaded.
+        """
+        patterns = (
+            self._DATE_RANGE_TEXT_RE,
+            self._DATE_PLACEHOLDER_RE,
+            self._NIGHT_TEXT_RE,
+        )
+        poll_ms = 300
+        elapsed = 0
+        while elapsed < timeout_ms:
+            for pattern in patterns:
+                try:
+                    loc = page.get_by_text(pattern)
+                    count = await loc.count()
+                except Exception:
+                    continue
+                for i in range(count):
+                    try:
+                        if await loc.nth(i).is_visible():
+                            return
+                    except Exception:
+                        continue
+            await page.wait_for_timeout(poll_ms)
+            elapsed += poll_ms
+
+        await self.snapshot(page, "booking_bar_not_ready")
+        raise TimeoutError(
+            f"Booking bar never rendered (no date-range text, placeholder, "
+            f"or night text became visible) after {timeout_ms}ms"
+        )
 
     # ---------------------------------------------------------------- #
     # Datepicker popup helpers
@@ -461,18 +608,44 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             logger.debug("Datepicker already open — skipping open click")
             return
 
-        date_text = await self._get_date_range_locator(page)
-        night_text = await self._get_night_locator(page)
+        # THR-128: on a pristine bar (no default range pre-filled) both
+        # `_get_date_range_locator` and `_get_night_locator` raise — there's
+        # nothing rendered yet except the "Select Arrival - End Date"
+        # placeholder. Each candidate is looked up independently so one
+        # missing element doesn't prevent us from clicking whichever ones
+        # actually exist.
+        date_text: Locator | None = None
+        try:
+            date_text = await self._get_date_range_locator(page)
+        except RuntimeError:
+            pass
 
-        candidates: list[Locator] = [
-            date_text,
-            date_text.locator("xpath=ancestor::div[1]"),
-            date_text.locator("xpath=ancestor::div[2]"),
-            date_text.locator("xpath=ancestor::div[3]"),
-            night_text,
-            night_text.locator("xpath=ancestor::div[1]"),
-            night_text.locator("xpath=ancestor::div[2]"),
-        ]
+        placeholder_text: Locator | None = None
+        try:
+            placeholder_text = await self._get_date_placeholder_locator(page)
+        except RuntimeError:
+            pass
+
+        night_text: Locator | None = None
+        try:
+            night_text = await self._get_night_locator(page)
+        except RuntimeError:
+            pass
+
+        candidates: list[Locator] = []
+        for base in (date_text, placeholder_text, night_text):
+            if base is None:
+                continue
+            candidates.append(base)
+            for depth in (1, 2, 3):
+                candidates.append(base.locator(f"xpath=ancestor::div[{depth}]"))
+
+        if not candidates:
+            await self.snapshot(page, "booking_bar_not_found")
+            raise RuntimeError(
+                "Could not find booking bar (date range, placeholder, or "
+                "night text) to open the standard-hut datepicker"
+            )
 
         popup_signals = [
             page.get_by_text(re.compile(r"Furthest Arrival Date", re.IGNORECASE)).first,
@@ -806,13 +979,23 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             elapsed += 300
 
     async def _extract_column_data(
-        self, page: Page, hut_name: str, target_day: int
+        self, page: Page, hut_name: str, target_day: int, target_month: str
     ) -> dict:
         """Parse the Site List table and pull the cells for ``target_day``.
 
         Returns a dict with ``ok=True`` plus either summary-row cell data
         (hut-style / campsite-summary pages) or ``unit_cells`` for per-unit
         campsite grids. Returns ``ok=False`` + ``reason`` otherwise.
+
+        THR-128: *target_month* is a defense-in-depth guard, independent of
+        the fast-path decision in ``_target_day_in_visible_table``. DOC
+        renders a month label (e.g. "July") above/alongside the day-number
+        headers; if that label is visible anywhere in the table and names a
+        month other than *target_month*, we're reading the wrong month's
+        columns entirely (day-of-month numbers repeat every month, so a
+        column match on day alone proves nothing). Fail loudly with a
+        distinct evidence message instead of silently reporting an
+        availability result computed against the wrong month.
         """
         table = await self._get_site_list_table(page)
         rows = table.locator("tr")
@@ -848,6 +1031,29 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             return {
                 "ok": False,
                 "reason": f"Could not find target day column {target_dd}",
+                "seen_rows": seen_rows[:12],
+            }
+
+        # THR-128 defense-in-depth: a day-column match is meaningless if the
+        # table is actually showing a different month. Scan every cell we
+        # already collected for something that looks like a standalone
+        # month label and make sure none of them contradict target_month.
+        month_labels_seen = [
+            txt
+            for row in seen_rows
+            for txt in row
+            if _MONTH_LABEL_RE.match(txt)
+        ]
+        mismatched_labels = [
+            txt for txt in month_labels_seen if _text_contradicts_month(txt, target_month)
+        ]
+        if mismatched_labels:
+            return {
+                "ok": False,
+                "reason": (
+                    f"table is showing {mismatched_labels[0]!r} — expected "
+                    f"{target_month!r} (THR-128 month-mismatch guard)"
+                ),
                 "seen_rows": seen_rows[:12],
             }
 
@@ -1064,24 +1270,80 @@ class DocStandardHutAdapter(BaseDOCAdapter):
     # BaseDOCAdapter API
     # ---------------------------------------------------------------- #
 
-    async def _target_day_in_visible_table(self, page: Page, target_day: int) -> bool:
-        """Return True if *target_day* already has a column in the Site List table.
+    async def _target_day_in_visible_table(
+        self, page: Page, target_day: int, target_month: str, bar_text: str
+    ) -> bool:
+        """Return True if *target_day* already has a column in the Site List
+        table for *target_month*, specifically.
 
         The DOC site loads a default date window (typically ~3 weeks from
         tomorrow).  If the job's target day falls inside that window we can
         read availability directly without touching the datepicker at all.
+
+        THR-128: this used to match on day-of-month alone. DOC's default
+        window always has *some* column for any day 1-28, so e.g. a Dec 25
+        hunt checked while the page still showed its default July window
+        silently matched the visible Jul 25 column and went on to read
+        July's availability as December's — day number alone is never
+        sufficient. Before taking the fast path, require that nothing
+        currently visible (the booking-bar text, or a month label rendered
+        in the table itself) contradicts *target_month*. This is a "nothing
+        visible disagrees" check, not a full proof — the bar text doesn't
+        carry a year, and not every facility's table renders a month label —
+        so `_extract_column_data` re-verifies the month again, independently,
+        when it actually reads the column later.
         """
+        if _text_contradicts_month(bar_text, target_month):
+            return False
+
         try:
             table = await self._get_site_list_table(page)
-            # The header row contains day numbers — look for an exact match
-            header_row = table.locator("tr").first
-            cells = header_row.locator("th, td")
-            count = await cells.count()
+            rows = table.locator("tr")
+            row_count = await rows.count()
+
             target_dd = str(target_day).zfill(2)
-            for i in range(count):
-                txt = _normalize(await cells.nth(i).inner_text())
-                if txt == target_dd or txt == str(target_day) or txt.endswith(target_dd):
-                    return True
+            day_col_found = False
+            month_label_texts: list[str] = []
+
+            # The day-number header row is the table's first row; scan a
+            # few more rows too in case a month label is rendered as its own
+            # row/cell rather than embedded in the header row.
+            scan_rows = min(row_count, 4)
+            for i in range(scan_rows):
+                cells = rows.nth(i).locator("th, td")
+                count = await cells.count()
+                for j in range(count):
+                    txt = _normalize(await cells.nth(j).inner_text())
+                    if i == 0 and (
+                        txt == target_dd or txt == str(target_day) or txt.endswith(target_dd)
+                    ):
+                        day_col_found = True
+                    if _MONTH_LABEL_RE.match(txt):
+                        month_label_texts.append(txt)
+
+            if not day_col_found:
+                return False
+
+            for label in month_label_texts:
+                if _text_contradicts_month(label, target_month):
+                    return False
+
+            # THR-128 review tightening: "nothing disagrees" alone still
+            # fails OPEN in the one corner that reproduces the original bug —
+            # a placeholder booking bar (no month in bar_text) plus a table
+            # that renders no month label leaves a bare day-number match as
+            # the only signal, which is exactly the day-25-in-July trap.
+            # Require POSITIVE month evidence from at least one source (the
+            # bar text or a table month label) before skipping the picker;
+            # with no evidence either way, fall through to the datepicker
+            # path, which ends in _wait_for_booking_bar_dates' hard verify.
+            target_tokens = {target_month.lower(), MONTH_SHORT[target_month].lower()}
+            bar_confirms = not _month_tokens_in_text(bar_text).isdisjoint(target_tokens)
+            table_confirms = any(
+                not _month_tokens_in_text(label).isdisjoint(target_tokens)
+                for label in month_label_texts
+            )
+            return bar_confirms or table_confirms
         except Exception:
             pass
         return False
@@ -1093,8 +1355,13 @@ class DocStandardHutAdapter(BaseDOCAdapter):
             await page.wait_for_load_state("networkidle", timeout=30_000)
         except PlaywrightTimeoutError:
             pass
-        # DOC's SPA needs a beat to hydrate the booking bar / selected facility.
-        await page.wait_for_timeout(5000)
+        # THR-128: replaces a fixed wait_for_timeout(5000). DOC's SPA needs a
+        # beat to hydrate the booking bar / selected facility, but a fixed
+        # sleep either wastes time or (on a slow-hydrating load, or one that
+        # lands on the bare "Select Arrival - End Date" placeholder) isn't
+        # long enough. Poll for whichever state the bar actually settles
+        # into instead of guessing a duration.
+        await self._wait_for_booking_bar_ready(page)
 
         start, end = self._date_range(params)
         before = await self._read_booking_bar_text(page)
@@ -1104,10 +1371,12 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         # Site List table we don't need to touch the datepicker at all.
         # This covers the common case where the job date falls in the ~3-week
         # default window the DOC site loads (avoids the flaky picker entirely).
-        if await self._target_day_in_visible_table(page, start.day):
+        # THR-128: month-aware now — see _target_day_in_visible_table's
+        # docstring for why day-of-month alone used to be a landmine.
+        if await self._target_day_in_visible_table(page, start.day, start.month, before):
             logger.info(
-                "Target day %s is already in the visible table — skipping datepicker",
-                start.day,
+                "Target day %s (%s) is already in the visible table — skipping datepicker",
+                start.day, start.month,
             )
             # Close the auto-opened datepicker so it doesn't obscure the table
             await self._close_datepicker(page)
@@ -1127,6 +1396,15 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                     f"set_date_range failed (continuing with whatever range is "
                     f"currently selected): {e}"
                 )
+                # THR-128: this failure stays swallowed — _wait_for_booking_bar_dates
+                # below backstops it by verifying the bar either way — but
+                # snapshot first so artifacts explain WHY the picker failed
+                # rather than only showing the (possibly unrelated) later
+                # mismatch/timeout.
+                try:
+                    await self.snapshot(page, "set_date_range_failed")
+                except Exception:
+                    pass
         else:
             logger.info("Booking bar already matches target range — skipping picker")
 
@@ -1165,7 +1443,7 @@ class DocStandardHutAdapter(BaseDOCAdapter):
 
         people_wanted = int(params.get("people", 2))
         start, _end = self._date_range(params)
-        parsed = await self._extract_column_data(page, hut_name, start.day)
+        parsed = await self._extract_column_data(page, hut_name, start.day, start.month)
         return [self._classify(parsed, hut_name, people_wanted)]
 
     # ---------------------------------------------------------------- #
