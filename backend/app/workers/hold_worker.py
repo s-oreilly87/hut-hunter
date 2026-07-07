@@ -412,6 +412,19 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                         reset_history=True,
                     )
                     window_closed_info = e.window
+                    if window_closed_info.opens_at is None:
+                        # THR-127: the modal proves the window was closed,
+                        # but the recompute couldn't produce an arm time
+                        # (check_booking_window failed open on a lookup
+                        # error, or the window opened between the modal and
+                        # the recompute). Parking AWAITING_WINDOW without a
+                        # window_opens_at would STRAND the job — scheduler
+                        # Pass 0 only arms rows where window_opens_at is
+                        # non-null — so fall back to the normal
+                        # WAITING-retry path instead; the poll re-gate
+                        # re-parks it properly once check_booking_window
+                        # can compute a real open time.
+                        window_closed_info = None
                     booking = BookingResult(success=False, held=False, message=str(e))
                 except Exception as e:
                     # Every KNOWN clean-negative outcome (no availability, missing

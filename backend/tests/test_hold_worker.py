@@ -458,3 +458,27 @@ async def test_booking_window_closed_during_hold_maps_to_awaiting_window(
 
     assert len(notifications) == 1
     assert notifications[0]["title"] == "🏕️ Not released yet"
+
+
+async def test_window_closed_during_hold_without_opens_at_does_not_strand(
+    monkeypatch, seed_job, fetch_job, notifications,
+):
+    """THR-127: if the recomputed window carries no opens_at (fail-open
+    lookup error, or the window opened between the modal and the recompute),
+    the job must NOT be parked AWAITING_WINDOW — scheduler Pass 0 only arms
+    rows with a non-null window_opens_at, so that would strand it forever.
+    It falls back to the normal WAITING retry instead."""
+    window = BookingWindowInfo(is_open=True)  # opens_at is None
+    adapter = _FakeAdapter(hold_effect=BookingWindowClosedDuringHold(window))
+    _install_fake_adapter(monkeypatch, adapter)
+
+    job = await seed_job(status=JobStatus.CHECKING.value, enable_monitoring=True)
+
+    result = await hold_worker.attempt_hold_task({}, job.id)
+
+    assert result["status"] == "hold_failed"
+    refreshed = await fetch_job(job.id)
+    assert refreshed.status == JobStatus.WAITING.value
+    assert refreshed.window_opens_at is None
+    assert refreshed.next_check_at is not None
+    assert job.id not in hold_worker.LIVE_BROWSERS
