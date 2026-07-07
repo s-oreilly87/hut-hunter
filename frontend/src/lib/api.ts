@@ -188,6 +188,10 @@ export interface AdapterInfo {
   // null timezone means "use client local timezone"
   booking_timezone: string | null
   booking_cutoff_time: string  // HH:MM:SS — informational, expiry enforced server-side
+  // THR-126: non-null when this adapter shares a saved sign-in with one or
+  // more other adapters (both DOC adapters are "doc_govt_nz") — adapters
+  // with the same realm should render as a single Sign-Ins card.
+  credential_realm: string | null
 }
 
 export interface WindowCheckResult {
@@ -217,6 +221,20 @@ export interface OccupantCreate {
   adapter_values: Record<string, Record<string, unknown>>
 }
 
+// THR-126: the persisted, server-driven verification state — replaces
+// polling is_verified + a client-side "did we wait long enough" timer.
+// PENDING is set the instant a check is enqueued (on save, or "Verify now"),
+// so the badge is never left guessing. INCONCLUSIVE means the check itself
+// couldn't complete (queue-it, consent gate, network) and is NOT a rejection
+// — it must never read as "Unverified" the way a silently-dropped result did
+// before this fix.
+export type CredentialVerificationStatus =
+  | 'verified'
+  | 'failed'
+  | 'inconclusive'
+  | 'pending'
+  | 'unverified'
+
 export interface AdapterCredential {
   id: string
   adapter_id: string
@@ -224,8 +242,13 @@ export interface AdapterCredential {
   has_password: boolean
   // THR-123: null = never checked (legacy row, or a fresh save whose
   // verification hasn't landed yet). true/false only ever come from an
-  // actual login check.
+  // actual login check. Superseded by verification_status (THR-126) but
+  // kept in sync for any lingering readers.
   is_verified: boolean | null
+  verification_status: CredentialVerificationStatus
+  // Detail for the current status — e.g. why FAILED/INCONCLUSIVE. Null for
+  // unverified/pending/a bare verified.
+  verification_message: string | null
   verified_at: string | null
   created_at: string
   updated_at: string

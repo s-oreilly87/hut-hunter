@@ -26,3 +26,10 @@ class CamisBcParksAdapter(BaseCamisAdapter):
     # BC Parks is Pacific time. (The Camis API reports parks as
     # "America/Los_Angeles" — same zone rules; use the Canadian IANA name.)
     booking_timezone = "America/Vancouver"
+
+    # THR-126: BC frontcountry sites open on a rolling window exactly 3
+    # months before arrival (confirmed against the live "Golden Ears" hunt
+    # failure — dateschedule had no go-live published for a season that far
+    # out, so gating on go-live alone never engaged). window_open_local_time
+    # keeps the base class's 7am default (ticket text: "7am PT").
+    advance_booking_months = 3

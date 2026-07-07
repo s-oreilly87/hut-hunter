@@ -18,6 +18,7 @@ from app.adapters.base import (
 )
 from app.adapters import adapter_requires_credentials, get_adapter
 from app.core.adapter_credentials import get_adapter_credential_record, get_user_adapter_credentials
+from app.models.credential import CredentialVerificationState
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notification_settings import get_user_notification_settings_secret
@@ -272,8 +273,13 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
 
     # THR-123: a credential that failed verification is treated the same as
     # no credential at all — a known-bad login is never worth burning a hold
-    # attempt on.
-    credential_failed = credential_record is not None and credential_record.is_verified is False
+    # attempt on. THR-126: keys off verification_status (the persisted source
+    # of truth, which can now also be PENDING/INCONCLUSIVE) rather than the
+    # legacy is_verified boolean — INCONCLUSIVE must NOT gate holds closed.
+    credential_failed = (
+        credential_record is not None
+        and credential_record.verification_status == CredentialVerificationState.FAILED.value
+    )
     if adapter_requires_credentials(job.adapter_id) and (credentials is None or credential_failed):
         if credential_failed:
             logger.warning("Hold skipped for job %s: credential failed verification for adapter %s", job_id, job.adapter_id)
@@ -508,14 +514,31 @@ async def verify_credentials_task(ctx: dict, user_id: str, adapter_id: str) -> d
         logger.error(f"verify_credentials_task error for {adapter_id}: {e}", exc_info=True)
         result = CredentialVerificationResult(VerificationStatus.INCONCLUSIVE, f"Verification task error: {e}")
 
-    if result.status in (VerificationStatus.VERIFIED, VerificationStatus.FAILED):
-        async with AsyncSessionLocal() as session:
-            record = await get_adapter_credential_record(session, user_id, adapter_id)
-            if record is not None:
-                record.is_verified = result.status == VerificationStatus.VERIFIED
-                record.verified_at = utcnow()
-                session.add(record)
-                await session.commit()
+    # THR-126: persist EVERY outcome, not just VERIFIED/FAILED — an
+    # INCONCLUSIVE result used to be logged and discarded here, which is
+    # exactly the "verifying forever, then silently reverts to Unverified"
+    # bug this ticket fixes. is_verified is kept in sync for any code still
+    # reading the legacy boolean; it stays None for INCONCLUSIVE (neither
+    # true nor false — the check simply didn't run to completion).
+    status_to_state = {
+        VerificationStatus.VERIFIED: CredentialVerificationState.VERIFIED,
+        VerificationStatus.FAILED: CredentialVerificationState.FAILED,
+        VerificationStatus.INCONCLUSIVE: CredentialVerificationState.INCONCLUSIVE,
+    }
+    async with AsyncSessionLocal() as session:
+        record = await get_adapter_credential_record(session, user_id, adapter_id)
+        if record is not None:
+            record.verification_status = status_to_state[result.status].value
+            record.verification_message = result.message
+            record.verified_at = utcnow()
+            if result.status == VerificationStatus.VERIFIED:
+                record.is_verified = True
+            elif result.status == VerificationStatus.FAILED:
+                record.is_verified = False
+            else:
+                record.is_verified = None
+            session.add(record)
+            await session.commit()
 
     logger.info(f"verify_credentials_task {adapter_id}: {result.status.value} — {result.message}")
     return {"adapter_id": adapter_id, "status": result.status.value, "message": result.message}

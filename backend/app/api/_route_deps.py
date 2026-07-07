@@ -12,7 +12,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.adapters import adapter_requires_credentials, get_adapter
+from app.adapters import adapter_ids_for_credential_key, adapter_requires_credentials, get_adapter
 from app.adapters.base import BookingWindowInfo
 from app.core.adapter_credentials import get_user_configured_adapter_ids, get_user_failed_adapter_ids
 from app.core.config import settings
@@ -164,12 +164,20 @@ async def _serialize_job(
 
 
 def _credential_record_to_read(credential: AdapterCredential) -> AdapterCredentialRead:
+    # THR-126: a shared-realm row is stored under an abstract realm key (e.g.
+    # "doc_govt_nz"), never a concrete adapter_id the frontend would
+    # recognize. Surface it under the canonical (lowest-sorted) real
+    # adapter_id in that realm instead — the frontend groups adapters by
+    # credential_realm and looks the credential up by that same canonical id.
+    display_adapter_id = sorted(adapter_ids_for_credential_key(credential.adapter_id))[0]
     return AdapterCredentialRead(
         id=credential.id,
-        adapter_id=credential.adapter_id,
+        adapter_id=display_adapter_id,
         username=decrypt(credential.encrypted_username),
         has_password=True,
         is_verified=credential.is_verified,
+        verification_status=credential.verification_status,
+        verification_message=credential.verification_message,
         verified_at=credential.verified_at,
         created_at=credential.created_at,
         updated_at=credential.updated_at,

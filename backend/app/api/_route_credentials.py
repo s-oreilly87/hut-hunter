@@ -11,6 +11,7 @@ from app.api.auth import get_current_user
 from app.api._route_deps import _credential_record_to_read, get_redis
 from app.core.adapter_credentials import (
     get_adapter_credential_record,
+    mark_credential_pending,
     upsert_user_adapter_credentials,
 )
 from app.core.database import get_session
@@ -70,10 +71,14 @@ async def upsert_credential(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # THR-123: every save (new or rotated) starts a fresh login check —
-    # is_verified is already reset to None by upsert_user_adapter_credentials.
+    # THR-123: every save (new or rotated) starts a fresh login check — the
+    # verification fields are already reset by upsert_user_adapter_credentials.
+    # THR-126: flip to PENDING before enqueueing so the badge reads
+    # "Verifying…" from the server's own state immediately, not a client timer.
+    await mark_credential_pending(session, current_user.id, adapter_id)
     await _enqueue_verify_credentials(current_user.id, adapter_id, redis)
 
+    credential = await get_adapter_credential_record(session, current_user.id, adapter_id)
     return _credential_record_to_read(credential)
 
 
@@ -89,6 +94,7 @@ async def verify_credential(
     if credential is None:
         raise HTTPException(status_code=404, detail="Credential not found")
 
+    await mark_credential_pending(session, current_user.id, adapter_id)
     await _enqueue_verify_credentials(current_user.id, adapter_id, redis)
     return {"status": "enqueued"}
 

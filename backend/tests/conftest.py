@@ -243,13 +243,27 @@ def seed_credential(session_factory, auth_user):
         username: str = "doc-user@example.com",
         password: str = "doc-password",
         is_verified: bool | None = None,
+        # THR-126: verification_status is the new source of truth. When not
+        # given explicitly, it's derived from is_verified so existing
+        # callers (True/False/None) keep gating exactly as before.
+        verification_status: str | None = None,
+        verification_message: str | None = None,
     ) -> AdapterCredential:
+        if verification_status is None:
+            if is_verified is True:
+                verification_status = "verified"
+            elif is_verified is False:
+                verification_status = "failed"
+            else:
+                verification_status = "unverified"
         credential = AdapterCredential(
             user_id=user_id or auth_user.id,
             adapter_id=adapter_id,
             encrypted_username=encrypt(username),
             encrypted_password=encrypt(password),
             is_verified=is_verified,
+            verification_status=verification_status,
+            verification_message=verification_message,
         )
         async with session_factory() as session:
             session.add(credential)

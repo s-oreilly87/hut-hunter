@@ -32,3 +32,9 @@ class CamisOntarioParksAdapter(BaseCamisAdapter):
     catalog_path = Path(__file__).with_name("ontario_parks.json")
 
     booking_timezone = "America/Toronto"
+
+    # THR-126: Ontario's rolling release window is 5 months before arrival
+    # (vs BC's 3) — same rolling-window mechanic, different lead time.
+    # window_open_local_time keeps the base class's 7am default (ticket
+    # text: "7am ET").
+    advance_booking_months = 5

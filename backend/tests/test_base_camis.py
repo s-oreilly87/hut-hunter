@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.adapters.base import AvailabilityStatus, BaseAdapter
+from app.adapters.base import AvailabilityStatus, BaseAdapter, UnexpectedHoldFailure
 from app.adapters.base_camis import BaseCamisAdapter
 
 
@@ -350,6 +350,45 @@ async def test_attempt_hold_bad_params_never_claims_hold(tmp_path):
     assert result.success is False
 
 
+async def test_attempt_hold_propagates_login_failure_instead_of_swallowing_it(tmp_path):
+    """THR-126 (fixes THR-122 §2): attempt_hold used to catch RuntimeError
+    from _login and return a clean BookingResult(held=False) — which is
+    exactly why the noVNC takeover never fired for a stuck consent banner:
+    attempt_hold swallowed the failure before hold_worker's takeover
+    except-block ever saw it. Any exception _login raises (RuntimeError,
+    UnexpectedHoldFailure, or anything else) must now propagate uncaught."""
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_login(page):
+        raise UnexpectedHoldFailure("Camis cookie-consent banner would not dismiss")
+
+    adapter._login = fake_login  # type: ignore[method-assign]
+
+    with pytest.raises(UnexpectedHoldFailure):
+        await adapter.attempt_hold(
+            None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 1}
+        )
+
+
+async def test_attempt_hold_propagates_plain_runtime_error_from_login(tmp_path):
+    # Even a "boring" RuntimeError (e.g. missing stored credentials) is no
+    # longer caught here — attempt_hold's own callers (the hold worker skips
+    # straight to a clean BookingResult before ever opening a browser when
+    # credentials are missing/failed) are what's responsible for the clean
+    # negative now, not a login exception this deep in the funnel.
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_login(page):
+        raise RuntimeError("Camis login required but no stored credentials are configured")
+
+    adapter._login = fake_login  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError):
+        await adapter.attempt_hold(
+            None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 1}
+        )
+
+
 # ---------------------------------------------------------------------------
 # HH-103 — E2E hold hardening: honest cart-badge verification
 # ---------------------------------------------------------------------------
@@ -447,26 +486,39 @@ async def test_dismiss_park_alerts_noop_when_absent():
 # ---------------------------------------------------------------------------
 
 class _ConsentLocator:
-    """Stand-in for the combined ``page.locator("#a, #b").first`` consent
-    locator. ``visible_after`` polls is when it starts reporting visible;
-    ``None`` means it never appears."""
+    """Stand-in for a consent-button selector locator. ``visible_after``
+    polls is when it starts reporting visible; ``None`` means it never
+    appears.
 
-    def __init__(self, visible_after: int | None):
+    THR-126: ``dismiss_on_click`` models whether clicking this element
+    actually dismisses the banner (the real "I consent" button) or not (the
+    THR-122 §1 bug — clicking the banner's container instead of its button,
+    which "succeeds" but leaves the banner up). Once dismissed, ``is_visible``
+    reports False from then on, same as a real detached/hidden element.
+    """
+
+    def __init__(self, visible_after: int | None, dismiss_on_click: bool = True):
         self.visible_after = visible_after
         self.polls = 0
-        self.clicked = False
+        self.clicked = 0
+        self.dismiss_on_click = dismiss_on_click
+        self.dismissed = False
 
     async def count(self):
         return 1 if self.visible_after is not None else 0
 
     async def is_visible(self):
+        if self.dismissed:
+            return False
         self.polls += 1
         if self.visible_after is None:
             return False
         return self.polls >= self.visible_after
 
     async def click(self):
-        self.clicked = True
+        self.clicked += 1
+        if self.dismiss_on_click:
+            self.dismissed = True
 
     @property
     def first(self):
@@ -524,7 +576,7 @@ async def test_accept_cookie_consent_returns_immediately_if_email_already_visibl
     page = _ConsentRacePage(consent, email)
     adapter = _StubCamisAdapter()
     await adapter._accept_cookie_consent(page, timeout_ms=2_000)
-    assert consent.clicked is False
+    assert consent.clicked == 0
 
 
 async def test_accept_cookie_consent_waits_past_old_fixed_delay():
@@ -551,7 +603,7 @@ async def test_accept_cookie_consent_waits_past_old_fixed_delay():
 
     adapter = _StubCamisAdapter()
     await adapter._accept_cookie_consent(page, timeout_ms=5_000)
-    assert consent.clicked is True
+    assert consent.clicked >= 1
     assert email.unblocked is True
 
 
@@ -571,8 +623,38 @@ async def test_accept_cookie_consent_raises_and_snapshots_when_nothing_appears()
 
     adapter.snapshot = fake_snapshot  # type: ignore[method-assign]
 
-    with pytest.raises(RuntimeError, match="did not become visible"):
+    # THR-126: this is now an UnexpectedHoldFailure (parks for takeover),
+    # not a plain RuntimeError (which attempt_hold used to catch and report
+    # as a clean Hold Failed — the THR-122 §2 bug this ticket fixes).
+    with pytest.raises(UnexpectedHoldFailure, match="did not become visible"):
         await adapter._accept_cookie_consent(page, timeout_ms=500)
+    assert snapshots == ["camis_consent_blocked"]
+
+
+async def test_accept_cookie_consent_raises_when_click_does_not_dismiss_banner():
+    """THR-126 (fixes THR-122 §1 — the actual production bug): clicking the
+    consent element "succeeds" (no exception) but the banner never actually
+    goes away — e.g. the click landed on the container, not the real button.
+    The old code treated a non-raising click as proof of dismissal and then
+    timed out on #email with a misleading error; the fix must detect the
+    banner is still up and fail loudly instead."""
+    consent = _ConsentLocator(visible_after=1, dismiss_on_click=False)
+    email = _EmailLocator(visible_after=None)
+    page = _ConsentRacePage(consent, email)
+    adapter = _StubCamisAdapter()
+
+    snapshots = []
+
+    async def fake_snapshot(_page, label):
+        snapshots.append(label)
+        return f"artifacts/{label}"
+
+    adapter.snapshot = fake_snapshot  # type: ignore[method-assign]
+
+    with pytest.raises(UnexpectedHoldFailure, match="would not dismiss"):
+        await adapter._accept_cookie_consent(page, timeout_ms=3_000)
+    # Clicked repeatedly (retries), never gave up after just one attempt.
+    assert consent.clicked >= 2
     assert snapshots == ["camis_consent_blocked"]
 
 
@@ -830,3 +912,155 @@ async def test_check_booking_window_unparseable_date_fails_open(tmp_path):
         {"resource_location_id": -100, "date": "not-a-date"}
     )
     assert window.is_open is True
+
+
+# ---------------------------------------------------------------------------
+# THR-126 — rolling advance-booking window (fixes THR-124's "no go-live
+# published yet" gap: BC/Ontario's PRIMARY release mechanic is a rolling
+# per-arrival-date window that dateschedule go-live dates don't encode).
+# ---------------------------------------------------------------------------
+
+def test_subtract_months_handles_year_rollover_and_day_clamping():
+    # Ordinary case, crossing a year boundary.
+    assert BaseCamisAdapter._subtract_months(date_cls(2027, 1, 15), 3) == date_cls(2026, 10, 15)
+    # Day clamped to the shorter target month (no Feb 31).
+    assert BaseCamisAdapter._subtract_months(date_cls(2026, 5, 31), 3) == date_cls(2026, 2, 28)
+    # Zero months is a no-op.
+    assert BaseCamisAdapter._subtract_months(date_cls(2026, 7, 7), 0) == date_cls(2026, 7, 7)
+
+
+def test_parse_booking_window_uses_rolling_window_when_no_go_live_published():
+    # The exact production repro: a next-summer BC hunt with no goLiveDate
+    # published for a season that far out — only last year's (closed) season
+    # is on file. Before THR-126 this failed open (is_open=True) — the
+    # feature could never engage for the common case. advance_booking_months
+    # now computes an arm time directly instead.
+    data = {"seasons": [{"reservableStartDate": "2026-05-01", "reservableEndDate": "2026-09-30",
+                          "goLiveDate": None, "goLiveDateUtc": None}]}
+    tz = ZoneInfo("America/Vancouver")
+    window = BaseCamisAdapter._parse_booking_window(
+        data, date_cls(2027, 7, 20), tz, advance_booking_months=3,
+    )
+    assert window.is_open is False
+    # 3 months before 2027-07-20 is 2027-04-20, 7am Pacific (PDT, UTC-7) ->
+    # 14:00 UTC.
+    assert window.opens_at == datetime(2027, 4, 20, 14, 0, tzinfo=timezone.utc)
+    assert window.opens_at_precise is True
+
+
+def test_parse_booking_window_rolling_and_confirmed_go_live_take_the_earlier():
+    # A confirmed go-live for the relevant season that's EARLIER than the
+    # computed rolling date wins (an early/fixed-date release overriding the
+    # usual cadence) — earliest-wins is the safe default (arming early costs
+    # nothing; arming late risks missing the window). Only last year's season
+    # is on file, so the range itself doesn't cover the target date.
+    data = [{
+        "startDate": "2026-05-01", "endDate": "2026-09-30",
+        "goLiveDateUtc": "2027-03-01T14:00:00Z",
+    }]
+    window = BaseCamisAdapter._parse_booking_window(
+        data, date_cls(2027, 7, 20), None, advance_booking_months=3,
+    )
+    assert window.is_open is False
+    assert window.opens_at == datetime(2027, 3, 1, 14, 0, tzinfo=timezone.utc)
+
+
+def test_entry_for_target_date_picks_nearest_range_not_global_min_go_live():
+    # THR-126 regression: the OLD code took min() of every entry's go-live
+    # regardless of season — an unrelated, long-past season with an early
+    # go-live could win even though its range has nothing to do with the
+    # requested date. Two entries: one whose range is right next to the
+    # target date (later go-live), one whose range is far away (earlier
+    # go-live, but irrelevant to this booking).
+    near_entry = {"startDate": "2026-09-01", "endDate": "2026-09-30", "goLiveDate": "2026-06-01"}
+    far_entry = {"startDate": "2023-01-01", "endDate": "2023-01-31", "goLiveDate": "2022-10-01"}
+    entries = [far_entry, near_entry]
+    picked = BaseCamisAdapter._entry_for_target_date(entries, date_cls(2026, 8, 15))
+    assert picked is near_entry
+
+    window = BaseCamisAdapter._parse_booking_window(
+        [near_entry, far_entry], date_cls(2026, 8, 15), None,
+    )
+    assert window.is_open is False
+    # Must be the NEAR entry's go-live, not the far one's earlier date.
+    assert window.opens_at == datetime(2026, 6, 1, tzinfo=timezone.utc)
+
+
+async def test_check_booking_window_falls_back_to_rolling_window(tmp_path):
+    # An adapter with advance_booking_months configured still computes a real
+    # arm time even when dateschedule returns nothing usable at all (an empty
+    # response) — the rolling window doesn't depend on dateschedule at all,
+    # so a broken/empty lookup must not force a fail-open here.
+    adapter = _catalog_adapter(tmp_path)
+    adapter.advance_booking_months = 3
+    adapter.booking_timezone = "America/Vancouver"
+
+    async def fake_fetch_json(path, params=None, **kwargs):
+        return {}
+
+    adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
+
+    window = await adapter.check_booking_window(
+        {"resource_location_id": -100, "date": "20/07/2027"}
+    )
+    assert window.is_open is False
+    assert window.opens_at == datetime(2027, 4, 20, 14, 0, tzinfo=timezone.utc)
+
+
+def test_bc_and_ontario_advance_booking_months_configured():
+    from app.adapters.camis_bc_parks import CamisBcParksAdapter
+    from app.adapters.camis_ontario_parks import CamisOntarioParksAdapter
+
+    assert CamisBcParksAdapter.advance_booking_months == 3
+    assert CamisOntarioParksAdapter.advance_booking_months == 5
+    # Parks Canada's cadence isn't confirmed — must NOT silently invent one.
+    from app.adapters.camis_parks_canada import CamisParksCanadaAdapter
+    assert CamisParksCanadaAdapter.advance_booking_months is None
+
+
+async def test_detect_availability_short_circuits_outside_booking_window(tmp_path):
+    """THR-126 (fixes THR-124 §4b): a beyond-window date must never read as
+    AVAILABLE even if the raw availability/map codes say so (recon confirmed
+    unreleased dates can return site-level code 0)."""
+    adapter = _catalog_adapter(tmp_path)
+
+    from app.adapters.base import BookingWindowInfo
+
+    async def fake_check_window(params):
+        return BookingWindowInfo(is_open=False, opens_at=None, evidence="not yet released")
+
+    adapter.check_booking_window = fake_check_window  # type: ignore[method-assign]
+
+    async def fake_get(page, query):
+        # Even though the API says "available", the window gate must win.
+        return {"resourceAvailabilities": {"-50": [{"availability": 0}]}}
+
+    adapter._get_map_availability = fake_get  # type: ignore[method-assign]
+
+    results = await adapter.detect_availability(
+        None, {"resource_location_id": -100, "date": "01/08/2027", "nights": 1}
+    )
+    assert len(results) == 1
+    assert results[0].status == AvailabilityStatus.UNAVAILABLE
+    assert "outside the booking window" in results[0].evidence
+
+
+async def test_detect_availability_proceeds_when_window_open(tmp_path):
+    # A window check that fails/errors must never block an otherwise-normal
+    # detect — check_booking_window's own fail-open contract still applies.
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_check_window(params):
+        raise RuntimeError("boom")
+
+    adapter.check_booking_window = fake_check_window  # type: ignore[method-assign]
+
+    async def fake_get(page, query):
+        return {"resourceAvailabilities": {"-50": [{"availability": 0}]}}
+
+    adapter._get_map_availability = fake_get  # type: ignore[method-assign]
+
+    results = await adapter.detect_availability(
+        None, {"resource_location_id": -100, "date": "01/08/2026", "nights": 1}
+    )
+    assert results[0].status == AvailabilityStatus.AVAILABLE

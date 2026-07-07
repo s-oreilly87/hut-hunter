@@ -177,6 +177,15 @@ class BaseAdapter(ABC):
     # check_booking_window at all; False adapters keep the pre-THR-124
     # behavior exactly (every job is immediately checkable).
     has_booking_windows: bool = False
+    # THR-126: adapters sharing the same underlying account (e.g. the two DOC
+    # adapters — Standard Hut and Great Walk are both bookings.doc.govt.nz
+    # logins) declare the same non-None credential_realm so the credential
+    # store treats them as one saved sign-in instead of asking the user to
+    # enter (and verify) the same login twice. None (the default) means "this
+    # adapter's credentials are keyed by its own adapter_id" — the Camis sites
+    # each have their own distinct account and stay per-site. See
+    # app.core.adapter_credentials for the resolution.
+    credential_realm: str | None = None
 
     def __init__(self) -> None:
         self._artifact_log: list[ArtifactSnapshot] = []
