@@ -561,6 +561,10 @@ class _FillFormFakePage:
     async def wait_for_load_state(self, state, timeout=None):
         return None
 
+    def get_by_role(self, _role, name=None):
+        # _dismiss_site_cookie_banner's check — no such banner in this funnel.
+        return _NeverVisibleLocator()
+
 
 async def test_fill_form_navigates_to_results_deep_link_for_snapshot(tmp_path):
     """THR-129 Finding E: previously fill_form only ever snapshotted the
@@ -820,6 +824,24 @@ async def test_dismiss_park_alerts_noop_when_absent():
     # BC has no such modal — must be a silent no-op, not an error.
     page = _AlertPage(None)
     assert await _StubCamisAdapter()._dismiss_park_alerts(page) is False
+
+
+# ---------------------------------------------------------------------------
+# MISC — BC.gov's site-wide cookie-consent banner ("I Consent") is a second,
+# distinct banner from the Camis-app login gate (#consentButton /
+# #login-cookie-consent, handled by _accept_cookie_consent). Seen blocking
+# search/results pages; must be dismissed early and repeatedly, and be a
+# no-op when absent (other Camis provinces have no such banner).
+# ---------------------------------------------------------------------------
+
+async def test_dismiss_site_cookie_banner_clicks_i_consent():
+    page = _AlertPage("I Consent")
+    assert await _StubCamisAdapter()._dismiss_site_cookie_banner(page) is True
+
+
+async def test_dismiss_site_cookie_banner_noop_when_absent():
+    page = _AlertPage(None)
+    assert await _StubCamisAdapter()._dismiss_site_cookie_banner(page) is False
 
 
 # ---------------------------------------------------------------------------
@@ -1682,6 +1704,10 @@ class _LoginFunnelPage:
 
     def locator(self, _selector):
         return _FillableLocator()
+
+    def get_by_role(self, _role, name=None):
+        # _dismiss_site_cookie_banner's check — no such banner in this funnel.
+        return _NeverVisibleLocator()
 
     async def focus(self, _selector):
         return None
