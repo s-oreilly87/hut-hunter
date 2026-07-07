@@ -51,6 +51,7 @@ export function JobFormWizard({
     adapters,
     handleAdapterChange,
     hasCredentialsForSelectedAdapter,
+    credentialVerifiedForSelectedAdapter,
     params,
     roster,
     occupantsLoading,
@@ -247,6 +248,7 @@ export function JobFormWizard({
               setIntervalMinutes={setIntervalMinutes}
               selectedOccupantsPresent={selectedOccupantsPresent}
               hasCredentialsForSelectedAdapter={hasCredentialsForSelectedAdapter}
+              credentialVerifiedForSelectedAdapter={credentialVerifiedForSelectedAdapter}
               selectedOccupantDetailsComplete={selectedOccupantDetailsComplete}
               onOpenCredentials={onOpenCredentials}
             />

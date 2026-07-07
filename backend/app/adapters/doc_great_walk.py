@@ -11,6 +11,7 @@ from app.adapters.base import (
     AvailabilityResult,
     AvailabilityStatus,
     BookingResult,
+    CredentialsRejectedError,
     OccupantField,
     ParamField,
 )
@@ -560,10 +561,20 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
         # Handle login modal if the session has expired. After login the site
         # should automatically proceed to the occupant modal — the 15s timeout
         # below will catch it either way.
+        #
+        # THR-127: CredentialsRejectedError (a CONFIRMED rejection) is
+        # deliberately NOT caught here — it must propagate to the hold
+        # worker, which demotes the credential and reports a clean Hold
+        # Failed. Only the remaining, infra-flavored RuntimeErrors (e.g. no
+        # stored credentials at all — shouldn't normally happen given the
+        # hold worker's pre-hold gate, but kept defensive) still resolve
+        # locally to a plain BookingResult here.
         try:
             logged_in = await self._login_if_prompted(page)
             if logged_in:
                 logger.info("Login completed — continuing to occupant details")
+        except CredentialsRejectedError:
+            raise
         except RuntimeError as e:
             await self.snapshot(page, "login_error")
             return BookingResult(success=False, held=False, message=str(e))

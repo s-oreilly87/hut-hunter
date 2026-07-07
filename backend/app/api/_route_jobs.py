@@ -25,7 +25,11 @@ from app.api._route_deps import (
 )
 from app.adapters import adapter_supports_automated_booking
 from app.adapters.base import BookingWindowInfo
-from app.core.adapter_credentials import get_user_configured_adapter_ids, get_user_failed_adapter_ids
+from app.core.adapter_credentials import (
+    get_user_configured_adapter_ids,
+    get_user_failed_adapter_ids,
+    get_user_verified_adapter_ids,
+)
 from app.core.database import get_session
 from app.models.job import (
     JobStatus,
@@ -85,8 +89,12 @@ async def create_job(
         raise HTTPException(status_code=409, detail="This booking site does not support automated booking.")
     if body.auto_book and not _params_have_occupants(body.params):
         raise HTTPException(status_code=409, detail="Occupants are required before auto-book can be enabled.")
-    if body.auto_book and not _job_has_required_credentials(body.adapter_id, configured_adapter_ids, failed_adapter_ids):
-        raise HTTPException(status_code=409, detail="Stored booking credentials are required before auto-book can be enabled.")
+    if body.auto_book:
+        # THR-127: auto-book requires a VERIFIED credential, not merely a
+        # stored/non-failed one — see _job_has_required_credentials.
+        verified_adapter_ids = await get_user_verified_adapter_ids(session, current_user.id)
+        if not _job_has_required_credentials(body.adapter_id, verified_adapter_ids):
+            raise HTTPException(status_code=409, detail="Stored booking credentials are required before auto-book can be enabled.")
     _validate_job_start_date_for_adapter(body.adapter_id, body.params)
     if _params_have_occupants(body.params):
         _validate_job_occupants_for_adapter(body.adapter_id, body.params)
@@ -225,8 +233,11 @@ async def update_job(
             raise HTTPException(status_code=409, detail="This booking site does not support automated booking.")
         if patch["auto_book"] and not _params_have_occupants(next_params):
             raise HTTPException(status_code=409, detail="Occupants are required before auto-book can be enabled.")
-        if patch["auto_book"] and not _job_has_required_credentials(job.adapter_id, configured_adapter_ids, failed_adapter_ids):
-            raise HTTPException(status_code=409, detail="Stored booking credentials are required before auto-book can be enabled.")
+        if patch["auto_book"]:
+            # THR-127: verified-only gate — see create_job's matching check.
+            verified_adapter_ids = await get_user_verified_adapter_ids(session, current_user.id)
+            if not _job_has_required_credentials(job.adapter_id, verified_adapter_ids):
+                raise HTTPException(status_code=409, detail="Stored booking credentials are required before auto-book can be enabled.")
         if patch["auto_book"]:
             _validate_job_occupants_for_adapter(job.adapter_id, next_params)
         job.auto_book = patch["auto_book"]
@@ -434,9 +445,10 @@ async def book_job(
         raise HTTPException(status_code=409, detail="Occupants are required on this job before booking can start.")
     _validate_job_occupants_for_adapter(job.adapter_id, params)
 
-    configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
-    failed_adapter_ids = await get_user_failed_adapter_ids(session, current_user.id)
-    if not _job_has_required_credentials(job.adapter_id, configured_adapter_ids, failed_adapter_ids):
+    # THR-127: manual "Book Now" drives the exact same hold funnel as
+    # auto-book, so it needs the same verified-only gate.
+    verified_adapter_ids = await get_user_verified_adapter_ids(session, current_user.id)
+    if not _job_has_required_credentials(job.adapter_id, verified_adapter_ids):
         raise HTTPException(status_code=409, detail="Stored booking credentials are required on this job before booking can start.")
 
     raw = json.loads(job.last_result) if job.last_result else None

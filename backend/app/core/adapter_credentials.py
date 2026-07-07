@@ -120,6 +120,38 @@ async def get_user_failed_adapter_ids(
     return expanded
 
 
+async def get_user_verified_adapter_ids(
+    session: AsyncSession,
+    user_id: str,
+) -> set[str]:
+    """Adapter IDs whose stored credential has actually PASSED verification
+    (THR-127).
+
+    Auto-book (and manual "Book Now", which drives the exact same hold
+    funnel) requires more than "a credential is stored and hasn't failed" —
+    unverified/pending/inconclusive is an UNTESTED login, not a working one.
+    ``_job_has_required_credentials`` (app.api._route_deps) gates on this set
+    instead of ``get_user_configured_adapter_ids`` minus
+    ``get_user_failed_adapter_ids``, which let any non-FAILED status
+    (including a credential nobody has ever verified) enable auto-book —
+    exactly the gap the live Golden Ears repro exposed.
+
+    Expands shared-realm rows the same way the sibling helpers above do.
+    """
+    result = await session.execute(
+        select(AdapterCredential.adapter_id).where(
+            AdapterCredential.user_id == user_id,
+            AdapterCredential.verification_status == CredentialVerificationState.VERIFIED.value,
+        )
+    )
+    expanded: set[str] = set()
+    for key in result.scalars().all():
+        if not key:
+            continue
+        expanded.update(adapter_ids_for_credential_key(key))
+    return expanded
+
+
 async def mark_credential_pending(
     session: AsyncSession,
     user_id: str,

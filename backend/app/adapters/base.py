@@ -39,6 +39,38 @@ class UnexpectedHoldFailure(Exception):
     """
 
 
+class CredentialsRejectedError(RuntimeError):
+    """Raised by an adapter's login path when a hold-time sign-in attempt is
+    CONFIRMED rejected — the form was filled and submitted, there was no
+    post-login redirect, and the page still doesn't show a signed-in state.
+
+    This is exactly the same FAILED-vs-INCONCLUSIVE signal
+    ``verify_credentials`` already uses (THR-123) to distinguish "the site
+    said no" from "the check itself couldn't run" (queue-it, a consent gate,
+    a timeout before the form was ever submitted) — see
+    ``BaseCamisAdapter.verify_credentials`` / ``BaseDOCAdapter.verify_credentials``.
+
+    THR-127: unlike ``UnexpectedHoldFailure``, this is a CLEAN negative, not
+    an unknown state. The hold worker must NOT park it for manual takeover
+    (THR-122) — instead it demotes the stored credential to FAILED (which
+    blocks further auto-book via the verified-only gate, see
+    ``_job_has_required_credentials``), notifies that the sign-in needs
+    updating, and reports a normal Hold Failed, exactly like any other known
+    clean-negative outcome. Subclasses ``RuntimeError`` so existing
+    ``except RuntimeError`` handling in ``verify_credentials`` keeps working
+    unchanged; callers that need to single it out (the hold worker) must
+    catch it BEFORE a broader ``except Exception``/``except RuntimeError``
+    clause, same as any other exception-ordering concern.
+
+    Any OTHER exception from a login path (a stuck consent banner, a
+    queue-it timeout, a locator timeout before the form was ever submitted)
+    is still infra-flavored and must keep raising ``UnexpectedHoldFailure``
+    or letting the underlying exception propagate for takeover — this
+    exception must only ever be raised for a confirmed rejection, never as a
+    catch-all.
+    """
+
+
 @dataclass
 class AvailabilityResult:
     site: str
@@ -106,6 +138,32 @@ class BookingWindowInfo:
     opens_at: datetime | None = None
     opens_at_precise: bool = True
     evidence: str = ""
+
+
+class BookingWindowClosedDuringHold(Exception):
+    """Raised by an adapter's ``attempt_hold`` when the booking site itself
+    rejects the Reserve action with a "not yet allowed" / booking-window
+    message deep in the funnel (THR-127) — the live repro this fixes: a BC
+    Golden Ears hunt polled AVAILABLE (a beyond-window date can still return
+    availability code 0 — see ``BaseCamisAdapter``'s module comment) and the
+    hold died on a "Cannot Reserve ... not yet allowed" modal after clicking
+    Reserve.
+
+    This is a CLEAN, extremely specific negative — distinct from both a
+    generic Hold Failed (the site didn't say anything about a booking
+    window) and an ``UnexpectedHoldFailure`` (this isn't an unknown state,
+    it's the site plainly saying "not released yet"). The hold worker maps
+    it straight to ``JobStatus.AWAITING_WINDOW`` using the attached
+    ``window`` — recomputed via ``check_booking_window`` rather than parsed
+    out of the modal's own (locale-formatted, brittle) date text — instead
+    of reporting Hold Failed or parking for manual takeover.
+    """
+
+    def __init__(self, window: BookingWindowInfo, message: str | None = None):
+        self.window = window
+        super().__init__(
+            message or "Reserving this date is not yet allowed by the booking site"
+        )
 
 
 @dataclass

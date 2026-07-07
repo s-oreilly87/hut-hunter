@@ -12,6 +12,8 @@ from arq.connections import RedisSettings
 from app.adapters.base import (
     AvailabilityStatus,
     BookingResult,
+    BookingWindowClosedDuringHold,
+    CredentialsRejectedError,
     CredentialVerificationResult,
     UnexpectedHoldFailure,
     VerificationStatus,
@@ -227,6 +229,35 @@ async def _park_for_takeover(adapter, page, job_id: str, cart_url: str | None) -
     return resume_url
 
 
+async def _demote_credential_after_rejection(user_id: str, adapter_id: str, params: dict) -> None:
+    """THR-127: a CONFIRMED login rejection during a hold attempt means the
+    stored credential is no longer good — even though it may have PASSED
+    ``verify_credentials_task`` earlier (password changed, account locked,
+    etc. since the last check). Demoting it here immediately — rather than
+    leaving it VERIFIED until someone happens to manually re-verify — blocks
+    further auto-book attempts via the verified-only gate (see
+    ``_job_has_required_credentials`` / ``get_user_verified_adapter_ids``)
+    and surfaces in Sign-Ins + JobBlockingNotices exactly like any other
+    FAILED credential. No-op if the credential row is gone (deleted mid-hold).
+    """
+    async with AsyncSessionLocal() as session:
+        record = await get_adapter_credential_record(session, user_id, adapter_id)
+        if record is None:
+            return
+        record.verification_status = CredentialVerificationState.FAILED.value
+        record.verification_message = (
+            f"Login rejected during a hold attempt on {params.get('date', 'an unknown date')}"
+        )
+        record.is_verified = False
+        record.verified_at = utcnow()
+        session.add(record)
+        await session.commit()
+        logger.warning(
+            "Demoted credential for %s/%s to FAILED after a confirmed rejection during a hold attempt",
+            user_id, adapter_id,
+        )
+
+
 async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     """Hold task. Launches a headed browser, re-verifies availability, and drives
     the full hold flow to the payment page. On success the browser is kept alive
@@ -270,23 +301,37 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     # for manual takeover instead of going through the normal Hold Failed
     # path. THR-122.
     needs_attention_url: str | None = None
+    # THR-127: set when a CredentialsRejectedError is caught during the hold
+    # attempt itself (as opposed to the pre-hold gate below, which never even
+    # opens a browser) — drives the "sign-in needs updating" notification
+    # instead of the generic "Available but hold failed" one.
+    credential_rejected_during_hold = False
+    # THR-127: set from a BookingWindowClosedDuringHold — the site's own
+    # "Cannot Reserve ... not yet allowed" modal blocked the funnel. Carries
+    # the recomputed BookingWindowInfo so the status-update section below can
+    # self-heal the job back to AWAITING_WINDOW instead of Hold Failed.
+    window_closed_info = None
 
-    # THR-123: a credential that failed verification is treated the same as
-    # no credential at all — a known-bad login is never worth burning a hold
-    # attempt on. THR-126: keys off verification_status (the persisted source
-    # of truth, which can now also be PENDING/INCONCLUSIVE) rather than the
-    # legacy is_verified boolean — INCONCLUSIVE must NOT gate holds closed.
-    credential_failed = (
-        credential_record is not None
-        and credential_record.verification_status == CredentialVerificationState.FAILED.value
-    )
-    if adapter_requires_credentials(job.adapter_id) and (credentials is None or credential_failed):
-        if credential_failed:
+    # THR-127: auto-book (and this hold attempt, gated by the same rule)
+    # requires a credential that has actually PASSED verification — not
+    # merely "stored and not FAILED" (THR-123's original, looser gate). An
+    # unverified/pending/inconclusive credential is an UNTESTED login; a
+    # known-bad or never-checked one is equally not worth burning a hold
+    # attempt on. THR-126: keys off verification_status (the persisted
+    # source of truth) rather than the legacy is_verified boolean.
+    credential_status = credential_record.verification_status if credential_record is not None else None
+    credential_failed = credential_status == CredentialVerificationState.FAILED.value
+    credential_verified = credential_status == CredentialVerificationState.VERIFIED.value
+    if adapter_requires_credentials(job.adapter_id) and not credential_verified:
+        if credential_record is None:
+            logger.warning("Hold skipped for job %s: no stored credentials for adapter %s", job_id, job.adapter_id)
+            message = "Stored booking credentials are missing for this adapter."
+        elif credential_failed:
             logger.warning("Hold skipped for job %s: credential failed verification for adapter %s", job_id, job.adapter_id)
             message = "The stored sign-in for this adapter failed verification — fix it in Booking Site Sign-Ins before booking."
         else:
-            logger.warning("Hold skipped for job %s: no stored credentials for adapter %s", job_id, job.adapter_id)
-            message = "Stored booking credentials are missing for this adapter."
+            logger.warning("Hold skipped for job %s: credential not yet verified for adapter %s", job_id, job.adapter_id)
+            message = "The stored sign-in for this adapter has not been verified yet — verify it in Booking Site Sign-Ins before booking."
         booking = BookingResult(
             success=False,
             held=False,
@@ -330,6 +375,44 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                                 keep_alive(job_id)
                         except NotImplementedError:
                             logger.info(f"Adapter {adapter.adapter_id} does not support holds yet")
+                except CredentialsRejectedError as e:
+                    # THR-127: a CONFIRMED credential rejection this deep in
+                    # the funnel is a CLEAN negative — the same FAILED
+                    # semantics verify_credentials already uses — not an
+                    # unknown state. This except clause is listed BEFORE the
+                    # broader `except Exception` below so Python matches it
+                    # first, deliberately bypassing the THR-122 takeover
+                    # branch: demote the credential and fall through to a
+                    # normal Hold Failed instead of parking a browser for a
+                    # human to babysit over a rejected password.
+                    base = await _snapshot_safe(adapter, page, f"hold_error_{type(e).__name__}")
+                    await _save_artifacts(
+                        job_id,
+                        _consume_adapter_artifacts(adapter),
+                        last_base=base,
+                        reset_history=True,
+                    )
+                    await _demote_credential_after_rejection(job.user_id or "", job.adapter_id, params)
+                    credential_rejected_during_hold = True
+                    booking = BookingResult(success=False, held=False, message=str(e))
+                except BookingWindowClosedDuringHold as e:
+                    # THR-127: the booking SITE ITSELF rejected Reserve with
+                    # a "not yet allowed" message (the Golden Ears live
+                    # repro) — a clean, extremely specific negative, not an
+                    # unknown state. Listed before `except Exception` so
+                    # Python matches it first: self-heal the job back to
+                    # AWAITING_WINDOW using the attached recomputed window
+                    # instead of reporting Hold Failed or parking for
+                    # takeover.
+                    base = await _snapshot_safe(adapter, page, f"hold_error_{type(e).__name__}")
+                    await _save_artifacts(
+                        job_id,
+                        _consume_adapter_artifacts(adapter),
+                        last_base=base,
+                        reset_history=True,
+                    )
+                    window_closed_info = e.window
+                    booking = BookingResult(success=False, held=False, message=str(e))
                 except Exception as e:
                     # Every KNOWN clean-negative outcome (no availability, missing
                     # credentials, login rejected) is handled by the adapter itself
@@ -416,14 +499,51 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             message=f"Availability dropped before the hold could be placed for {params.get('date')}.",
             priority=7,
         )
+    elif credential_rejected_during_hold:
+        # THR-127: reuse the existing hold-failure notification mechanism,
+        # but with wording that points straight at the sign-in — the
+        # credential has just been demoted to FAILED (see
+        # _demote_credential_after_rejection), which already blocks further
+        # auto-book via the verified-only gate and surfaces in Sign-Ins +
+        # JobBlockingNotices; this is the immediate heads-up.
+        await dispatch_notification_targets(
+            notification_settings,
+            title="🏕️ Sign-in rejected",
+            message=(
+                f"The stored sign-in for this adapter was rejected while trying to "
+                f"book {params.get('date')} — update it in Booking Site Sign-Ins "
+                "before auto-book can run again."
+            ),
+            priority=9,
+        )
+    elif window_closed_info is not None:
+        # THR-127: the site rejected Reserve as not-yet-released — no action
+        # needed from the user, this self-heals via the scheduler's normal
+        # AWAITING_WINDOW arm pass (THR-124), so keep this low-priority and
+        # informational rather than an urgent "needs attention" alert.
+        opens_at_text = (
+            window_closed_info.opens_at.isoformat()
+            if window_closed_info.opens_at else "an unconfirmed date"
+        )
+        await dispatch_notification_targets(
+            notification_settings,
+            title="🏕️ Not released yet",
+            message=(
+                f"The booking site rejected reserving {params.get('date')} as not "
+                f"yet allowed — parked until it opens ({opens_at_text}). This hunt "
+                "will resume automatically; no action needed."
+            ),
+            priority=5,
+        )
     else:
         msg = booking.message if booking else "Hold not attempted"
-        if booking and (credentials is None or credential_failed) and adapter_requires_credentials(job.adapter_id):
-            blocked_reason = (
-                "the saved sign-in for this adapter failed verification"
-                if credential_failed else
-                "this adapter has no stored booking credentials"
-            )
+        if booking and adapter_requires_credentials(job.adapter_id) and not credential_verified:
+            if credential_record is None:
+                blocked_reason = "this adapter has no stored booking credentials"
+            elif credential_failed:
+                blocked_reason = "the saved sign-in for this adapter failed verification"
+            else:
+                blocked_reason = "the saved sign-in for this adapter has not been verified yet"
             await dispatch_notification_targets(
                 notification_settings,
                 title="🏕️ Booking blocked",
@@ -458,6 +578,20 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 await _set_status(session, job, JobStatus.NEEDS_ATTENTION)
             elif held:
                 await _set_status(session, job, JobStatus.HOLD_PLACED)
+            elif window_closed_info is not None:
+                # THR-127: self-heal back to AWAITING_WINDOW — the scheduler's
+                # existing Pass 0 (THR-124) re-arms it exactly like a job
+                # created not-yet-released. enable_monitoring is forced on
+                # for the same reason as at creation: the scheduler needs to
+                # see this job to ever arm it again.
+                await _set_status(session, job, JobStatus.AWAITING_WINDOW)
+                job.enable_monitoring = True
+                job.window_opens_at = window_closed_info.opens_at
+                job.window_opens_precise = window_closed_info.opens_at_precise
+                job.next_check_at = None
+                job.window_burst_until = None
+                session.add(job)
+                await session.commit()
             elif job.enable_monitoring:
                 fail_msg = booking.message if booking else "Hold was not attempted"
                 job.last_result = json.dumps([{"type": "hold_failed", "error": fail_msg}])
@@ -477,6 +611,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
         "status": (
             "needs_attention" if needs_attention_url
             else "held" if held
+            else "awaiting_window" if window_closed_info is not None
             else ("availability_dropped" if availability_dropped else "hold_failed")
         ),
         "message": booking.message if booking else ("Needs attention" if needs_attention_url else ""),
