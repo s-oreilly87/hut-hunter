@@ -39,9 +39,25 @@ export function normalizeDateParamValue(field: ParamField, value: unknown): unkn
   return toInputDateValue(value)
 }
 
+/**
+ * Selection-type fields (select/multiselect) must start unselected so the
+ * user is forced to make an explicit choice and the input shows its
+ * placeholder text — even when the adapter declares a `default` (e.g. Camis
+ * adapters default `park`/`booking_category` to the first catalog option,
+ * which is meant as a sensible *fallback* value for automation, not an
+ * initial UI selection). Other field types (date/number/text) keep using
+ * the adapter-declared default as-is.
+ */
+function initialParamValue(field: ParamField): unknown {
+  if (field.type === 'select' || field.type === 'multiselect') {
+    return field.type === 'multiselect' ? [] : ''
+  }
+  return field.default ?? ''
+}
+
 export function buildDefaultParams(fields: ParamField[]): Record<string, unknown> {
   return Object.fromEntries(
-    fields.map((field) => [field.key, normalizeDateParamValue(field, field.default ?? '')]),
+    fields.map((field) => [field.key, normalizeDateParamValue(field, initialParamValue(field))]),
   )
 }
 

@@ -163,6 +163,54 @@ async def test_pay_page_returns_gone_when_hold_cart_has_expired(client, seed_job
     assert "Hold expired" in response.text
 
 
+async def test_pay_page_renders_takeover_copy_for_needs_attention(client, seed_job, seed_cart, monkeypatch):
+    """THR-122: a NEEDS_ATTENTION job parks its cart exactly like a
+    successful hold does, so /pay/{job_id} renders the same noVNC iframe —
+    just with takeover copy instead of the normal payment banner."""
+    monkeypatch.setattr(settings, "vnc_url", "http://localhost:6080")
+    job = await seed_job(status=JobStatus.NEEDS_ATTENTION.value)
+    await seed_cart(job.id, expires_at=utcnow() + timedelta(minutes=12))
+
+    response = await client.get(f"/pay/{job.id}")
+
+    assert response.status_code == 200
+    assert "take over this booking" in response.text
+    assert "something unexpected placing this hold" in response.text
+    assert "finish or cancel it yourself" in response.text
+    # Same underlying noVNC mechanics as the normal payment page.
+    assert "/vnc.html" in response.text
+    assert "Hold expires in ~" in response.text
+    assert "Booking Complete" in response.text
+    # The normal-mode payment banner copy should not also be present.
+    assert "click <strong>Booking Complete</strong> after you've paid — the job moves" not in response.text
+
+
+async def test_pay_page_uses_normal_copy_for_hold_placed(client, seed_job, seed_cart, monkeypatch):
+    """Sanity check that the default 'pay' mode is unaffected by the new
+    takeover branch — same assertions as the pre-existing active-hold test,
+    just re-checking the copy variant explicitly."""
+    monkeypatch.setattr(settings, "vnc_url", "http://localhost:6080")
+    job = await seed_job(status=JobStatus.HOLD_PLACED.value)
+    await seed_cart(job.id, expires_at=utcnow() + timedelta(minutes=20))
+
+    response = await client.get(f"/pay/{job.id}")
+
+    assert response.status_code == 200
+    assert "Hut Hunter — complete your booking" in response.text
+    assert "take over this booking" not in response.text
+    assert "something unexpected placing this hold" not in response.text
+
+
+async def test_pay_page_returns_gone_when_needs_attention_cart_has_expired(client, seed_job, seed_cart):
+    job = await seed_job(status=JobStatus.NEEDS_ATTENTION.value)
+    await seed_cart(job.id, expires_at=utcnow() - timedelta(minutes=1))
+
+    response = await client.get(f"/pay/{job.id}")
+
+    assert response.status_code == 410
+    assert "Hold expired" in response.text
+
+
 async def test_assist_live_booking_page_enqueues_hold_worker_action(
     client,
     fake_redis,
@@ -180,6 +228,25 @@ async def test_assist_live_booking_page_enqueues_hold_worker_action(
         "job_id": job.id,
         "action": "focus-next",
     }
+    assert fake_redis.calls[-1]["job_name"] == "assist_live_browser_task"
+    assert fake_redis.calls[-1]["args"] == [job.id, "focus-next"]
+
+
+async def test_assist_live_booking_page_works_during_needs_attention(
+    client,
+    fake_redis,
+    seed_job,
+    seed_cart,
+):
+    """THR-122: the mobile remote-assist controls (scroll/focus/keyboard
+    relay) must keep working during a takeover session, not just a normal
+    HOLD_PLACED payment."""
+    job = await seed_job(status=JobStatus.NEEDS_ATTENTION.value)
+    await seed_cart(job.id, expires_at=utcnow() + timedelta(minutes=12))
+
+    response = await client.post(f"/api/v1/jobs/{job.id}/assist/focus-next")
+
+    assert response.status_code == 202
     assert fake_redis.calls[-1]["job_name"] == "assist_live_browser_task"
     assert fake_redis.calls[-1]["args"] == [job.id, "focus-next"]
 

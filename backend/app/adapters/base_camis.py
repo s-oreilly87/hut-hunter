@@ -933,21 +933,67 @@ class BaseCamisAdapter(BaseAdapter):
     #   /login route → cookie-consent gate → #email / #password → submit.
     # The submit BUTTON click alone does not post the form on the Angular page;
     # pressing Enter in the password field does (fires POST /api/auth/login).
+    #
+    # THR-122: the consent banner's own render timing is unpredictable — on a
+    # slow load it can appear well after a fixed post-goto delay, and while
+    # visible it covers #email so Locator.fill() times out waiting for it to
+    # be actionable. There's no button-text match here (Ontario serves both
+    # en-CA and fr-CA), so this stays ID-based; new consent IDs (a future
+    # province, an A/B variant) just get appended to the tuple.
     _CONSENT_SELECTORS = ("#login-cookie-consent", "#consentButton")
     _EMAIL_SELECTOR = "#email"
     _PASSWORD_SELECTOR = "#password"
 
-    async def _accept_cookie_consent(self, page: Page) -> None:
-        """Dismiss the cookie-consent gate that otherwise hides the login form."""
-        for sel in self._CONSENT_SELECTORS:
+    def _consent_locator(self, page: Page):
+        """A single locator matching any known consent-button selector."""
+        selector = ", ".join(self._CONSENT_SELECTORS)
+        return page.locator(selector).first
+
+    async def _accept_cookie_consent(
+        self, page: Page, *, timeout_ms: int = 15_000
+    ) -> None:
+        """Dismiss the cookie-consent gate that otherwise hides the login form.
+
+        THR-122: replaces the old fixed 1.5s delay + single count()/is_visible()
+        check, which missed banners that render later than 1.5s. Instead this
+        polls (bounded to ``timeout_ms``, ~15s) for EITHER the consent button
+        or ``#email`` to become visible — whichever shows up first. If consent
+        wins the race, click it and then wait for ``#email`` to be visible
+        before returning, since dismissing the banner is itself what un-covers
+        the login form. If neither ever appears, snapshot the page for the run
+        artifacts and raise so the caller doesn't fill a hidden/non-actionable
+        field and time out with a less useful error.
+        """
+        consent = self._consent_locator(page)
+        email = page.locator(self._EMAIL_SELECTOR)
+        poll_ms = 250
+        elapsed_ms = 0
+        while elapsed_ms < timeout_ms:
             try:
-                btn = page.locator(sel).first
-                if await btn.count() > 0 and await btn.is_visible():
-                    await btn.click()
+                if await email.is_visible():
+                    return
+                if await consent.count() > 0 and await consent.is_visible():
+                    await consent.click()
                     await page.wait_for_timeout(800)
+                    try:
+                        await email.wait_for(state="visible", timeout=timeout_ms - elapsed_ms)
+                    except PlaywrightTimeoutError:
+                        await self.snapshot(page, "camis_consent_blocked")
+                        raise RuntimeError(
+                            "Camis cookie-consent banner was dismissed but #email "
+                            "never became visible"
+                        )
                     return
             except PlaywrightTimeoutError:
-                continue
+                pass
+            await page.wait_for_timeout(poll_ms)
+            elapsed_ms += poll_ms
+
+        await self.snapshot(page, "camis_consent_blocked")
+        raise RuntimeError(
+            "Camis login form did not become visible — cookie-consent banner "
+            "may be blocking #email"
+        )
 
     async def _is_logged_in(self, page: Page) -> bool:
         """True if the page shows a signed-in account affordance."""
@@ -965,6 +1011,12 @@ class BaseCamisAdapter(BaseAdapter):
         Angular form does not submit on the button click alone) → the site posts
         ``/api/auth/login`` and redirects to ``/account``.
 
+        THR-122: the consent gate can render later than a fixed delay allowed
+        for, so ``_accept_cookie_consent`` now races consent-vs-``#email``
+        instead of guessing a delay. It's checked once more immediately before
+        the fill in case the banner re-renders (observed on a re-navigated
+        ``/login``) between the earlier check and now.
+
         Raises ``RuntimeError`` if credentials are missing or login doesn't land.
         """
         credentials = self._login_credentials
@@ -973,8 +1025,16 @@ class BaseCamisAdapter(BaseAdapter):
 
         await page.goto(f"{self.base_url}/login", wait_until="domcontentloaded", timeout=60_000)
         await self._pass_queue_it(page)
-        await page.wait_for_timeout(1_500)
         await self._accept_cookie_consent(page)
+
+        # Re-check immediately before filling: a banner that re-renders after
+        # the first check (e.g. a second consent prompt) would otherwise still
+        # cover #email and time out the fill.
+        consent = self._consent_locator(page)
+        if await consent.count() > 0 and await consent.is_visible():
+            await consent.click()
+            await page.wait_for_timeout(800)
+            await page.locator(self._EMAIL_SELECTOR).wait_for(state="visible", timeout=15_000)
 
         await page.locator(self._EMAIL_SELECTOR).fill(credentials.username)
         await page.locator(self._PASSWORD_SELECTOR).fill(credentials.password)
@@ -992,16 +1052,35 @@ class BaseCamisAdapter(BaseAdapter):
     async def _login_if_prompted(self, page: Page, timeout_ms: int = 6_000) -> bool:
         """Log in only if the current page is showing the login form.
 
-        Returns ``True`` if a login was performed, ``False`` if no form was
-        present (already authenticated, or on a non-login page).
+        THR-122: waiting on ``#email`` directly missed the case where a
+        cookie-consent banner is covering the login form — the banner also
+        counts as "the login form is present", so this races consent-vs-
+        ``#email`` the same way ``_accept_cookie_consent`` does, instead of a
+        bare ``wait_for`` on ``#email`` alone. A timeout here is the expected,
+        silent "not on a login page" case (not an error), so it does not
+        snapshot or raise — only ``_accept_cookie_consent``'s own bounded
+        wait (invoked via ``_login`` below) does that once we've committed to
+        logging in.
+
+        Returns ``True`` if a login was performed, ``False`` if no form (nor
+        a consent gate hiding one) was present within ``timeout_ms``.
         """
+        consent = self._consent_locator(page)
         email = page.locator(self._EMAIL_SELECTOR)
-        try:
-            await email.wait_for(state="visible", timeout=timeout_ms)
-        except PlaywrightTimeoutError:
-            return False
-        await self._login(page)
-        return True
+        poll_ms = 250
+        elapsed_ms = 0
+        while elapsed_ms < timeout_ms:
+            try:
+                if await email.is_visible() or (
+                    await consent.count() > 0 and await consent.is_visible()
+                ):
+                    await self._login(page)
+                    return True
+            except PlaywrightTimeoutError:
+                pass
+            await page.wait_for_timeout(poll_ms)
+            elapsed_ms += poll_ms
+        return False
 
     # ------------------------------------------------------------------
     # Date helpers

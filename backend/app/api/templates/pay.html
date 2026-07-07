@@ -245,17 +245,16 @@
 </head>
 <body>
   <header>
-    <div class="left">Hut Hunter — complete your booking</div>
+    <div class="left">__HEADER_TITLE__</div>
     <div class="right">Hold expires in ~__MINUTES_LEFT__ min</div>
   </header>
 
+  <!-- __BANNER_HTML__ is swapped per-mode by _render_pay_page: the default
+       "pay" copy below, or the THR-122 takeover copy when the hold worker
+       parked this session after an unexpected failure instead of a
+       successful hold. Same iframe/countdown/actions either way. -->
   <div class="banner">
-    <strong>Heads up:</strong>
-    click <strong>Booking Complete</strong> after you've paid — the job moves
-    to <em>Booking Complete</em> and polling stops. Clicking
-    <strong>Cancel</strong> closes the browser and moves the job to
-    <em>Cancelled</em>; re-trigger it later to resume checking. Closing this
-    tab without clicking either leaves the hold in limbo.
+    __BANNER_HTML__
   </div>
 
   <div class="vnc-frame">

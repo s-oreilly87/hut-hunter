@@ -19,6 +19,26 @@ class AvailabilityStatus(str, Enum):
     UNKNOWN = "unknown"
 
 
+class UnexpectedHoldFailure(Exception):
+    """Raised by an adapter's ``attempt_hold`` when it hits a condition it has
+    no specific handling for — an unrecognized blocking dialog (e.g. BC Parks
+    Alice Lake site 21's "Double Site" confirmation), a locator timeout mid-
+    funnel, or any other unanticipated state.
+
+    THR-122: this is distinct from the "known clean negative" outcomes (no
+    availability, missing credentials, login rejected) that adapters already
+    report by *returning* ``BookingResult(held=False, ...)`` — those keep
+    going through the existing Hold Failed path unchanged. An
+    ``UnexpectedHoldFailure`` (or, equivalently, any exception an adapter
+    doesn't catch itself) tells the hold worker the browser is in an unknown
+    state that a human should look at, so it parks the session for takeover
+    instead of tearing the browser down. Adapters aren't required to raise
+    this explicitly — letting an exception escape ``attempt_hold`` uncaught
+    has the same effect, since every currently-known clean-negative case is
+    already handled locally and returns rather than raises.
+    """
+
+
 @dataclass
 class AvailabilityResult:
     site: str

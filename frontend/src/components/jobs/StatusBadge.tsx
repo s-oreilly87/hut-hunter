@@ -30,6 +30,9 @@ const STATUS_CLASS: Record<string, string | undefined> = {
   hold_expired:         'bg-zinc-500 hover:bg-zinc-500 text-white',
   waiting:              'bg-zinc-500 hover:bg-zinc-500 text-white',
   hold_placed:          'bg-amber-500 hover:bg-amber-500 text-white',
+  // THR-122: distinct from hold_placed's amber — orange signals "this one
+  // needs a human," not just "waiting on payment."
+  needs_attention:      'bg-orange-600 hover:bg-orange-600 text-white',
   booking_complete:     'bg-emerald-700 hover:bg-emerald-700 text-white',
   cancelled:            undefined,
   expired:              'bg-zinc-500 hover:bg-zinc-500 text-white',
@@ -44,14 +47,18 @@ const SPINNER_STATUSES = new Set(['booking', 'attempting_hold'])
 export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props) {
   const [nowMs, setNowMs] = useState(() => Date.now())
 
+  // THR-122: needs_attention parks a live cart the same way hold_placed does,
+  // so it gets the same countdown-ticking and pay-page link treatment.
+  const isParkedStatus = status === 'hold_placed' || status === 'needs_attention'
+
   useEffect(() => {
-    if (status !== 'hold_placed' || !cartExpiresAt) return undefined
+    if (!isParkedStatus || !cartExpiresAt) return undefined
 
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
-  }, [cartExpiresAt, status])
+  }, [cartExpiresAt, isParkedStatus])
 
-  const countdownSeconds = status === 'hold_placed' && cartExpiresAt
+  const countdownSeconds = isParkedStatus && cartExpiresAt
     ? Math.max(0, (new Date(cartExpiresAt).getTime() - nowMs) / 1000)
     : null
   const baseLabel = DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
@@ -73,7 +80,7 @@ export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props
     </Badge>
   )
 
-  if (status === 'hold_placed') {
+  if (isParkedStatus) {
     return (
       <a
         href={`/pay/${jobId}`}

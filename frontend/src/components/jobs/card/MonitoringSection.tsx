@@ -89,6 +89,9 @@ export function MonitoringSection({
     displayStatus === 'checking'
     || displayStatus === 'attempting_hold'
     || displayStatus === 'hold_placed'
+    // THR-122: a parked takeover session pauses monitoring exactly like an
+    // active hold does — there's a live browser sitting on the booking site.
+    || displayStatus === 'needs_attention'
     || displayStatus === 'booking'
   )
   const showToggle = !isTerminal && !isTransient
@@ -97,6 +100,7 @@ export function MonitoringSection({
     : null
   const holdPausesMonitoring =
     displayStatus === 'hold_placed'
+    || displayStatus === 'needs_attention'
     || displayStatus === 'attempting_hold'
   const disableTrigger = holdPausesMonitoring || displayStatus === 'checking' || hasOutdatedCampers
 
@@ -149,7 +153,9 @@ export function MonitoringSection({
             <p>
               {displayStatus === 'hold_placed'
                 ? 'Paused while the active hold waits for payment.'
-                : 'Paused while Hut Hunter secures the hold.'}
+                : displayStatus === 'needs_attention'
+                  ? 'Paused while a parked session waits for you to take over.'
+                  : 'Paused while Hut Hunter secures the hold.'}
             </p>
           ) : isOn && (
             <p>Every {job.interval_minutes} minutes</p>

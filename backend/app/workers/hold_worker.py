@@ -9,7 +9,7 @@ from typing import cast
 from arq import cron
 from arq.connections import RedisSettings
 
-from app.adapters.base import AvailabilityStatus, BookingResult
+from app.adapters.base import AvailabilityStatus, BookingResult, UnexpectedHoldFailure
 from app.adapters import adapter_requires_credentials, get_adapter
 from app.core.adapter_credentials import get_user_adapter_credentials
 from app.core.config import settings
@@ -131,8 +131,14 @@ async def keep_live_carts_active(ctx: dict) -> dict:
     """Cron heartbeat for browsers parked on the payment page.
 
     Runs on the hold queue so it can access LIVE_BROWSERS in-process. Closes
-    browsers whose job is no longer HOLD_PLACED or whose cart has expired.
-    Active unpaid carts get a lightweight touch to stay under the inactivity timeout.
+    browsers whose job is no longer HOLD_PLACED/NEEDS_ATTENTION or whose cart
+    has expired. Active unpaid carts get a lightweight touch to stay under the
+    inactivity timeout.
+
+    THR-122: NEEDS_ATTENTION (a parked takeover session after an unexpected
+    hold failure) is kept alive by the exact same loop as a successful hold —
+    it uses the same LIVE_BROWSERS entry and CartSession row, so there's
+    nothing takeover-specific to add here beyond the status check.
     """
     if not LIVE_BROWSERS:
         return {"checked": 0, "touched": 0, "closed": 0}
@@ -148,7 +154,11 @@ async def keep_live_carts_active(ctx: dict) -> dict:
             job = cast(WatchJob | None, await session.get(WatchJob, job_id))
             active_cart = await _get_active_cart(session, job_id)
 
-            if job is None or job.status != JobStatus.HOLD_PLACED.value or active_cart is None:
+            if (
+                job is None
+                or job.status not in (JobStatus.HOLD_PLACED.value, JobStatus.NEEDS_ATTENTION.value)
+                or active_cart is None
+            ):
                 if await close_live_browser(job_id):
                     closed += 1
                 continue
@@ -192,6 +202,24 @@ async def keep_live_carts_active(ctx: dict) -> dict:
     return {"checked": checked, "touched": touched, "closed": closed}
 
 
+async def _park_for_takeover(adapter, page, job_id: str, cart_url: str | None) -> str:
+    """Park the session for manual takeover, reusing the exact same
+    machinery a successful hold uses (THR-122).
+
+    ``cart_url`` is best-effort — an unexpected failure can strike before the
+    adapter ever reaches a checkout URL, so this falls back to the page's
+    current URL (whatever it's showing when things went sideways is exactly
+    what the user needs to see/act on).
+
+    Raises on failure (e.g. ``_persist_cart_session`` itself blowing up) so
+    the caller can fail closed to the existing teardown + Hold Failed path
+    rather than leave a browser alive with no corresponding CartSession row.
+    """
+    resume_url = await adapter._persist_cart_session(page, job_id, cart_url or page.url)
+    logger.info(f"Parked job {job_id} for manual takeover: {resume_url}")
+    return resume_url
+
+
 async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     """Hold task. Launches a headed browser, re-verifies availability, and drives
     the full hold flow to the payment page. On success the browser is kept alive
@@ -230,6 +258,10 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     booking: BookingResult | None = None
     availability_dropped = False
     fully_available: list = []
+    # Set when an unexpected (not a known clean-negative) failure gets parked
+    # for manual takeover instead of going through the normal Hold Failed
+    # path. THR-122.
+    needs_attention_url: str | None = None
 
     if adapter_requires_credentials(job.adapter_id) and credentials is None:
         logger.warning("Hold skipped for job %s: no stored credentials for adapter %s", job_id, job.adapter_id)
@@ -277,6 +309,14 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                         except NotImplementedError:
                             logger.info(f"Adapter {adapter.adapter_id} does not support holds yet")
                 except Exception as e:
+                    # Every KNOWN clean-negative outcome (no availability, missing
+                    # credentials, login rejected) is handled by the adapter itself
+                    # and returns a BookingResult rather than raising — see
+                    # attempt_hold's docstrings across the adapters. So anything
+                    # that lands here (a locator timeout, an unrecognized blocking
+                    # dialog like BC Parks' "Double Site" confirm, an explicit
+                    # UnexpectedHoldFailure, or any other unhandled exception) is,
+                    # by construction, the unexpected case THR-122 is for.
                     base = await _snapshot_safe(adapter, page, f"hold_error_{type(e).__name__}")
                     await _save_artifacts(
                         job_id,
@@ -284,13 +324,53 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                         last_base=base,
                         reset_history=True,
                     )
-                    raise
+                    try:
+                        needs_attention_url = await _park_for_takeover(
+                            adapter, page, job_id, cart_url=None,
+                        )
+                    except Exception as park_exc:
+                        # Fail closed: if parking itself blows up, don't leave a
+                        # browser alive with no CartSession backing it — fall
+                        # through to the outer except below, which tears the
+                        # browser down and reports the original failure as a
+                        # normal Hold Failed.
+                        logger.error(
+                            f"Parking for takeover failed for job {job_id}: {park_exc}",
+                            exc_info=True,
+                        )
+                        raise e
+                    # Parking succeeded — keep the browser alive for the user
+                    # instead of letting the context manager close it, and
+                    # swallow the exception here (it's been reported via the
+                    # needs_attention path, not the Hold Failed one).
+                    keep_alive(job_id)
         except Exception as e:
             logger.error(f"Hold task error for job {job_id}: {e}", exc_info=True)
             booking = BookingResult(success=False, held=False, message=f"Hold task error: {e}")
 
     # --- Notifications ---
-    if booking and booking.held and booking.reservation_url:
+    if needs_attention_url:
+        # THR-122: this is time-critical — the browser is sitting on a live
+        # cart/checkout page that a real booking site will silently release
+        # after its own inactivity timeout, same as a normal hold. Fire this
+        # immediately and at the same urgency as a secured hold.
+        hold_minutes = adapter.cart_hold_minutes
+        hold_window_copy = (
+            f"You have about {hold_minutes} mins before the cart expires"
+            if hold_minutes else "The cart may expire soon"
+        )
+        await dispatch_notification_targets(
+            notification_settings,
+            title="🏕️ Needs your attention",
+            message=(
+                f"Hold worker hit something unexpected booking {params.get('date')} "
+                "and paused with the browser still open on the live site — it needs "
+                "a human to finish or cancel it.\n\n"
+                f"{hold_window_copy}:\n{needs_attention_url}"
+            ),
+            priority=10,
+        )
+    elif booking and booking.held and booking.reservation_url:
         hold_minutes = adapter.cart_hold_minutes
         hold_window_copy = (
             f"{hold_minutes} mins to complete payment" if hold_minutes
@@ -343,25 +423,36 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     async with AsyncSessionLocal() as session:
         job = await session.get(WatchJob, job_id)
         if job is not None:
-            if not held:
+            if needs_attention_url:
+                # Mirror the hold-succeeded shape (last_result is left as-is —
+                # this isn't a failure record, it's a live session parked the
+                # same way a successful hold is, just waiting on the user
+                # instead of on payment).
+                await _set_status(session, job, JobStatus.NEEDS_ATTENTION)
+            elif held:
+                await _set_status(session, job, JobStatus.HOLD_PLACED)
+            elif job.enable_monitoring:
                 fail_msg = booking.message if booking else "Hold was not attempted"
                 job.last_result = json.dumps([{"type": "hold_failed", "error": fail_msg}])
                 session.add(job)
-
-            if held:
-                await _set_status(session, job, JobStatus.HOLD_PLACED)
-            elif job.enable_monitoring:
                 await _set_status(session, job, JobStatus.WAITING)
                 job.next_check_at = utcnow() + timedelta(minutes=job.interval_minutes)
                 session.add(job)
                 await session.commit()
             else:
+                fail_msg = booking.message if booking else "Hold was not attempted"
+                job.last_result = json.dumps([{"type": "hold_failed", "error": fail_msg}])
+                session.add(job)
                 await _set_status(session, job, JobStatus.PAUSED)
 
     return {
         "job_id": job_id,
-        "status": "held" if held else ("availability_dropped" if availability_dropped else "hold_failed"),
-        "message": booking.message if booking else "",
+        "status": (
+            "needs_attention" if needs_attention_url
+            else "held" if held
+            else ("availability_dropped" if availability_dropped else "hold_failed")
+        ),
+        "message": booking.message if booking else ("Needs attention" if needs_attention_url else ""),
     }
 
 

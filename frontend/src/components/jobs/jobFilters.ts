@@ -44,7 +44,11 @@ export const JOB_FILTERS: JobFilterDefinition[] = [
     key: 'holds',
     label: 'Holds',
     emptyLabel: 'No hunts are holding inventory right now.',
-    matches: (job) => job.status === 'hold_placed' && !hasHoldExpired(job),
+    // THR-122: needs_attention also has a live cart parked (just waiting on
+    // a human instead of payment), so it belongs in "Holds" too.
+    matches: (job) => (
+      (job.status === 'hold_placed' || job.status === 'needs_attention') && !hasHoldExpired(job)
+    ),
   },
   {
     key: 'watching',

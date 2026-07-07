@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 MIN_INTERVAL_MINUTES = 1
 MAX_INTERVAL_MINUTES = 120
 
+# THR-122: NEEDS_ATTENTION parks a live browser exactly like HOLD_PLACED (same
+# CartSession row, same noVNC hand-off) — just because the hold worker hit an
+# unexpected condition instead of succeeding. Anywhere a route gates on "is
+# there a live hold browser to close/replace before doing X", it needs to
+# treat both statuses the same or it'll leak the parked browser.
+LIVE_HOLD_STATUSES = {JobStatus.HOLD_PLACED.value, JobStatus.NEEDS_ATTENTION.value}
+
 
 async def get_redis():
     """Dependency — yields an ARQ redis connection."""

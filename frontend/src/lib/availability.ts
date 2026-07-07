@@ -12,8 +12,16 @@ export type DisplayStatus =
   | 'result_hold_failed'
   | string  // JobStatus passthrough
 
+/**
+ * True once a parked cart's expiry has passed on the client clock — covers
+ * both `hold_placed` (a secured hold awaiting payment) and, since THR-122,
+ * `needs_attention` (a takeover session parked after an unexpected hold
+ * failure) since both park the cart with the same expiry semantics and the
+ * server doesn't push a status change the instant the countdown hits zero.
+ */
 export function hasHoldExpired(job: WatchJob): boolean {
-  if (job.status !== 'hold_placed' || !job.cart_expires_at) return false
+  const isParked = job.status === 'hold_placed' || job.status === 'needs_attention'
+  if (!isParked || !job.cart_expires_at) return false
   return new Date(job.cart_expires_at).getTime() <= Date.now()
 }
 

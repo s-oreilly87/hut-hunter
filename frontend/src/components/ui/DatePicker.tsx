@@ -249,6 +249,7 @@ export function DatePicker({
               type="button"
               aria-label="Previous month"
               className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onMouseDown={e => e.preventDefault()}
               onClick={() => shiftMonth(-1)}
             >
               <ChevronLeft className="size-4" />
@@ -258,6 +259,7 @@ export function DatePicker({
               type="button"
               aria-label="Next month"
               className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onMouseDown={e => e.preventDefault()}
               onClick={() => shiftMonth(1)}
             >
               <ChevronRight className="size-4" />
@@ -287,6 +289,7 @@ export function DatePicker({
                     selected  && 'bg-primary text-primary-foreground hover:bg-primary',
                     !selected && isToday && 'border border-primary/30 text-primary',
                   )}
+                  onMouseDown={e => e.preventDefault()}
                   onClick={() => chooseDate(date)}
                 >
                   {date.getDate()}
@@ -302,6 +305,7 @@ export function DatePicker({
             <button
               type="button"
               className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onMouseDown={e => e.preventDefault()}
               onClick={() => { onChange(''); setOpen(false) }}
             >
               Clear
@@ -309,6 +313,7 @@ export function DatePicker({
             <button
               type="button"
               className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+              onMouseDown={e => e.preventDefault()}
               onClick={chooseToday}
             >
               Today

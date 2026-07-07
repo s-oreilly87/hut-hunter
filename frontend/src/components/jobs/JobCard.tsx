@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
 import {
@@ -41,6 +41,7 @@ import {
 import { BookingCompleteSection } from '@/components/jobs/card/BookingCompleteSection'
 import { HoldActiveSection } from '@/components/jobs/card/HoldActiveSection'
 import { HoldExpiredSection } from '@/components/jobs/card/HoldExpiredSection'
+import { NeedsAttentionSection } from '@/components/jobs/card/NeedsAttentionSection'
 import { BookingInProgressSection } from '@/components/jobs/card/BookingInProgressSection'
 import { LatestResultSection } from '@/components/jobs/card/LatestResultSection'
 import { HeaderParamSummary } from '@/components/jobs/shared/HeaderParamSummary'
@@ -91,6 +92,20 @@ export function JobCard({
     select: (jobs) => jobs.find((candidate) => candidate.id === selectedJobId),
     enabled: !!selectedJobId,
   })
+
+  // Hold expiry (hasHoldExpired below) is a pure time comparison — the
+  // server doesn't push a status change the instant a cart hold's countdown
+  // hits zero, so without this tick the section gating below would only
+  // re-evaluate when the jobs query itself refetches new data (or the user
+  // reselects the job), leaving HoldActiveSection on screen well past
+  // expiry. Ticking once a second forces this component to re-render so
+  // `holdExpired` flips on time, matching the per-second countdowns already
+  // rendered by HoldExpiryCountdown/StatusBadge/MonitoringSection.
+  const [, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const { data: adapters = [] } = useQuery({
     queryKey: ['adapters'],
@@ -164,16 +179,21 @@ export function JobCard({
   // these booleans capture the routing so the JSX below stays readable.
   const isBookingComplete = job.status === 'booking_complete'
   const showHoldActive = job.status === 'hold_placed' && !holdExpired
+  // THR-122: needs_attention parks the session the same way a successful
+  // hold does (same cart, same countdown) — it just renders different copy
+  // pointing at the takeover flow instead of payment.
+  const showNeedsAttention = job.status === 'needs_attention' && !holdExpired
   const isMidBookingFlow =
     displayStatus === 'booking' || displayStatus === 'attempting_hold'
   const isSettled =
     !isBookingComplete
     && !showHoldActive
+    && !showNeedsAttention
     && !holdExpired
     && !isMidBookingFlow
     && displayStatus !== 'checking'
   const showBookingInProgress =
-    !isBookingComplete && !showHoldActive && !holdExpired && isMidBookingFlow
+    !isBookingComplete && !showHoldActive && !showNeedsAttention && !holdExpired && isMidBookingFlow
 
   const hideTrigger =
     isBookingComplete
@@ -263,6 +283,10 @@ export function JobCard({
 
             {showHoldActive && (
               <HoldActiveSection job={job} holdArtifacts={holdArtifacts} />
+            )}
+
+            {showNeedsAttention && (
+              <NeedsAttentionSection job={job} holdArtifacts={holdArtifacts} />
             )}
 
             {holdExpired && (
