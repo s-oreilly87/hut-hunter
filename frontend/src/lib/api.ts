@@ -192,6 +192,10 @@ export interface AdapterInfo {
   // more other adapters (both DOC adapters are "doc_govt_nz") — adapters
   // with the same realm should render as a single Sign-Ins card.
   credential_realm: string | null
+  // THR-129 item 3: True when this site books under one named permit
+  // holder rather than each occupant individually (Camis). Tells the
+  // wizard whether to show a holder picker once >1 camper is selected.
+  uses_single_permit_holder: boolean
 }
 
 export interface WindowCheckResult {

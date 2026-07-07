@@ -60,6 +60,17 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             return {"error": "job not found"}
         params = json.loads(job.params)
         logger.info(f"Params: {params}")
+        # THR-129 item 4: snapshot the exact params string this run is
+        # about to use. update_job's ON->ON edit path enqueues a fresh
+        # check on every real edit, but ARQ's `_check_job_arq_id` dedup
+        # silently drops that enqueue whenever a check for this job is
+        # already queued or running — so an edit that lands while THIS run
+        # is mid-flight would otherwise go unnoticed: this run persists a
+        # result computed from the OLD params, and the DB's job.params is
+        # already the NEW ones. Compared against job.params again at
+        # persist time (see below) to detect that race and self-correct
+        # instead of silently going stale for a full interval.
+        dispatched_params_json = job.params
 
         try:
             adapter = get_adapter(job.adapter_id)
@@ -299,16 +310,38 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     async with AsyncSessionLocal() as session:
         job = cast(WatchJob | None, await session.get(WatchJob, job_id))
         if job:
-            job.last_checked_at = utcnow()
-            job.last_result = json.dumps(result_dicts)
+            # THR-129 item 4: if job.params no longer matches what this run
+            # actually queried (an edit committed while this check was in
+            # flight — see the snapshot comment above), this run's result is
+            # stale and must not be persisted as if it reflects the job's
+            # current configuration: that would silently clobber whatever
+            # the edit's own last_result=None reset had just done, and the
+            # job would then sit on a wrong-params result for a full
+            # interval since nothing else would prompt a recheck (ARQ's
+            # dedup already dropped the edit's own enqueue attempt).
+            # Discard the result and schedule an immediate recheck instead
+            # — status flips out of CHECKING here, so the very next
+            # scheduler_tick (which excludes CHECKING jobs from "due") will
+            # dispatch a fresh check against the now-current params.
+            params_changed_mid_flight = job.params != dispatched_params_json
+            if params_changed_mid_flight:
+                logger.info(
+                    f"Job {job_id}: params changed while this check was "
+                    "running — discarding this run's result and scheduling "
+                    "an immediate recheck against the current params"
+                )
+            else:
+                job.last_checked_at = utcnow()
+                job.last_result = json.dumps(result_dicts)
             # If a hold was enqueued, leave status as CHECKING — the hold task
             # owns the next transition. Otherwise: WAITING if monitoring is on,
             # PAUSED if not.
             if not hold_enqueued and job.status == JobStatus.CHECKING.value:
                 if job.enable_monitoring:
                     job.status = JobStatus.WAITING.value
-                    job.next_check_at = utcnow() + timedelta(
-                        minutes=_effective_interval_minutes(job)
+                    job.next_check_at = (
+                        utcnow() if params_changed_mid_flight
+                        else utcnow() + timedelta(minutes=_effective_interval_minutes(job))
                     )
                 else:
                     job.status = JobStatus.PAUSED.value

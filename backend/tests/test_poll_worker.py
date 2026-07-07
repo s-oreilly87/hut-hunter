@@ -14,6 +14,7 @@ it's still closed — this is what heals a job that was created active while
 the THR-124/126 gate was broken (or simply never got the memo).
 """
 
+import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import timedelta
@@ -305,3 +306,92 @@ async def test_check_availability_skips_regate_for_non_windowed_adapter(
     assert result["status"] == "checked"
     updated = await fetch_job(job.id)
     assert updated.status == JobStatus.WAITING.value
+
+
+# ---------------------------------------------------------------------------
+# THR-129 item 4 — discard a stale in-flight result instead of persisting it
+# over a concurrent edit, and reschedule immediately rather than waiting a
+# full interval.
+# ---------------------------------------------------------------------------
+
+async def test_check_availability_discards_stale_result_when_edited_mid_flight(
+    monkeypatch, seed_job, fetch_job, session_factory, make_job_params,
+):
+    """The exact race update_job's dropped ARQ enqueue can create: an edit
+    commits new params to the DB while this run is already mid-flight
+    (having already read the OLD params at the top of check_availability).
+    This run's result — computed from those old params — must not be
+    persisted as the job's last_result, and the job must be scheduled for
+    an immediate recheck (not a full interval out) so the edit's new params
+    actually get checked shortly after, matching update_job's own promise."""
+    job = await seed_job(
+        adapter_id="doc_great_walk",
+        status=JobStatus.CHECKING.value,
+        enable_monitoring=True,
+        interval_minutes=15,
+    )
+
+    async def fake_detect(page, params):
+        # Simulate update_job committing an edit while this run is still
+        # executing — it already captured the pre-edit params at dispatch
+        # time (see check_availability's dispatched_params_json snapshot).
+        async with session_factory() as session:
+            db_job = await session.get(WatchJob, job.id)
+            db_job.params = json.dumps(make_job_params(track="Milford Track"))
+            session.add(db_job)
+            await session.commit()
+        return [AvailabilityResult(site="Test Park", status=AvailabilityStatus.UNAVAILABLE, evidence="none")]
+
+    adapter = _FakeWindowedAdapter(has_booking_windows=False)
+    adapter.detect_availability = fake_detect  # type: ignore[method-assign]
+    monkeypatch.setattr(poll_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(poll_worker, "_browser_page", _fake_detect_browser_page)
+
+    result = await poll_worker.check_availability({}, job.id)
+
+    assert result["status"] == "checked"  # this run did complete its own detect
+
+    updated = await fetch_job(job.id)
+    assert updated is not None
+    assert updated.status == JobStatus.WAITING.value
+    # The stale result must NOT have been persisted.
+    assert updated.last_result is None
+    assert updated.last_checked_at is None
+    # Scheduled for (near-)immediate recheck, not the full 15-minute interval
+    # — so the mid-flight edit's new params get checked shortly after.
+    next_at = as_utc(updated.next_check_at)
+    assert next_at <= utcnow() + timedelta(seconds=5)
+    # The edit's own params are what's actually on the job now.
+    assert json.loads(updated.params)["track"] == "Milford Track"
+
+
+async def test_check_availability_persists_normally_when_params_unchanged_mid_flight(
+    monkeypatch, seed_job, fetch_job,
+):
+    """Sanity check / regression guard: the common case (no concurrent edit)
+    must be completely unaffected by the staleness comparison — the result
+    persists and next_check_at is the normal full-interval reschedule."""
+    async def fake_detect(page, params):
+        return [AvailabilityResult(site="Test Park", status=AvailabilityStatus.UNAVAILABLE, evidence="none")]
+
+    adapter = _FakeWindowedAdapter(has_booking_windows=False)
+    adapter.detect_availability = fake_detect  # type: ignore[method-assign]
+    monkeypatch.setattr(poll_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(poll_worker, "_browser_page", _fake_detect_browser_page)
+
+    job = await seed_job(
+        adapter_id="doc_great_walk",
+        status=JobStatus.CHECKING.value,
+        enable_monitoring=True,
+        interval_minutes=15,
+    )
+
+    result = await poll_worker.check_availability({}, job.id)
+
+    assert result["status"] == "checked"
+    updated = await fetch_job(job.id)
+    assert updated is not None
+    assert updated.last_result is not None
+    assert updated.last_checked_at is not None
+    next_at = as_utc(updated.next_check_at)
+    assert next_at > utcnow() + timedelta(minutes=14)

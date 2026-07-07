@@ -423,6 +423,100 @@ async def test_update_job_changing_params_clears_stale_results_and_artifacts(
     assert refreshed.artifact_history is None
 
 
+async def test_update_job_no_op_save_does_not_dispatch_or_clear_results(
+    client,
+    fake_redis,
+    seed_job,
+    fetch_job,
+    make_job_params,
+):
+    """THR-129 item 4: the wizard always resends every field on every save
+    (name, params, auto_book, enable_monitoring, interval_minutes) — a pure
+    resubmission with nothing actually edited must not dispatch a check
+    (ON->ON previously did so unconditionally) or clear a perfectly good
+    last_result (the old `"params" in patch` check couldn't tell identical
+    params from changed ones)."""
+    params = make_job_params()
+    job = await seed_job(
+        name="Routeburn Watch",
+        params=params,
+        status=JobStatus.WAITING.value,
+        enable_monitoring=True,
+        interval_minutes=15,
+        auto_book=False,
+        next_check_at=utcnow() + timedelta(minutes=12),
+        last_checked_at=utcnow(),
+        last_result=[{"site": "Lake Mackenzie Hut", "status": "available", "evidence": "4 bunks"}],
+    )
+    original_next_check_at = job.next_check_at
+
+    response = await client.patch(
+        f"/api/v1/jobs/{job.id}",
+        json={
+            "name": "Routeburn Watch",
+            "params": params,
+            "auto_book": False,
+            "enable_monitoring": True,
+            "interval_minutes": 15,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["last_result"] is not None
+    assert fake_redis.calls == []
+
+    refreshed = await fetch_job(job.id)
+    assert refreshed is not None
+    assert refreshed.status == JobStatus.WAITING.value
+    assert refreshed.last_result is not None
+    assert refreshed.last_checked_at is not None
+    assert refreshed.next_check_at == original_next_check_at
+
+
+async def test_update_job_name_only_change_still_dispatches_when_monitoring_on(
+    client,
+    fake_redis,
+    seed_job,
+    fetch_job,
+    make_job_params,
+):
+    """A real edit — even one that doesn't touch params — still triggers
+    the existing "any edit while monitoring is on gets a fresh check"
+    behavior; only a true no-op is suppressed."""
+    params = make_job_params()
+    job = await seed_job(
+        name="Old Name",
+        params=params,
+        status=JobStatus.WAITING.value,
+        enable_monitoring=True,
+        interval_minutes=15,
+        auto_book=False,
+    )
+
+    response = await client.patch(
+        f"/api/v1/jobs/{job.id}",
+        json={
+            "name": "New Name",
+            "params": params,
+            "auto_book": False,
+            "enable_monitoring": True,
+            "interval_minutes": 15,
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(fake_redis.calls) == 1
+    assert fake_redis.calls[0]["job_name"] == "check_availability"
+
+    refreshed = await fetch_job(job.id)
+    assert refreshed is not None
+    assert refreshed.name == "New Name"
+    # ON->ON never touches status itself (only params/monitoring-transition
+    # branches do) — stays WAITING, same as before the edit.
+    assert refreshed.status == JobStatus.WAITING.value
+
+
 async def test_update_job_removing_occupants_disables_auto_book(
     client,
     seed_job,

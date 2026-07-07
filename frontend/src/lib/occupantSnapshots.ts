@@ -48,6 +48,33 @@ export function buildCurrentOccupantSnapshot(
   return snapshot
 }
 
+// THR-129 item 3: a saved snapshot from before an adapter's occupant
+// field list shrank (e.g. Camis's now-removed `permit_holder`) can carry
+// keys the current schema no longer knows about. Those must be ignored in
+// the outdated-snapshot comparison — "ignore the key" is the explicit
+// back-compat contract, not "treat the whole camper as edited" — so this
+// prunes the saved snapshot down to exactly the keys buildCurrentOccupant
+// Snapshot would produce today before comparing, rather than hardcoding
+// "permit_holder" specifically (robust to any future field removal too).
+function currentSnapshotKeys(adapter: AdapterInfo | undefined): Set<string> {
+  const keys = new Set(['id', 'first_name', 'last_name', 'age', 'gender', 'country'])
+  if (adapter) {
+    for (const field of adapter.occupant_fields) keys.add(field.key)
+  }
+  return keys
+}
+
+function pruneToKnownKeys(
+  snapshot: Record<string, unknown>,
+  knownKeys: Set<string>,
+): Record<string, unknown> {
+  const pruned: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (knownKeys.has(key)) pruned[key] = value
+  }
+  return pruned
+}
+
 export function jobHasOutdatedOccupantSnapshots(
   job: WatchJob,
   occupants: Occupant[],
@@ -59,6 +86,7 @@ export function jobHasOutdatedOccupantSnapshots(
   }
 
   const occupantsById = new Map(occupants.map((occupant) => [occupant.id, occupant]))
+  const knownKeys = currentSnapshotKeys(adapter)
 
   return savedOccupants.some((saved) => {
     if (!saved || typeof saved !== 'object' || Array.isArray(saved)) {
@@ -73,7 +101,8 @@ export function jobHasOutdatedOccupantSnapshots(
     if (!currentOccupant) return true
 
     const currentSnapshot = buildCurrentOccupantSnapshot(currentOccupant, adapter)
-    return stableStringify(savedSnapshot) !== stableStringify(currentSnapshot)
+    const prunedSaved = pruneToKnownKeys(savedSnapshot, knownKeys)
+    return stableStringify(prunedSaved) !== stableStringify(currentSnapshot)
   })
 }
 

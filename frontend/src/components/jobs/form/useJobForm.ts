@@ -37,6 +37,14 @@ export interface JobFormController {
   setIntervalMinutes: (v: string) => void
   selectedOccupantIds: string[]
   setSelectedOccupantIds: (ids: string[]) => void
+  // THR-129 item 3: which selected camper is the Camis permit holder.
+  // Already resolved to a valid choice — defaults to the first selected
+  // camper when nothing has been explicitly picked (or the previous pick
+  // is no longer selected). Only meaningful when
+  // selectedAdapter?.uses_single_permit_holder and >1 camper is selected;
+  // harmless to read/set otherwise.
+  permitHolderOccupantId: string | null
+  setPermitHolderOccupantId: (occupantId: string) => void
   error: string | null
 
   // THR-124: "is the requested date released yet?" — live-checked against
@@ -56,6 +64,9 @@ export interface JobFormController {
 
   // Derived
   selectedAdapter: AdapterInfo | undefined
+  // THR-129 item 3: full Occupant records for the current selection, in
+  // selection order — the permit-holder picker needs names, not just ids.
+  selectedRosterOccupants: Occupant[]
   hasCredentialsForSelectedAdapter: boolean
   // THR-127: distinct from hasCredentialsForSelectedAdapter — a credential
   // can be STORED but not yet (or no longer) VERIFIED. Auto-book gates on
@@ -146,6 +157,17 @@ export function useJobForm({
     }
     return []
   })
+  // THR-129 item 3: the user's explicit pick, if any. Read directly at
+  // render time against `effectivePermitHolderOccupantId` below (which
+  // defaults to the first selected camper) rather than reset via effect —
+  // same pattern as the rest of this file's derived-default fields.
+  const [permitHolderOccupantId, setPermitHolderOccupantId] = useState<string | null>(() => {
+    if (mode === 'edit' && initialJob) {
+      const stored = initialJob.params.permit_holder_occupant_id
+      return typeof stored === 'string' && stored ? stored : null
+    }
+    return null
+  })
 
   // ── External data ──
   const { data: adapters = [] } = useQuery({
@@ -217,6 +239,15 @@ export function useJobForm({
     .filter((occupant): occupant is Occupant => Boolean(occupant))
   const selectedOccupantsMissingFromRoster =
     selectedRosterOccupants.length !== selectedOccupantIds.length
+  // THR-129 item 3: default to the first selected camper (user's decision)
+  // whenever nothing has been explicitly picked yet, or the previous pick
+  // is no longer among the selected campers (deselected, or a stale value
+  // from a job saved before this field existed) — computed here rather
+  // than reset via effect, matching this file's existing pattern.
+  const effectivePermitHolderOccupantId =
+    selectedRosterOccupants.some((o) => o.id === permitHolderOccupantId)
+      ? permitHolderOccupantId
+      : (selectedRosterOccupants[0]?.id ?? null)
 
   const selectedOccupantFieldIssues = selectedAdapter
     ? selectedRosterOccupants
@@ -414,6 +445,13 @@ export function useJobForm({
       parsedParams.occupants = selectedRosterOccupants.map((occupant) => (
         buildCurrentOccupantSnapshot(occupant, selectedAdapter)
       ))
+      // THR-129 item 3: only meaningful for adapters with a single-holder
+      // concept (Camis) — stored even for a single-camper job (harmless,
+      // and keeps resolve_permit_holder_name's fallback-to-first-occupant
+      // path purely defensive rather than the normal case).
+      if (selectedAdapter.uses_single_permit_holder && effectivePermitHolderOccupantId) {
+        parsedParams.permit_holder_occupant_id = effectivePermitHolderOccupantId
+      }
     } else {
       parsedParams.occupants = []
     }
@@ -502,6 +540,8 @@ export function useJobForm({
     setIntervalMinutes,
     selectedOccupantIds,
     setSelectedOccupantIds,
+    permitHolderOccupantId: effectivePermitHolderOccupantId,
+    setPermitHolderOccupantId,
     error,
     windowCheck,
     windowCheckLoading: windowCheckEnabled && windowCheckQuery.isFetching,
@@ -511,6 +551,7 @@ export function useJobForm({
     roster,
     occupantsLoading,
     selectedAdapter,
+    selectedRosterOccupants,
     hasCredentialsForSelectedAdapter,
     credentialVerifiedForSelectedAdapter,
     selectedOccupantCount,

@@ -66,13 +66,16 @@ export function buildDefaultParams(fields: ParamField[]): Record<string, unknown
  *
  * - `occupants` lives on a separate piece of state (`selectedOccupantIds`)
  *   so we drop it here.
+ * - `permit_holder_occupant_id` (THR-129 item 3) similarly lives on its own
+ *   state (`permitHolderOccupantId` in useJobForm) so it doesn't render as
+ *   a generic field.
  * - `sites` may be stored as a comma-separated string or an array; we
  *   normalize to a string array since the multiselect input uses arrays.
  */
 export function buildInitialParamsFromJob(job: WatchJob): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(job.params)) {
-    if (k === 'occupants') continue
+    if (k === 'occupants' || k === 'permit_holder_occupant_id') continue
     if (k === 'sites' && typeof v === 'string') {
       out[k] = v.split(',').map((s) => s.trim()).filter(Boolean)
     } else {

@@ -244,6 +244,13 @@ class BaseAdapter(ABC):
     # each have their own distinct account and stay per-site. See
     # app.core.adapter_credentials for the resolution.
     credential_realm: str | None = None
+    # THR-129 item 3: True when a booking on this site is made under a
+    # single named "permit holder" rather than each occupant being booked
+    # individually (Camis: the account holder's name is the permit holder
+    # shown on the Review Reservation Details page — DOC books each named
+    # occupant directly and has no such concept). Tells the frontend wizard
+    # whether to show a holder picker when a job has more than one camper.
+    uses_single_permit_holder: bool = False
 
     def __init__(self) -> None:
         self._artifact_log: list[ArtifactSnapshot] = []
