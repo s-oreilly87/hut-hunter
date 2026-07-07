@@ -202,14 +202,22 @@ async def update_job(
     current_user: AppUser = Depends(get_current_user),
 ):
     """Partial update — name, params, auto_book, enable_monitoring, interval_minutes are mutable.
-    Editing params clears last_result/last_checked_at (stale against old search).
+    A genuine params change clears last_result/last_checked_at (stale against
+    old search); a no-op resubmission of identical params does not (THR-129
+    item 4 — see params_actually_changed below).
     adapter_id is immutable; change adapters by deleting and recreating.
 
     Monitoring transitions:
       • OFF → ON   — enqueue a check now; set next_check_at one interval out.
       • ON  → OFF  — clear next_check_at; WAITING → PAUSED.
-      • ON  → ON   — enqueue a check now (any edit triggers a fresh check);
-                     also reschedule next_check_at if interval changed.
+      • ON  → ON   — enqueue a check now, but ONLY when something that
+                     affects the check outcome actually changed (params,
+                     interval, name, or auto_book) — THR-129 item 4: the
+                     wizard always resends every field on every save, so
+                     without this comparison a pure re-save with nothing
+                     edited would dispatch a pointless check and clear a
+                     perfectly good last_result. Also reschedules
+                     next_check_at if the interval changed.
     """
     job = await _get_owned_job(session, current_user.id, job_id)
     if job.status == JobStatus.BOOKING_COMPLETE.value:
@@ -219,6 +227,21 @@ async def update_job(
     next_params = patch["params"] if "params" in patch else json.loads(job.params)
     configured_adapter_ids = await get_user_configured_adapter_ids(session, current_user.id)
     failed_adapter_ids = await get_user_failed_adapter_ids(session, current_user.id)
+
+    # THR-129 item 4: compare against the CURRENT stored values before
+    # anything below mutates `job` — the frontend always resends every
+    # field on every save, so merely checking "is this key present in the
+    # patch" (the old behavior) can't distinguish a real edit from an
+    # identical resubmission. A semantically-equal params dict (order of
+    # keys doesn't matter for `==` on plain dicts/lists/primitives) counts
+    # as unchanged.
+    params_actually_changed = "params" in patch and patch["params"] != json.loads(job.params)
+    name_changed = "name" in patch and patch["name"] != job.name
+    auto_book_changed = "auto_book" in patch and patch["auto_book"] != job.auto_book
+    interval_changed = (
+        "interval_minutes" in patch
+        and _clamp_interval(patch["interval_minutes"]) != job.interval_minutes
+    )
 
     if "params" in patch:
         _validate_job_start_date_for_adapter(job.adapter_id, next_params)
@@ -245,7 +268,7 @@ async def update_job(
     was_awaiting_window = job.status == JobStatus.AWAITING_WINDOW.value
     window: BookingWindowInfo | None = None
 
-    if "params" in patch:
+    if params_actually_changed:
         job.params = json.dumps(patch["params"])
         if not _params_have_occupants(patch["params"]):
             job.auto_book = False
@@ -310,11 +333,16 @@ async def update_job(
             job.window_opens_at = None
             job.window_burst_until = None
     elif job.enable_monitoring and prev_monitoring:
-        # Monitoring stays on — reschedule if interval changed, and always
-        # trigger an immediate check so the user sees fresh results for any edit.
-        if job.interval_minutes != prev_interval:
+        # Monitoring stays on — reschedule if interval changed. THR-129
+        # item 4: only dispatch when something that actually affects the
+        # check outcome changed; a pure no-op resubmission (identical
+        # params/interval/name/auto_book) must not trigger a check or have
+        # already cleared last_result above (params_actually_changed is
+        # False for it, so that clearing never happened).
+        if interval_changed:
             job.next_check_at = now + timedelta(minutes=job.interval_minutes)
-        dispatch_now = True
+        if params_actually_changed or interval_changed or name_changed or auto_book_changed:
+            dispatch_now = True
 
     session.add(job)
     await session.commit()

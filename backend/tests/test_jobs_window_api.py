@@ -100,7 +100,16 @@ async def test_window_check_endpoint_surfaces_not_open(monkeypatch, client):
 async def test_update_job_params_edit_moves_into_awaiting_window(
     monkeypatch, client, fake_redis, seed_job, fetch_job, make_job_params,
 ):
-    job = await seed_job(status=JobStatus.PAUSED.value, enable_monitoring=False)
+    # THR-129 item 4: seeded with a DIFFERENT date than the patch sends, so
+    # this is a genuine params edit (params_actually_changed=True) rather
+    # than a no-op resubmission of identical params, which no longer
+    # triggers the window recheck at all — see
+    # test_update_job_no_op_save_does_not_dispatch_or_clear_results.
+    job = await seed_job(
+        status=JobStatus.PAUSED.value,
+        enable_monitoring=False,
+        params=make_job_params(date="01/06/2026"),
+    )
     opens_at = utcnow()
     monkeypatch.setattr(
         route_jobs, "_check_booking_window",

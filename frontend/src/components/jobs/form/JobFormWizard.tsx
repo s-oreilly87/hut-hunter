@@ -57,6 +57,9 @@ export function JobFormWizard({
     occupantsLoading,
     selectedOccupantIds,
     setSelectedOccupantIds,
+    selectedRosterOccupants,
+    permitHolderOccupantId,
+    setPermitHolderOccupantId,
     effectivePeopleCount,
     selectedOccupantCount,
     selectedOccupantsPresent,
@@ -224,6 +227,9 @@ export function JobFormWizard({
                 occupantsLoading={occupantsLoading}
                 selectedOccupantIds={selectedOccupantIds}
                 setSelectedOccupantIds={setSelectedOccupantIds}
+                selectedRosterOccupants={selectedRosterOccupants}
+                permitHolderOccupantId={permitHolderOccupantId}
+                setPermitHolderOccupantId={setPermitHolderOccupantId}
                 effectivePeopleCount={effectivePeopleCount}
                 selectedOccupantCount={selectedOccupantCount}
                 selectedOccupantsPresent={selectedOccupantsPresent}

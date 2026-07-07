@@ -144,6 +144,11 @@ class BaseCamisAdapter(BaseAdapter):
     # Camis is account-based across all provinces.
     requires_credentials: bool = True
 
+    # THR-129 item 3: a Camis booking is made under one named permit holder
+    # (the signed-in account holder), not each occupant individually — see
+    # resolve_permit_holder_name below.
+    uses_single_permit_holder: bool = True
+
     # THR-124: Camis dates release on a rolling per-park/per-province
     # schedule (unlike the DOC adapters, which are always bookable). See
     # check_booking_window below.
@@ -415,8 +420,10 @@ class BaseCamisAdapter(BaseAdapter):
             # Renders the camper picker in the job wizard (the frontend
             # special-cases key == "occupants") and gates auto-book: the poll
             # worker only enqueues a hold when params.occupants is non-empty.
-            # Camis needs just a permit holder at checkout, so one camper with
-            # the permit_holder occupant field filled is enough. Optional for
+            # Camis books under one named permit holder — THR-129 item 3
+            # derives that name from whichever occupant is selected (see
+            # resolve_permit_holder_name), so a single camper is enough with
+            # no adapter-specific field required. Optional for
             # availability-only hunts. (Found in HH-103: without this field
             # the wizard could never enable auto-book for Camis jobs.)
             ParamField(
@@ -1362,18 +1369,72 @@ class BaseCamisAdapter(BaseAdapter):
         """Occupant fields collected during the Camis booking.
 
         Unlike the DOC flow (per-person name/age/category), Camis takes party
-        size and equipment during search and a single **permit holder** name at
-        checkout (confirmed on the Review Reservation Details page, which shows
-        the account's occupant as the named permit holder).
+        size and equipment during search; there is no adapter-specific field
+        left to collect per camper.
+
+        THR-129 item 3: this used to also declare a ``permit_holder`` text
+        field, but the Review Reservation Details page shows the signed-in
+        account's OWN occupant as the named permit holder — the site never
+        reads back whatever the user typed here, so it was purely redundant
+        re-entry of a camper's own name, validated (``_validate_adapter_values_
+        payload`` / ``_validate_job_occupants_for_adapter`` in
+        ``app.api._route_deps``) but never consumed by ``attempt_hold``. The
+        name is now derived from the occupant snapshot instead — see
+        ``resolve_permit_holder_name``. Existing occupant snapshots/adapter-
+        value rows with a leftover ``permit_holder`` key keep loading fine;
+        the key is just ignored (nothing here reads it anymore).
         """
-        return [
-            OccupantField(
-                key="permit_holder",
-                label="Permit Holder Name",
-                type="text",
-                required=True,
-            ),
-        ]
+        return []
+
+    # THR-129 item 3: job param key holding the id of the occupant (from the
+    # job's `occupants` snapshot list) designated as the Camis permit holder
+    # when the job has more than one camper. Set by the job wizard's holder
+    # picker; absent/stale/single-occupant jobs fall back to the first
+    # occupant (see resolve_permit_holder_name) — this must never raise on a
+    # missing or unrecognised id, only degrade to that default.
+    PERMIT_HOLDER_OCCUPANT_ID_PARAM = "permit_holder_occupant_id"
+
+    @classmethod
+    def resolve_permit_holder_name(cls, params: dict) -> str | None:
+        """Derive the permit-holder display name from the job's occupant
+        snapshot (THR-129 item 3).
+
+        ``params["occupants"]`` holds the snapshot dicts built by
+        ``buildCurrentOccupantSnapshot`` (frontend) / validated by
+        ``_validate_job_occupants_for_adapter`` (backend) — each has at
+        least ``id``, ``first_name``, ``last_name``. Selection:
+          - no occupants → ``None`` (nothing to derive).
+          - exactly one occupant → that occupant, unambiguously.
+          - more than one → the occupant whose ``id`` matches
+            ``params[PERMIT_HOLDER_OCCUPANT_ID_PARAM]``; falls back to the
+            FIRST occupant in the list when that key is absent or doesn't
+            match anyone currently selected (covers jobs saved before this
+            field existed, and a picked holder who's since been deselected)
+            — this mirrors the job wizard's own default.
+
+        Consumed wherever a permit-holder name is needed, including the
+        future session-linked checkout flow (not yet implemented — see the
+        module docstring's HH-100 note); not currently read by
+        ``attempt_hold`` since the funnel doesn't type a name anywhere today.
+        """
+        occupants = params.get("occupants")
+        if not isinstance(occupants, list) or not occupants:
+            return None
+        valid = [o for o in occupants if isinstance(o, dict)]
+        if not valid:
+            return None
+        if len(valid) == 1:
+            chosen = valid[0]
+        else:
+            wanted_id = params.get(cls.PERMIT_HOLDER_OCCUPANT_ID_PARAM)
+            chosen = next(
+                (o for o in valid if wanted_id is not None and o.get("id") == wanted_id),
+                valid[0],
+            )
+        first = str(chosen.get("first_name", "")).strip()
+        last = str(chosen.get("last_name", "")).strip()
+        name = f"{first} {last}".strip()
+        return name or None
 
     async def _cart_item_count(self, page: Page) -> int:
         """Read the header cart badge ("N Item(s)") — the source of truth for a

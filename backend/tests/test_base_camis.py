@@ -603,10 +603,75 @@ def test_login_selectors_confirmed():
     assert BaseCamisAdapter.API_AUTH_LOGIN == "/api/auth/login"
 
 
-def test_occupant_fields_permit_holder():
-    fields = _StubCamisAdapter.occupant_fields()
-    assert [f.key for f in fields] == ["permit_holder"]
-    assert fields[0].required is True
+def test_occupant_fields_no_longer_declares_permit_holder():
+    # THR-129 item 3: permit_holder was redundant re-entry of a camper's own
+    # name (the Review Reservation Details page shows the signed-in
+    # account's occupant as the permit holder regardless of what was typed
+    # here) — removed; the name is now derived, not collected.
+    assert _StubCamisAdapter.occupant_fields() == []
+
+
+def test_uses_single_permit_holder_flag():
+    assert BaseCamisAdapter.uses_single_permit_holder is True
+    assert BaseAdapter.uses_single_permit_holder is False
+
+
+def _occupant(occupant_id, first, last):
+    return {"id": occupant_id, "first_name": first, "last_name": last}
+
+
+def test_resolve_permit_holder_name_no_occupants():
+    assert _StubCamisAdapter.resolve_permit_holder_name({}) is None
+    assert _StubCamisAdapter.resolve_permit_holder_name({"occupants": []}) is None
+    assert _StubCamisAdapter.resolve_permit_holder_name({"occupants": "not-a-list"}) is None
+
+
+def test_resolve_permit_holder_name_single_occupant_is_unambiguous():
+    params = {"occupants": [_occupant("o1", "Alex", "Walker")]}
+    assert _StubCamisAdapter.resolve_permit_holder_name(params) == "Alex Walker"
+
+
+def test_resolve_permit_holder_name_multi_occupant_uses_selected_id():
+    params = {
+        "occupants": [
+            _occupant("o1", "Alex", "Walker"),
+            _occupant("o2", "Sam", "Chen"),
+        ],
+        "permit_holder_occupant_id": "o2",
+    }
+    assert _StubCamisAdapter.resolve_permit_holder_name(params) == "Sam Chen"
+
+
+def test_resolve_permit_holder_name_multi_occupant_defaults_to_first():
+    # No permit_holder_occupant_id at all — e.g. a job saved before this
+    # field existed (back-compat) — defaults to the first selected camper,
+    # matching the job wizard's own default.
+    params = {
+        "occupants": [
+            _occupant("o1", "Alex", "Walker"),
+            _occupant("o2", "Sam", "Chen"),
+        ],
+    }
+    assert _StubCamisAdapter.resolve_permit_holder_name(params) == "Alex Walker"
+
+
+def test_resolve_permit_holder_name_falls_back_when_selected_id_stale():
+    # permit_holder_occupant_id points at a camper no longer in the
+    # occupants list (e.g. deselected since) — falls back to first rather
+    # than raising or returning None.
+    params = {
+        "occupants": [
+            _occupant("o1", "Alex", "Walker"),
+            _occupant("o2", "Sam", "Chen"),
+        ],
+        "permit_holder_occupant_id": "o-deleted",
+    }
+    assert _StubCamisAdapter.resolve_permit_holder_name(params) == "Alex Walker"
+
+
+def test_resolve_permit_holder_name_blank_name_returns_none():
+    params = {"occupants": [_occupant("o1", "", "")]}
+    assert _StubCamisAdapter.resolve_permit_holder_name(params) is None
 
 
 async def test_attempt_hold_bad_params_never_claims_hold(tmp_path):

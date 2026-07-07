@@ -4,6 +4,7 @@ import { OccupantSelector } from './OccupantSelector'
 import { ParamFieldInput } from './ParamFieldInput'
 import { ParamLabel } from './ParamLabel'
 import { shouldHideBookingInputField } from './paramHelpers'
+import { PermitHolderPicker } from './PermitHolderPicker'
 
 /**
  * Step-1 content: the per-adapter booking inputs plus the camper picker.
@@ -24,6 +25,9 @@ export function BookingInputsFields({
   occupantsLoading,
   selectedOccupantIds,
   setSelectedOccupantIds,
+  selectedRosterOccupants,
+  permitHolderOccupantId,
+  setPermitHolderOccupantId,
   effectivePeopleCount,
   selectedOccupantCount,
   selectedOccupantsPresent,
@@ -40,6 +44,11 @@ export function BookingInputsFields({
   occupantsLoading: boolean
   selectedOccupantIds: string[]
   setSelectedOccupantIds: (ids: string[]) => void
+  // THR-129 item 3 — optional so a caller that hasn't wired the picker
+  // through yet just never renders it (mirrors the windowCheck trio below).
+  selectedRosterOccupants?: Occupant[]
+  permitHolderOccupantId?: string | null
+  setPermitHolderOccupantId?: (occupantId: string) => void
   effectivePeopleCount: number
   selectedOccupantCount: number
   selectedOccupantsPresent: boolean
@@ -69,6 +78,15 @@ export function BookingInputsFields({
                 loading={occupantsLoading}
                 onOpenOccupants={onOpenOccupants}
               />
+              {selectedAdapter.uses_single_permit_holder
+                && selectedRosterOccupants
+                && setPermitHolderOccupantId && (
+                <PermitHolderPicker
+                  occupants={selectedRosterOccupants}
+                  selectedId={permitHolderOccupantId ?? null}
+                  onChange={setPermitHolderOccupantId}
+                />
+              )}
             </div>
           )
         }

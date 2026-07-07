@@ -102,6 +102,11 @@ def list_adapters() -> list[dict]:
             # "doc_govt_nz") — the frontend groups adapters with the same
             # realm into a single Sign-Ins card.
             "credential_realm": cls.credential_realm,
+            # THR-129 item 3: True when this site books under one named
+            # permit holder rather than each occupant individually — tells
+            # the wizard whether to show a holder picker for multi-camper
+            # jobs.
+            "uses_single_permit_holder": cls.uses_single_permit_holder,
             # Expiry metadata — None means the adapter has no booking cutoff.
             # Consumed by the frontend for date validation and by the worker
             # to gate availability checks.
