@@ -244,23 +244,37 @@ class BaseCamisAdapter(BaseAdapter):
     # park doesn't get truncated before reaching real per-site data.
     _MAX_DRILL_REQUESTS = 40
 
-    # THR-129 Finding C: the Angular app's own /api/availability/map call
-    # additionally sends equipmentCategoryId/subEquipmentCategoryId,
-    # peopleCapacityCategoryCounts, isReserving=true, filterData=[], and
-    # numEquipment=0 (confirmed live 2026-07-07 against reservation.pc.gc.ca).
-    # Our simpler query already returns identical codes for the recon'd
-    # case, but matching the UI's shape — at minimum party size + equipment
-    # — protects against divergence on parks that filter by one of these
-    # (e.g. equipment-gated backcountry sites). Confirmed via GET
-    # /api/equipment: category -32768/"Equipment" + sub -32768/"Small Tent"
-    # is the frontcountry default; category -32767/"Backcountry" + sub
-    # -32758/"Single Tent" is its backcountry equivalent (not defaulted to,
-    # since most watch jobs target frontcountry campsites).
-    DEFAULT_EQUIPMENT_CATEGORY_ID = -32768
-    DEFAULT_SUB_EQUIPMENT_CATEGORY_ID = -32768
+    # MISC (regression fix): THR-129 Finding C added equipmentCategoryId/
+    # subEquipmentCategoryId/peopleCapacityCategoryCounts/isReserving/
+    # filterData/numEquipment to EVERY Camis adapter's /api/availability/map
+    # query, using enum values (-32768/-32767) confirmed live only against
+    # Parks Canada's reservation.pc.gc.ca. Those are Parks-Canada-specific
+    # equipment/capacity category ids — BC Parks has its own equipment enum
+    # (see camis_bc_parks's confirmed "1 Tent"/"Single Tent" option
+    # strings), so sending Parks Canada's ids to BC's /api/availability/map
+    # 400s outright (live regression: the Golden Ears watch job started
+    # failing right after this shipped). The extra query shape is now
+    # opt-in per adapter (``_INCLUDE_UI_QUERY_EXTRAS``, default False) and
+    # only ``CamisParksCanadaAdapter`` turns it on, since that's the only
+    # site it was actually confirmed against — every other adapter reverts
+    # to the simpler query that was working before THR-129.
+    _INCLUDE_UI_QUERY_EXTRAS = False
+
+    # THR-129 Finding C defaults — confirmed live 2026-07-07 against
+    # reservation.pc.gc.ca ONLY. Meaningless (and actively harmful, see
+    # above) outside Parks Canada, so these default to None here;
+    # ``_build_availability_query`` never sends them unless
+    # ``_INCLUDE_UI_QUERY_EXTRAS`` is on AND an adapter/job params supplies
+    # a real value. category -32768/"Equipment" + sub -32768/"Small Tent"
+    # is Parks Canada's frontcountry default; category -32767/"Backcountry"
+    # + sub -32758/"Single Tent" is its backcountry equivalent (not
+    # defaulted to, since most watch jobs target frontcountry campsites).
+    DEFAULT_EQUIPMENT_CATEGORY_ID: int | None = None
+    DEFAULT_SUB_EQUIPMENT_CATEGORY_ID: int | None = None
     # capacityCategoryId used by the Angular app's own party-size query
-    # (peopleCapacityCategoryCounts) — confirmed live 2026-07-07.
-    DEFAULT_CAPACITY_CATEGORY_ID = -32767
+    # (peopleCapacityCategoryCounts) — confirmed live 2026-07-07, Parks
+    # Canada only (see above).
+    DEFAULT_CAPACITY_CATEGORY_ID: int | None = None
 
     # ------------------------------------------------------------------
     # JSON API access (the catalog + availability read path)
@@ -918,35 +932,39 @@ class BaseCamisAdapter(BaseAdapter):
             "startDate": start_iso,
             "endDate": end_iso,
             "getDailyAvailability": "true",
-            # THR-129 Finding C: mirror the UI's own query shape so a
-            # filtered park can't silently diverge from our simpler query.
-            "isReserving": "true",
-            "filterData": [],
-            "numEquipment": 0,
         }
 
-        equipment_category_id = params.get(
-            "equipment_category_id", self.DEFAULT_EQUIPMENT_CATEGORY_ID
-        )
-        sub_equipment_category_id = params.get(
-            "sub_equipment_category_id", self.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID
-        )
-        if equipment_category_id is not None:
-            query["equipmentCategoryId"] = int(equipment_category_id)
-        if sub_equipment_category_id is not None:
-            query["subEquipmentCategoryId"] = int(sub_equipment_category_id)
+        if self._INCLUDE_UI_QUERY_EXTRAS:
+            # THR-129 Finding C: mirror the UI's own query shape so a
+            # filtered park can't silently diverge from our simpler query.
+            # Parks-Canada-only — see the class-attribute comment above on
+            # why this can't be a shared default.
+            query["isReserving"] = "true"
+            query["filterData"] = []
+            query["numEquipment"] = 0
 
-        people = params.get("people")
-        try:
-            party_size = int(people) if people not in (None, "") else None
-        except (TypeError, ValueError):
-            party_size = None
-        if party_size:
-            query["peopleCapacityCategoryCounts"] = [{
-                "capacityCategoryId": self.DEFAULT_CAPACITY_CATEGORY_ID,
-                "subCapacityCategoryId": None,
-                "count": party_size,
-            }]
+            equipment_category_id = params.get(
+                "equipment_category_id", self.DEFAULT_EQUIPMENT_CATEGORY_ID
+            )
+            sub_equipment_category_id = params.get(
+                "sub_equipment_category_id", self.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID
+            )
+            if equipment_category_id is not None:
+                query["equipmentCategoryId"] = int(equipment_category_id)
+            if sub_equipment_category_id is not None:
+                query["subEquipmentCategoryId"] = int(sub_equipment_category_id)
+
+            people = params.get("people")
+            try:
+                party_size = int(people) if people not in (None, "") else None
+            except (TypeError, ValueError):
+                party_size = None
+            if party_size and self.DEFAULT_CAPACITY_CATEGORY_ID is not None:
+                query["peopleCapacityCategoryCounts"] = [{
+                    "capacityCategoryId": self.DEFAULT_CAPACITY_CATEGORY_ID,
+                    "subCapacityCategoryId": None,
+                    "count": party_size,
+                }]
 
         return query
 

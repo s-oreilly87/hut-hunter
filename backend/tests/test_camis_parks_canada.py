@@ -93,3 +93,33 @@ def test_adapter_park_url_none_for_unknown_or_non_camis_adapter():
     # this module. DOC adapters: no override, base default is None.
     assert adapter_park_url("nope", {}) is None
     assert adapter_park_url("doc_great_walk", {"track": "Routeburn Track"}) is None
+
+
+def test_availability_query_includes_confirmed_ui_extras():
+    # MISC (regression fix): THR-129 Finding C's extended /api/availability/map
+    # shape (equipmentCategoryId/subEquipmentCategoryId/isReserving/
+    # filterData/numEquipment/peopleCapacityCategoryCounts) was confirmed
+    # live only against reservation.pc.gc.ca, so it's opt-in per adapter and
+    # only this one turns it on (every other Camis adapter would 400 on
+    # these Parks-Canada-specific equipment/capacity ids — see
+    # base_camis.py's _INCLUDE_UI_QUERY_EXTRAS).
+    adapter = CamisParksCanadaAdapter()
+    assert adapter._INCLUDE_UI_QUERY_EXTRAS is True
+    query = adapter._build_availability_query({
+        "resource_location_id": -2147483511,
+        "map_id": -1,
+        "booking_category_id": 0,
+        "date": "01/08/2026",
+        "nights": 2,
+        "people": 2,
+    })
+    assert query["isReserving"] == "true"
+    assert query["filterData"] == []
+    assert query["numEquipment"] == 0
+    assert query["equipmentCategoryId"] == -32768
+    assert query["subEquipmentCategoryId"] == -32768
+    assert query["peopleCapacityCategoryCounts"] == [{
+        "capacityCategoryId": -32767,
+        "subCapacityCategoryId": None,
+        "count": 2,
+    }]

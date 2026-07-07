@@ -228,6 +228,11 @@ def test_extract_site_days_tolerates_shapes():
 
 
 def test_build_query_resolves_map_id_and_category_from_catalog(tmp_path):
+    # MISC (regression fix): the base adapter (and BC/Ontario, which never
+    # opt into _INCLUDE_UI_QUERY_EXTRAS) must build the SIMPLE query shape
+    # that was working before THR-129 Finding C — no isReserving/filterData/
+    # numEquipment/equipment/capacity fields, since those Parks-Canada
+    # defaults 400 against BC's own /api/availability/map.
     adapter = _catalog_adapter(tmp_path)
     query = adapter._build_availability_query(
         {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
@@ -239,26 +244,52 @@ def test_build_query_resolves_map_id_and_category_from_catalog(tmp_path):
         "startDate": "2026-08-01",
         "endDate": "2026-08-04",  # checkout date = start + nights
         "getDailyAvailability": "true",
-        # THR-129 Finding C: mirror the UI's query shape.
-        "isReserving": "true",
-        "filterData": [],
-        "numEquipment": 0,
-        "equipmentCategoryId": BaseCamisAdapter.DEFAULT_EQUIPMENT_CATEGORY_ID,
-        "subEquipmentCategoryId": BaseCamisAdapter.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID,
-        # no `people` in params → no peopleCapacityCategoryCounts key at all
     }
+
+
+def test_build_query_omits_ui_extras_by_default():
+    # Belt-and-suspenders on the regression: _INCLUDE_UI_QUERY_EXTRAS is off
+    # unless an adapter explicitly opts in (only CamisParksCanadaAdapter
+    # does — see test_camis_parks_canada.py).
+    assert BaseCamisAdapter._INCLUDE_UI_QUERY_EXTRAS is False
+    assert BaseCamisAdapter.DEFAULT_EQUIPMENT_CATEGORY_ID is None
+    assert BaseCamisAdapter.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID is None
+    assert BaseCamisAdapter.DEFAULT_CAPACITY_CATEGORY_ID is None
+
+
+def test_build_query_includes_ui_extras_when_adapter_opts_in(tmp_path):
+    # THR-129 Finding C's shape still exists and still works — just gated
+    # behind _INCLUDE_UI_QUERY_EXTRAS (Parks Canada turns it on; see
+    # camis_parks_canada.py).
+    adapter = _catalog_adapter(tmp_path)
+    adapter._INCLUDE_UI_QUERY_EXTRAS = True
+    adapter.DEFAULT_EQUIPMENT_CATEGORY_ID = -32768
+    adapter.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID = -32768
+    query = adapter._build_availability_query(
+        {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
+    )
+    assert query["isReserving"] == "true"
+    assert query["filterData"] == []
+    assert query["numEquipment"] == 0
+    assert query["equipmentCategoryId"] == -32768
+    assert query["subEquipmentCategoryId"] == -32768
+    # no `people` in params → no peopleCapacityCategoryCounts key at all
+    assert "peopleCapacityCategoryCounts" not in query
 
 
 def test_build_query_includes_party_size_when_people_given(tmp_path):
     # THR-129 Finding C: party size is sent the way the Angular app's own
     # query sends it — at minimum party size + equipment protects against
-    # divergence on parks that filter search results by either.
+    # divergence on parks that filter search results by either. Only
+    # reachable when an adapter opts into _INCLUDE_UI_QUERY_EXTRAS.
     adapter = _catalog_adapter(tmp_path)
+    adapter._INCLUDE_UI_QUERY_EXTRAS = True
+    adapter.DEFAULT_CAPACITY_CATEGORY_ID = -32767
     query = adapter._build_availability_query(
         {"resource_location_id": -100, "date": "01/08/2026", "nights": 2, "people": 4}
     )
     assert query["peopleCapacityCategoryCounts"] == [{
-        "capacityCategoryId": BaseCamisAdapter.DEFAULT_CAPACITY_CATEGORY_ID,
+        "capacityCategoryId": -32767,
         "subCapacityCategoryId": None,
         "count": 4,
     }]
@@ -266,6 +297,7 @@ def test_build_query_includes_party_size_when_people_given(tmp_path):
 
 def test_build_query_equipment_and_capacity_category_overridable(tmp_path):
     adapter = _catalog_adapter(tmp_path)
+    adapter._INCLUDE_UI_QUERY_EXTRAS = True
     query = adapter._build_availability_query({
         "resource_location_id": -100, "date": "01/08/2026",
         "equipment_category_id": -32767, "sub_equipment_category_id": -32758,
