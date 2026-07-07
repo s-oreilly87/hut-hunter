@@ -49,6 +49,9 @@ export function JobFormGrid({
     intervalMinutes,
     setIntervalMinutes,
     error,
+    windowCheck,
+    windowAcknowledged,
+    acknowledgeWindow,
     pending,
     submitLabel,
     submitBusyLabel,
@@ -100,6 +103,9 @@ export function JobFormGrid({
                 resolveOptions={resolveOptions}
                 handleParamChange={handleParamChange}
                 onOpenOccupants={onOpenOccupants}
+                windowCheck={windowCheck}
+                windowAcknowledged={windowAcknowledged}
+                acknowledgeWindow={acknowledgeWindow}
               />
             </FormSection>
           )}
@@ -132,7 +138,11 @@ export function JobFormGrid({
             <Button
               className="w-full"
               onClick={handleSubmit}
-              disabled={!name || !selectedAdapterId || pending}
+              disabled={
+                !name || !selectedAdapterId || pending
+                // THR-124: block save until the booking-window notice (if any) is acknowledged.
+                || Boolean(windowCheck && !windowCheck.is_open && !windowAcknowledged)
+              }
             >
               {mode === 'edit' ? <Pencil className="size-4" /> : <Settings2 className="size-4" />}
               {pending ? submitBusyLabel : submitLabel}

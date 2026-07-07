@@ -71,6 +71,8 @@ export function JobListMobileCard({
               jobId={job.id}
               cartExpiresAt={job.cart_expires_at}
               artifactUrl={job.last_artifact_png}
+              windowOpensAt={job.window_opens_at}
+              windowOpensPrecise={job.window_opens_precise}
             />
           )}
           <p className="text-xs leading-4 text-muted-foreground/70">

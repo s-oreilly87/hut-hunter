@@ -47,6 +47,11 @@ export type JobStatus =
   // instead of tearing it down. Treated like hold_placed everywhere a live
   // cart/browser is involved — see /pay/{job_id} and cart-expiry handling.
   | 'needs_attention'
+  // THR-124: the requested date isn't inside the adapter's booking window
+  // yet (Camis' rolling per-park/per-province release schedule). Monitoring
+  // is off — see WatchJob.window_opens_at — until the poll worker auto-arms
+  // it the moment the window opens.
+  | 'awaiting_window'
   | 'booking_complete'
   | 'cancelled'
   | 'expired'
@@ -104,6 +109,11 @@ export interface WatchJob {
   last_artifact_png: string | null
   last_artifact_html: string | null
   artifact_history: ArtifactRecord[] | null
+  // THR-124: set while status === 'awaiting_window' — the computed UTC
+  // go-live time. window_opens_precise is false when it's a best-effort
+  // fallback (e.g. local midnight) rather than a confirmed go-live moment.
+  window_opens_at: string | null
+  window_opens_precise: boolean
 }
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
@@ -112,6 +122,7 @@ export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
   waiting: 'Waiting',
   hold_placed: 'Hold Placed',
   needs_attention: 'Needs Attention',
+  awaiting_window: 'Awaiting Window',
   booking_complete: 'Booking Complete',
   cancelled: 'Cancelled',
   expired: 'Expired',
@@ -163,11 +174,21 @@ export interface AdapterInfo {
   // False when the site's sign-in is third-party SSO that can't be automated
   // (e.g. Parks Canada: Google/Facebook/GCKey) — watch & notify only.
   supports_automated_booking: boolean
+  // THR-124: True for adapters with a rolling booking window (Camis) —
+  // tells the wizard whether it's worth calling jobsApi.checkWindow at all.
+  has_booking_windows: boolean
   // Set when the adapter has a time-bounded booking window. Used by the
   // frontend for date validation and stale-job display.
   // null timezone means "use client local timezone"
   booking_timezone: string | null
   booking_cutoff_time: string  // HH:MM:SS — informational, expiry enforced server-side
+}
+
+export interface WindowCheckResult {
+  is_open: boolean
+  opens_at: string | null
+  opens_at_precise: boolean
+  evidence: string
 }
 
 export interface Occupant {
@@ -281,4 +302,10 @@ export const jobsApi = {
   // Manual hold dispatch. Backend rejects with 409 unless the last check
   // shows every site fully available; the UI hides this button otherwise.
   book: (id: string) => api.post(`/jobs/${id}/book`).then(r => r.data),
+  // THR-124: "is this date released yet?" — the wizard calls this before
+  // save so the not-yet-released case can be explained up front. Never
+  // rejects on an unknown/non-windowed adapter (see the backend's fail-open
+  // contract), so callers don't need special error handling here.
+  checkWindow: (data: { adapter_id: string; params: Record<string, unknown> }) =>
+    api.post<WindowCheckResult>('/jobs/window-check', data).then(r => r.data),
 }

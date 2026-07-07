@@ -201,6 +201,9 @@ def seed_job(session_factory, make_job_params, auth_user):
         last_result: list[dict[str, Any]] | dict[str, Any] | None = None,
         last_artifact: str | None = None,
         artifact_history: list[dict[str, Any]] | None = None,
+        window_opens_at=None,
+        window_opens_precise: bool = True,
+        window_burst_until=None,
     ) -> WatchJob:
         job = WatchJob(
             user_id=user_id or auth_user.id,
@@ -218,6 +221,9 @@ def seed_job(session_factory, make_job_params, auth_user):
             artifact_history=(
                 json.dumps(artifact_history) if artifact_history is not None else None
             ),
+            window_opens_at=window_opens_at,
+            window_opens_precise=window_opens_precise,
+            window_burst_until=window_burst_until,
         )
         async with session_factory() as session:
             session.add(job)

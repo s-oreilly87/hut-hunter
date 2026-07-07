@@ -3,13 +3,17 @@ import { Loader2 } from 'lucide-react'
 import { Badge } from '../ui/Badge'
 import { JOB_STATUS_LABEL } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
-import { formatCountdown } from '@/lib/time'
+import { formatCountdown, formatDateTime } from '@/lib/time'
 
 interface Props {
   status: DisplayStatus
   jobId: string
   cartExpiresAt?: string | null
   artifactUrl?: string | null
+  // THR-124: when status is 'awaiting_window', renders "Awaiting Window ·
+  // Opens {date}" instead of the bare status label.
+  windowOpensAt?: string | null
+  windowOpensPrecise?: boolean
 }
 
 const DISPLAY_LABEL: Record<string, string> = {
@@ -33,6 +37,9 @@ const STATUS_CLASS: Record<string, string | undefined> = {
   // THR-122: distinct from hold_placed's amber — orange signals "this one
   // needs a human," not just "waiting on payment."
   needs_attention:      'bg-orange-600 hover:bg-orange-600 text-white',
+  // THR-124: distinct from paused/waiting's neutral zinc — indigo signals
+  // "this is deliberately parked and will arm itself," not just idle.
+  awaiting_window:      'bg-indigo-600 hover:bg-indigo-600 text-white',
   booking_complete:     'bg-emerald-700 hover:bg-emerald-700 text-white',
   cancelled:            undefined,
   expired:              'bg-zinc-500 hover:bg-zinc-500 text-white',
@@ -44,7 +51,14 @@ const STATUS_CLASS: Record<string, string | undefined> = {
 
 const SPINNER_STATUSES = new Set(['booking', 'attempting_hold'])
 
-export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props) {
+export function StatusBadge({
+  status,
+  jobId,
+  cartExpiresAt,
+  artifactUrl,
+  windowOpensAt,
+  windowOpensPrecise = true,
+}: Props) {
   const [nowMs, setNowMs] = useState(() => Date.now())
 
   // THR-122: needs_attention parks a live cart the same way hold_placed does,
@@ -61,7 +75,9 @@ export function StatusBadge({ status, jobId, cartExpiresAt, artifactUrl }: Props
   const countdownSeconds = isParkedStatus && cartExpiresAt
     ? Math.max(0, (new Date(cartExpiresAt).getTime() - nowMs) / 1000)
     : null
-  const baseLabel = DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
+  const baseLabel = status === 'awaiting_window' && windowOpensAt
+    ? `Awaiting Window · Opens ${formatDateTime(windowOpensAt)}${windowOpensPrecise ? '' : ' (approx.)'}`
+    : DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
   const label = countdownSeconds !== null ? (
     <>
       {baseLabel} <span className="tabular-nums">({formatCountdown(countdownSeconds)})</span>

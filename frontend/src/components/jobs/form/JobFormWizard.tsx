@@ -68,6 +68,9 @@ export function JobFormWizard({
     intervalMinutes,
     setIntervalMinutes,
     error,
+    windowCheck,
+    windowAcknowledged,
+    acknowledgeWindow,
     pending,
     submitLabel,
     submitBusyLabel,
@@ -103,10 +106,13 @@ export function JobFormWizard({
   const stepBackLabels = [backLabel, WIZARD_STEPS[0], 'Details']
   const wizardBackLabel = mode === 'edit' ? backLabel : (stepBackLabels[wizardStep] ?? backLabel)
   const isLastStep = wizardStep === ((WIZARD_STEPS.length - 1) as WizardStep)
+  // THR-124: block advancing past Booking Inputs (and the final submit)
+  // until the not-yet-released-date notice has been acknowledged.
+  const windowBlocksSubmit = Boolean(windowCheck && !windowCheck.is_open && !windowAcknowledged)
   const canAdvance = wizardStep === 0
     ? Boolean(name.trim()) && Boolean(selectedAdapterId)
     : wizardStep === 1
-      ? bookingInputsComplete
+      ? bookingInputsComplete && !windowBlocksSubmit
       : true
 
   const handleWizardBack = () => {
@@ -223,6 +229,9 @@ export function JobFormWizard({
                 resolveOptions={resolveOptions}
                 handleParamChange={handleParamChange}
                 onOpenOccupants={onOpenOccupants}
+                windowCheck={windowCheck}
+                windowAcknowledged={windowAcknowledged}
+                acknowledgeWindow={acknowledgeWindow}
               />
             </>
           )}
@@ -253,7 +262,7 @@ export function JobFormWizard({
               <Button
                 className="w-full"
                 onClick={handleSubmit}
-                disabled={!name || !selectedAdapterId || pending}
+                disabled={!name || !selectedAdapterId || pending || windowBlocksSubmit}
               >
                 {mode === 'edit' ? <Pencil className="size-4" /> : <Settings2 className="size-4" />}
                 {pending ? submitBusyLabel : (mode === 'edit' ? 'Save and Close' : submitLabel)}

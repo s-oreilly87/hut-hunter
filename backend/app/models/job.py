@@ -77,6 +77,16 @@ class JobStatus(str, Enum):
                                     /trigger, check_availability, scheduler_tick)
         takeover expired         -> NEEDS_ATTENTION -> WAITING/CHECKING (same lazy
                                     expiry path as HOLD_PLACED)
+        (create) on a
+         not-yet-released date   -> AWAITING_WINDOW (THR-124; instead of
+                                    PAUSED/WAITING — monitoring stays off until
+                                    the computed window_opens_at)
+        window opens             -> AWAITING_WINDOW -> WAITING (scheduler_tick
+                                    arms it with next_check_at=now and a tight
+                                    poll-burst cadence — see poll_worker.py)
+        edit lands on a still-
+         not-yet-released date   -> AWAITING_WINDOW -> AWAITING_WINDOW (params
+                                    edit recomputes window_opens_at)
 
     EXPIRED is a virtual/computed status returned by the API when a DOC-adapter
     job's start date has passed 8pm New Zealand time. It is never written to the
@@ -84,6 +94,14 @@ class JobStatus(str, Enum):
 
     WAITING means "monitoring on, between scheduled runs" — the scheduler will
     pick this job up on its next tick once next_check_at is due.
+
+    AWAITING_WINDOW (THR-124): the job's requested date isn't inside the
+    adapter's booking window yet (Camis' rolling per-park/per-province
+    release schedule — see BaseAdapter.check_booking_window). Monitoring is
+    off (next_check_at is null) so no polls are wasted; window_opens_at holds
+    the computed go-live time and scheduler_tick's arm pass flips the job to
+    WAITING with next_check_at=now the moment that time passes, so the first
+    check happens as close to window-open as the 30s scheduler tick allows.
 
     NEEDS_ATTENTION (THR-122): the hold worker hit an unexpected condition mid-
     funnel (an unrecognized blocking dialog, a locator timeout — anything the
@@ -98,6 +116,7 @@ class JobStatus(str, Enum):
     WAITING = "waiting"
     HOLD_PLACED = "hold_placed"
     NEEDS_ATTENTION = "needs_attention"
+    AWAITING_WINDOW = "awaiting_window"
     BOOKING_COMPLETE = "booking_complete"
     CANCELLED = "cancelled"
     EXPIRED = "expired"
@@ -168,6 +187,28 @@ class WatchJob(SQLModel, table=True):
     # flow. Used by the frontend to render a lightweight artifact gallery for
     # holds and receipts.
     artifact_history: str | None = None
+    # THR-124: computed booking-window-open time (UTC) for a job parked in
+    # AWAITING_WINDOW. Null once the job has ever left that state. See
+    # BaseAdapter.check_booking_window / BaseCamisAdapter for how this is
+    # computed, and poll_worker.scheduler_tick for the arm pass that reads it.
+    window_opens_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    # False when window_opens_at is a best-effort fallback (e.g. local
+    # midnight on the first day the season calendar considers reservable)
+    # rather than a confirmed go-live timestamp. Purely informational —
+    # surfaced so the UI can hedge ("opens {date}" vs "opens sometime on
+    # {date}").
+    window_opens_precise: bool = Field(default=True)
+    # THR-124: while set and in the future, the poll worker/scheduler use a
+    # tight poll-burst cadence instead of interval_minutes — set when a job
+    # arms at its computed window_opens_at, since the first few minutes after
+    # a Camis launch are the actual competitive window.
+    window_burst_until: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
 
 
 class WatchJobCreate(SQLModel):
@@ -190,6 +231,22 @@ class WatchJobUpdate(SQLModel):
     auto_book: bool | None = None
     enable_monitoring: bool | None = None
     interval_minutes: int | None = None
+
+
+class WindowCheckRequest(SQLModel):
+    """Request body for POST /jobs/window-check (THR-124) — lets the wizard
+    ask "is this date released yet?" before the user saves the hunt."""
+    adapter_id: str
+    params: dict
+
+
+class WindowCheckResponse(SQLModel):
+    """Response body for POST /jobs/window-check — mirrors
+    ``BookingWindowInfo`` (see app/adapters/base.py)."""
+    is_open: bool
+    opens_at: datetime | None = None
+    opens_at_precise: bool = True
+    evidence: str = ""
 
 
 class WatchJobRead(SQLModel):
@@ -217,6 +274,11 @@ class WatchJobRead(SQLModel):
     last_artifact_png: str | None = None
     last_artifact_html: str | None = None
     artifact_history: list[dict] | None = None
+    # THR-124: set while status == "awaiting_window" — the computed UTC
+    # go-live time and whether it's a confirmed timestamp or a best-effort
+    # fallback (see WatchJob.window_opens_precise). Null otherwise.
+    window_opens_at: datetime | None = None
+    window_opens_precise: bool = True
 
     @classmethod
     def from_db(
@@ -304,4 +366,6 @@ class WatchJobRead(SQLModel):
             last_artifact_png=png_url,
             last_artifact_html=html_url,
             artifact_history=artifact_history,
+            window_opens_at=as_optional_utc(job.window_opens_at),
+            window_opens_precise=job.window_opens_precise,
         )

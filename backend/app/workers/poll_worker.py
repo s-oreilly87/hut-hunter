@@ -24,10 +24,12 @@ from sqlmodel import select
 
 from app.workers._shared import (
     UNAVAILABLE_SNAPSHOT_LABEL,
+    WINDOW_BURST_MINUTES,
     _browser_page,
     _check_job_arq_id,
     _clear_unavailable_snapshot,
     _consume_adapter_artifacts,
+    _effective_interval_minutes,
     _get_active_cart,
     _latest_artifact_base,
     _params_have_occupants,
@@ -112,7 +114,9 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             if stale_job is not None:
                 if stale_job.enable_monitoring:
                     await _set_status(session, stale_job, JobStatus.WAITING)
-                    stale_job.next_check_at = utcnow() + timedelta(minutes=stale_job.interval_minutes)
+                    stale_job.next_check_at = utcnow() + timedelta(
+                        minutes=_effective_interval_minutes(stale_job)
+                    )
                     session.add(stale_job)
                     await session.commit()
                 else:
@@ -250,7 +254,9 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             if not hold_enqueued and job.status == JobStatus.CHECKING.value:
                 if job.enable_monitoring:
                     job.status = JobStatus.WAITING.value
-                    job.next_check_at = utcnow() + timedelta(minutes=job.interval_minutes)
+                    job.next_check_at = utcnow() + timedelta(
+                        minutes=_effective_interval_minutes(job)
+                    )
                 else:
                     job.status = JobStatus.PAUSED.value
                     job.next_check_at = None
@@ -269,6 +275,11 @@ async def scheduler_tick(ctx: dict) -> dict:
     """Periodic scan — enqueue overdue checks and resume after expired holds.
     Runs every 30 seconds on the poll worker.
 
+    Pass 0 (THR-124): AWAITING_WINDOW jobs whose computed window_opens_at has
+    passed flip to WAITING with next_check_at=now and a tight poll-burst
+    cadence, so pass 2 (same tick) or the next tick dispatches them almost
+    immediately.
+
     Pass 1: HOLD_PLACED jobs with no active cart flip to WAITING with
     next_check_at=now so pass 2 picks them up immediately.
 
@@ -278,6 +289,7 @@ async def scheduler_tick(ctx: dict) -> dict:
     so a second enqueue while one is pending/running is a no-op.
     """
     now = utcnow()
+    armed = 0
     dispatched = 0
     resumed_from_hold = 0
     deduped = 0
@@ -288,6 +300,35 @@ async def scheduler_tick(ctx: dict) -> dict:
     from sqlmodel import select  # local to avoid top-level circular risk
 
     async with AsyncSessionLocal() as session:
+        # Pass 0 — THR-124: arm hunts whose booking window has opened.
+        awaiting_jobs = (await session.execute(
+            select(WatchJob).where(
+                WatchJob.status == JobStatus.AWAITING_WINDOW.value,
+                WatchJob.window_opens_at.is_not(None),
+                WatchJob.window_opens_at <= now,
+            )
+        )).scalars().all()
+        for job in awaiting_jobs:
+            try:
+                params = json.loads(job.params)
+            except Exception:
+                logger.exception(f"scheduler_tick: bad params JSON for awaiting_window job {job.id}")
+                continue
+            if is_job_expired(job.adapter_id, params):
+                # Cutoff passed before the window even opened — leave it
+                # parked; the API's EXPIRED overlay already surfaces this to
+                # the user (see WatchJobRead.from_db), and arming it would
+                # just enqueue a check that's rejected as expired anyway.
+                continue
+            logger.info(f"scheduler_tick: booking window open for job {job.id} — arming")
+            job.status = JobStatus.WAITING.value
+            job.next_check_at = now
+            job.window_burst_until = now + timedelta(minutes=WINDOW_BURST_MINUTES)
+            session.add(job)
+            armed += 1
+        if awaiting_jobs:
+            await session.commit()
+
         # Pass 1 — hold-expiry. Fetch all HOLD_PLACED/NEEDS_ATTENTION jobs
         # (should be few) and check per-job. N+1 is fine at this scale.
         # THR-122: NEEDS_ATTENTION (parked takeover session after an
@@ -348,7 +389,7 @@ async def scheduler_tick(ctx: dict) -> dict:
             # fresh state. Per-job commit avoids a race with concurrent writes.
             if job.status == JobStatus.WAITING.value:
                 job.status = JobStatus.CHECKING.value
-            job.next_check_at = now + timedelta(minutes=job.interval_minutes)
+            job.next_check_at = now + timedelta(minutes=_effective_interval_minutes(job))
             session.add(job)
             await session.commit()
 
@@ -362,12 +403,14 @@ async def scheduler_tick(ctx: dict) -> dict:
                 continue
             dispatched += 1
 
-    if dispatched or resumed_from_hold or deduped or skipped_expired:
+    if armed or dispatched or resumed_from_hold or deduped or skipped_expired:
         logger.info(
-            f"scheduler_tick: dispatched={dispatched} resumed_from_hold={resumed_from_hold} "
-            f"deduped={deduped} skipped_expired={skipped_expired}"
+            f"scheduler_tick: armed={armed} dispatched={dispatched} "
+            f"resumed_from_hold={resumed_from_hold} deduped={deduped} "
+            f"skipped_expired={skipped_expired}"
         )
     return {
+        "armed": armed,
         "dispatched": dispatched,
         "resumed_from_hold": resumed_from_hold,
         "deduped": deduped,

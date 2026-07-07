@@ -9,6 +9,7 @@ import {
   type Occupant,
   type ParamField,
   type WatchJob,
+  type WindowCheckResult,
 } from '@/lib/api'
 import { isDateValidInTz, toAdapterDateValue } from '@/lib/jobDate'
 import { buildCurrentOccupantSnapshot } from '@/lib/occupantSnapshots'
@@ -37,6 +38,16 @@ export interface JobFormController {
   selectedOccupantIds: string[]
   setSelectedOccupantIds: (ids: string[]) => void
   error: string | null
+
+  // THR-124: "is the requested date released yet?" — live-checked against
+  // /jobs/window-check for adapters with a rolling booking window (Camis).
+  // windowCheck is undefined while loading/not-applicable. When is_open is
+  // false, the wizard must show the notice and the user must acknowledge()
+  // before submit is allowed.
+  windowCheck: WindowCheckResult | undefined
+  windowCheckLoading: boolean
+  windowAcknowledged: boolean
+  acknowledgeWindow: () => void
 
   // External data
   adapters: AdapterInfo[]
@@ -117,6 +128,10 @@ export function useJobForm({
     mode === 'edit' && initialJob ? String(initialJob.interval_minutes) : '15',
   )
   const [error, setError] = useState<string | null>(null)
+  // THR-124: keyed rather than a plain boolean so changing the date/park
+  // after acknowledging automatically un-acknowledges (see windowAckKey
+  // below) without needing a state-resetting effect.
+  const [acknowledgedWindowKey, setAcknowledgedWindowKey] = useState<string | null>(null)
   const [selectedOccupantIds, setSelectedOccupantIds] = useState<string[]>(() => {
     if (mode === 'edit' && initialJob) {
       const snapped = initialJob.params.occupants
@@ -146,6 +161,40 @@ export function useJobForm({
   const hasCredentialsForSelectedAdapter =
     !selectedAdapter?.requires_credentials
     || credentials.some((credential) => credential.adapter_id === selectedAdapterId)
+
+  // THR-124: live "is this date released yet?" check. Only the date +
+  // park/booking-category fields matter for window gating (see the
+  // backend's BaseCamisAdapter.check_booking_window), so those are what key
+  // the query — changing party size, campers, etc. doesn't refetch it.
+  const dateField = selectedAdapter?.param_fields.find((f) => f.type === 'date')
+  const dateValue = dateField ? String(params[dateField.key] ?? '') : ''
+  const windowCheckAdapterDate = dateValue ? toAdapterDateValue(dateValue) : ''
+  const windowCheckEnabled = Boolean(
+    selectedAdapter?.has_booking_windows && dateField && windowCheckAdapterDate,
+  )
+  const windowCheckQuery = useQuery({
+    queryKey: [
+      'jobs', 'window-check', selectedAdapterId, windowCheckAdapterDate,
+      params.park, params.booking_category,
+    ],
+    queryFn: () => jobsApi.checkWindow({
+      adapter_id: selectedAdapterId,
+      params: {
+        ...params,
+        [dateField!.key]: windowCheckAdapterDate,
+      },
+    }),
+    enabled: windowCheckEnabled,
+    staleTime: 60_000,
+    retry: false,
+  })
+  const windowCheck = windowCheckEnabled ? windowCheckQuery.data : undefined
+  const windowAckKey = (windowCheck && !windowCheck.is_open)
+    ? `${selectedAdapterId}|${windowCheckAdapterDate}|${String(params.park ?? '')}|${windowCheck.opens_at ?? ''}`
+    : null
+  const windowNotOpen = windowAckKey !== null
+  const windowAcknowledged = windowNotOpen ? acknowledgedWindowKey === windowAckKey : true
+  const acknowledgeWindow = () => setAcknowledgedWindowKey(windowAckKey)
 
   // Filter to currently-present roster occupants. Stale ids (campers since
   // deleted) are dropped silently — see comment at the top of the file.
@@ -384,6 +433,11 @@ export function useJobForm({
       }
     }
 
+    if (windowNotOpen && !windowAcknowledged) {
+      setError('Please acknowledge the booking-window notice before saving this hunt.')
+      return
+    }
+
     const intervalNum = parseInt(intervalMinutes, 10)
     if (
       enableMonitoring
@@ -435,6 +489,10 @@ export function useJobForm({
     selectedOccupantIds,
     setSelectedOccupantIds,
     error,
+    windowCheck,
+    windowCheckLoading: windowCheckEnabled && windowCheckQuery.isFetching,
+    windowAcknowledged,
+    acknowledgeWindow,
     adapters,
     roster,
     occupantsLoading,

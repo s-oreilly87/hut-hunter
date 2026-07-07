@@ -11,6 +11,7 @@ from sqlmodel import select
 from app.api.auth import get_current_user
 from app.api._route_deps import (
     LIVE_HOLD_STATUSES,
+    _check_booking_window,
     _clamp_interval,
     _delete_job_artifacts,
     _enqueue_browser_close,
@@ -23,6 +24,7 @@ from app.api._route_deps import (
     get_redis,
 )
 from app.adapters import adapter_supports_automated_booking
+from app.adapters.base import BookingWindowInfo
 from app.core.adapter_credentials import get_user_configured_adapter_ids
 from app.core.database import get_session
 from app.models.job import (
@@ -31,6 +33,8 @@ from app.models.job import (
     WatchJobCreate,
     WatchJobRead,
     WatchJobUpdate,
+    WindowCheckRequest,
+    WindowCheckResponse,
     as_utc,
     is_job_expired,
     utcnow,
@@ -82,6 +86,32 @@ async def create_job(
         _validate_job_occupants_for_adapter(body.adapter_id, body.params)
 
     monitoring = body.enable_monitoring
+    window = await _check_booking_window(body.adapter_id, body.params)
+
+    if not window.is_open:
+        # THR-124: not yet released — park in AWAITING_WINDOW instead of the
+        # normal PAUSED/CHECKING split. Monitoring is forced on regardless of
+        # what the wizard sent: the scheduler needs to see this job to arm
+        # it, and auto-arming is the entire point of this state. No initial
+        # check is enqueued — there's nothing to check yet.
+        job = WatchJob(
+            user_id=current_user.id,
+            name=body.name,
+            adapter_id=body.adapter_id,
+            params=json.dumps(body.params),
+            auto_book=body.auto_book,
+            enable_monitoring=True,
+            interval_minutes=interval,
+            next_check_at=None,
+            status=JobStatus.AWAITING_WINDOW.value,
+            window_opens_at=window.opens_at,
+            window_opens_precise=window.opens_at_precise,
+        )
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        return await _serialize_job(session, job, configured_adapter_ids=configured_adapter_ids)
+
     job = WatchJob(
         user_id=current_user.id,
         name=body.name,
@@ -104,6 +134,25 @@ async def create_job(
             logger.exception(f"Failed to enqueue first check for new job {job.id}")
 
     return await _serialize_job(session, job, configured_adapter_ids=configured_adapter_ids)
+
+
+@router.post("/jobs/window-check", response_model=WindowCheckResponse)
+async def check_job_window(
+    body: WindowCheckRequest,
+    current_user: AppUser = Depends(get_current_user),
+):
+    """THR-124: "is this date released yet?" — called by the create/edit
+    wizard before the user saves, so the not-yet-released case can be
+    explained up front rather than discovered after the fact. Never 4xxs on
+    an unknown/non-windowed adapter or a lookup failure — see
+    ``_check_booking_window``'s fail-open contract."""
+    window = await _check_booking_window(body.adapter_id, body.params)
+    return WindowCheckResponse(
+        is_open=window.is_open,
+        opens_at=window.opens_at,
+        opens_at_precise=window.opens_at_precise,
+        evidence=window.evidence,
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=WatchJobRead)
@@ -162,6 +211,9 @@ async def update_job(
             _validate_job_occupants_for_adapter(job.adapter_id, next_params)
         job.auto_book = patch["auto_book"]
 
+    was_awaiting_window = job.status == JobStatus.AWAITING_WINDOW.value
+    window: BookingWindowInfo | None = None
+
     if "params" in patch:
         job.params = json.dumps(patch["params"])
         if not _params_have_occupants(patch["params"]):
@@ -170,6 +222,10 @@ async def update_job(
         job.last_checked_at = None
         job.last_artifact = None
         job.artifact_history = None
+        # THR-124: an edited date/park can move a job across the booking-
+        # window boundary in either direction — recheck it here rather than
+        # only at creation.
+        window = await _check_booking_window(job.adapter_id, patch["params"])
 
     prev_monitoring = job.enable_monitoring
     prev_interval = job.interval_minutes
@@ -182,7 +238,26 @@ async def update_job(
     now = utcnow()
     dispatch_now = False
 
-    if job.enable_monitoring and not prev_monitoring:
+    if window is not None and not window.is_open:
+        # THR-124: the edited date isn't released yet — park for auto-arm
+        # instead of the monitoring-transition logic below. Monitoring is
+        # forced on for the same reason as at creation: arming needs the
+        # scheduler to see this job.
+        job.status = JobStatus.AWAITING_WINDOW.value
+        job.enable_monitoring = True
+        job.next_check_at = None
+        job.window_burst_until = None
+        job.window_opens_at = window.opens_at
+        job.window_opens_precise = window.opens_at_precise
+    elif window is not None and was_awaiting_window:
+        # The job was parked awaiting a window that's now open (or the edit
+        # moved it to a date/park that no longer applies) — resume exactly
+        # like an OFF → ON monitoring transition.
+        job.window_opens_at = None
+        job.next_check_at = now
+        job.status = JobStatus.CHECKING.value if job.enable_monitoring else JobStatus.PAUSED.value
+        dispatch_now = job.enable_monitoring
+    elif job.enable_monitoring and not prev_monitoring:
         # OFF → ON
         job.next_check_at = now + timedelta(minutes=job.interval_minutes)
         if job.status in (JobStatus.PAUSED.value, JobStatus.CANCELLED.value):
@@ -195,6 +270,14 @@ async def update_job(
         job.next_check_at = None
         if job.status == JobStatus.WAITING.value:
             job.status = JobStatus.PAUSED.value
+        elif job.status == JobStatus.AWAITING_WINDOW.value:
+            # THR-124: AWAITING_WINDOW invariantly implies enable_monitoring
+            # — turning monitoring off explicitly cancels the pending auto-arm
+            # rather than leaving a job parked with nothing that will ever
+            # wake it (the scheduler's arm pass doesn't check this flag).
+            job.status = JobStatus.PAUSED.value
+            job.window_opens_at = None
+            job.window_burst_until = None
     elif job.enable_monitoring and prev_monitoring:
         # Monitoring stays on — reschedule if interval changed, and always
         # trigger an immediate check so the user sees fresh results for any edit.

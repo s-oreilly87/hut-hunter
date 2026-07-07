@@ -13,12 +13,32 @@ from sqlmodel import select
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 import app.models  # noqa: F401 - registers SQLModel metadata
-from app.models.job import JobStatus, WatchJob, utcnow
+from app.models.job import JobStatus, WatchJob, as_optional_utc, utcnow
 from app.models.session import CartSession
 
 logger = logging.getLogger(__name__)
 
 UNAVAILABLE_SNAPSHOT_LABEL = "unavailable"
+
+# THR-124: once a hunt auto-arms at its computed booking-window-open time,
+# poll it aggressively for a short burst — this is the actual competitive
+# window for beating the launch-morning rush on a Camis site — then fall
+# back to the job's own configured interval_minutes.
+WINDOW_BURST_MINUTES = 15
+WINDOW_BURST_INTERVAL_MINUTES = 1
+
+
+def _effective_interval_minutes(job: WatchJob) -> int:
+    """Minutes until the next scheduled check for ``job``.
+
+    Returns the tight THR-124 burst cadence while ``window_burst_until`` is
+    set and still in the future, otherwise the job's configured
+    ``interval_minutes`` (unchanged pre-THR-124 behavior).
+    """
+    burst_until = as_optional_utc(job.window_burst_until)
+    if burst_until is not None and utcnow() < burst_until:
+        return WINDOW_BURST_INTERVAL_MINUTES
+    return job.interval_minutes
 
 # Stable ARQ job ID for check_availability dedup.
 # ARQ rejects a duplicate enqueue with the same _job_id while one is

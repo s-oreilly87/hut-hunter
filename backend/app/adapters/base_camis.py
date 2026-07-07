@@ -54,9 +54,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime, time, timedelta
+from datetime import date as date_cls, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
@@ -66,6 +67,7 @@ from app.adapters.base import (
     AvailabilityStatus,
     BaseAdapter,
     BookingResult,
+    BookingWindowInfo,
     OccupantField,
     ParamField,
 )
@@ -136,6 +138,11 @@ class BaseCamisAdapter(BaseAdapter):
 
     # Camis is account-based across all provinces.
     requires_credentials: bool = True
+
+    # THR-124: Camis dates release on a rolling per-park/per-province
+    # schedule (unlike the DOC adapters, which are always bookable). See
+    # check_booking_window below.
+    has_booking_windows: bool = True
 
     # Booking window. Subclasses set the province timezone; the cutoff default
     # is intentionally the base 23:59 until a real booking cutoff is confirmed.
@@ -407,6 +414,240 @@ class BaseCamisAdapter(BaseAdapter):
                     break
 
         return resolved
+
+    # ------------------------------------------------------------------
+    # Booking-window gating (THR-124)
+    #
+    # `/api/dateschedule/resourcelocationid` field shape CONFIRMED LIVE
+    # against both camping.bcparks.ca and reservations.ontarioparks.ca on
+    # 2026-07-07 (unauthenticated GET, identical shape on both sites):
+    #
+    #   {"<scheduleId>": {"displayOnline": bool, ..., "reservableDates": [
+    #       {"reservableDates": {"start": <ISO>, "end": <ISO>},
+    #        "goLiveDate": <naive local ISO or null>,
+    #        "goLiveDateUtc": <UTC ISO ("...Z") or null>,
+    #        "goLiveTimeZone": "Pacific Standard Time"}, ...
+    #   ], "operatingDates": [...], ...}, "<scheduleId2>": {...}}
+    #
+    # i.e. a dict keyed by scheduleId, each holding a *list* of per-season
+    # dicts nested one level under a same-named `reservableDates` key.
+    # `operatingDates` is a separate, much broader facility-operating range
+    # and is NOT the reservable window — never read it for gating.
+    #
+    # IMPORTANT: a future season's row commonly exists with `goLiveDate(Utc)`
+    # still null (the site hasn't published its release date yet) — e.g.
+    # every BC 2027 season sampled during recon. There is NO reliable
+    # relationship between a season's start date and its actual go-live time
+    # to fall back on: BC go-live dates ranged from ~11 months before to
+    # several months after the corresponding season start, while Ontario's
+    # go-live is typically the same instant as the season start — two
+    # different rolling-release models on the same API shape. So a range
+    # with no go-live date must NOT be treated as "opens on its start date";
+    # doing so could park a job (with polling fully OFF — see
+    # WatchJob.window_opens_at) until a wildly wrong date, silently missing
+    # the real release. Only a genuinely present `goLiveDate`/`goLiveDateUtc`
+    # produces an arm time; everything else fails OPEN (``is_open=True``,
+    # i.e. "poll normally, exactly like before THR-124").
+    # ------------------------------------------------------------------
+
+    _SCHEDULE_LIST_KEYS = ("dateSchedules", "schedules", "seasons", "items", "results")
+    _NESTED_RANGE_KEY = "reservableDates"  # confirmed: {"start": ..., "end": ...}
+    _RANGE_START_KEYS = (
+        "reservationStartDate", "reservableStartDate", "startDate", "seasonStartDate",
+    )
+    _RANGE_END_KEYS = (
+        "reservationEndDate", "reservableEndDate", "endDate", "seasonEndDate",
+    )
+    # goLiveDateUtc is confirmed always UTC already ("...Z") — tried first so
+    # no timezone guessing is needed for the common case.
+    _GO_LIVE_KEYS = (
+        "goLiveDateUtc", "goLiveDate", "goLiveDateTime", "onSaleDate",
+        "bookingWindowOpenDate", "releaseDate",
+    )
+
+    @staticmethod
+    def _parse_iso_datetime(value: Any) -> datetime | None:
+        if not isinstance(value, str) or not value:
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    @classmethod
+    def _first_datetime(cls, entry: dict, keys: tuple[str, ...]) -> datetime | None:
+        for key in keys:
+            parsed = cls._parse_iso_datetime(entry.get(key))
+            if parsed is not None:
+                return parsed
+        return None
+
+    @classmethod
+    def _schedule_entries(cls, data: Any) -> list[dict]:
+        """Flatten a dateschedule response into a list of per-season dicts.
+
+        Confirmed live shape (see module comment above): a dict keyed by
+        scheduleId, each value holding its seasons under a `reservableDates`
+        list. Also tolerates a bare list of season dicts, a dict wrapping the
+        list under one of ``_SCHEDULE_LIST_KEYS``, or a single season/schedule
+        object with no wrapper at all, for forward-compatibility with a Camis
+        site we haven't recon'd.
+        """
+        def _seasons_of(schedule: Any) -> list[dict]:
+            if not isinstance(schedule, dict):
+                return []
+            seasons = schedule.get(cls._NESTED_RANGE_KEY)
+            if isinstance(seasons, list):
+                return [s for s in seasons if isinstance(s, dict)]
+            return []
+
+        if isinstance(data, list):
+            return [e for e in data if isinstance(e, dict)]
+        if isinstance(data, dict):
+            flattened = [s for schedule in data.values() for s in _seasons_of(schedule)]
+            if flattened:
+                return flattened
+            for key in cls._SCHEDULE_LIST_KEYS:
+                value = data.get(key)
+                if isinstance(value, list):
+                    return [e for e in value if isinstance(e, dict)]
+            seasons = _seasons_of(data)
+            if seasons:
+                return seasons
+            return [data]
+        return []
+
+    @classmethod
+    def _entry_range(cls, entry: dict) -> tuple[datetime | None, datetime | None]:
+        """Extract (start, end) for one season entry.
+
+        Prefers the confirmed nested shape (``entry["reservableDates"] ==
+        {"start": ..., "end": ...}``); falls back to flat candidate keys for
+        an unrecon'd site.
+        """
+        nested = entry.get(cls._NESTED_RANGE_KEY)
+        if isinstance(nested, dict):
+            start = cls._parse_iso_datetime(nested.get("start"))
+            end = cls._parse_iso_datetime(nested.get("end"))
+            if start is not None or end is not None:
+                return start, end
+        return (
+            cls._first_datetime(entry, cls._RANGE_START_KEYS),
+            cls._first_datetime(entry, cls._RANGE_END_KEYS),
+        )
+
+    @classmethod
+    def _entry_go_live(cls, entry: dict, tz: Any) -> datetime | None:
+        """Return this season's confirmed go-live time (UTC), if published.
+
+        ``goLiveDateUtc`` is already UTC when present; ``_localize`` is a
+        no-op in that case and only does real work for the naive fallback
+        keys.
+        """
+        parsed = cls._first_datetime(entry, cls._GO_LIVE_KEYS)
+        if parsed is None:
+            return None
+        return cls._localize(parsed, tz)
+
+    @staticmethod
+    def _localize(dt: datetime, tz: Any) -> datetime:
+        """Return ``dt`` as an aware UTC datetime, treating a naive ``dt`` as
+        local to ``tz`` (or already-UTC if ``tz`` is None)."""
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc)
+        if tz is not None:
+            return dt.replace(tzinfo=tz).astimezone(timezone.utc)
+        return dt.replace(tzinfo=timezone.utc)
+
+    @classmethod
+    def _parse_booking_window(
+        cls, data: Any, target_date: date_cls, tz: Any,
+    ) -> BookingWindowInfo:
+        entries = cls._schedule_entries(data)
+        if not entries:
+            return BookingWindowInfo(
+                is_open=True, evidence="dateschedule returned no parseable entries",
+            )
+
+        for entry in entries:
+            start, end = cls._entry_range(entry)
+            if start is None and end is None:
+                continue
+            if (start is None or target_date >= start.date()) and (
+                end is None or target_date <= end.date()
+            ):
+                return BookingWindowInfo(
+                    is_open=True, evidence="target date is within a reservable range",
+                )
+
+        # No entry's reservable range covers target_date. Only a confirmed
+        # go-live timestamp produces an arm time — see the module comment
+        # above for why a range's start date is never used as a stand-in.
+        candidates = [
+            go_live
+            for entry in entries
+            if (go_live := cls._entry_go_live(entry, tz)) is not None
+        ]
+
+        if not candidates:
+            return BookingWindowInfo(
+                is_open=True,
+                evidence=(
+                    "target date not covered by any reservable range and no "
+                    "confirmed go-live date is published yet — failing open"
+                ),
+            )
+
+        open_dt = min(candidates)
+        return BookingWindowInfo(
+            is_open=False,
+            opens_at=open_dt,
+            opens_at_precise=True,
+            evidence=f"target date not covered by any reservable range; earliest confirmed go-live is {open_dt.isoformat()}",
+        )
+
+    async def check_booking_window(self, params: dict) -> BookingWindowInfo:
+        """Query the season calendar to see if ``params['date']`` is already
+        reservable (THR-124). See the module comment above for caveats.
+
+        Fails open (``is_open=True``) on any missing param, network error, or
+        unparseable response — a broken lookup must never park a job that
+        would otherwise have worked exactly as it did before this feature.
+        """
+        resolved = self._resolve_params(params)
+        rl_id = resolved.get("resource_location_id")
+        date_str = resolved.get("date")
+        if rl_id is None or not date_str:
+            return BookingWindowInfo(is_open=True, evidence="missing resource_location_id/date")
+
+        try:
+            target_date = datetime.strptime(str(date_str), "%d/%m/%Y").date()
+        except ValueError:
+            return BookingWindowInfo(is_open=True, evidence=f"unparseable date {date_str!r}")
+
+        category_id = resolved.get("booking_category_id")
+        if category_id is None:
+            category_id = self._default_booking_category_id()
+
+        query: dict[str, Any] = {"resourceLocationId": int(rl_id)}
+        if category_id is not None:
+            query["bookingCategoryId"] = int(category_id)
+
+        try:
+            data = await self.fetch_json(self.API_DATE_SCHEDULE, params=query)
+        except Exception as exc:
+            logger.warning(
+                "dateschedule lookup failed for resourceLocationId=%s: %s — "
+                "treating booking window as open", rl_id, exc,
+            )
+            return BookingWindowInfo(is_open=True, evidence=f"dateschedule lookup failed: {exc}")
+
+        tz = ZoneInfo(self.booking_timezone) if self.booking_timezone else None
+        try:
+            return self._parse_booking_window(data, target_date, tz)
+        except Exception as exc:
+            logger.warning("failed to parse dateschedule response: %s — treating window as open", exc)
+            return BookingWindowInfo(is_open=True, evidence=f"dateschedule parse error: {exc}")
 
     # ------------------------------------------------------------------
     # Search + availability detection (HH-99, corrected in HH-102)
