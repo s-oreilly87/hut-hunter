@@ -384,6 +384,27 @@ class TestTargetDayInVisibleTableMonthGuard:
 
         assert taken is False
 
+    async def test_fast_path_not_taken_without_positive_month_evidence(self):
+        """THR-128 review tightening: a placeholder booking bar (no month in
+        the text) plus a table with day columns but NO month label leaves a
+        bare day-number match as the only signal — exactly the original
+        day-25-in-July trap. With no positive month evidence from either
+        source, the fast path must NOT be taken; the datepicker path's
+        _wait_for_booking_bar_dates hard-verify covers it instead."""
+        adapter = DocStandardHutAdapter()
+        _patch_table(adapter, rows_texts=[
+            ["Site", "08", "09", "10", "25"],
+        ])
+
+        taken = await adapter._target_day_in_visible_table(
+            page=object(),
+            target_day=25,
+            target_month="December",
+            bar_text="Select Arrival - End Date",
+        )
+
+        assert taken is False
+
 
 class TestExtractColumnDataMonthMismatchGuard:
     """`_extract_column_data` — defense-in-depth, independent of the fast path."""

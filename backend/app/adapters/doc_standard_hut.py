@@ -1328,7 +1328,22 @@ class DocStandardHutAdapter(BaseDOCAdapter):
                 if _text_contradicts_month(label, target_month):
                     return False
 
-            return True
+            # THR-128 review tightening: "nothing disagrees" alone still
+            # fails OPEN in the one corner that reproduces the original bug —
+            # a placeholder booking bar (no month in bar_text) plus a table
+            # that renders no month label leaves a bare day-number match as
+            # the only signal, which is exactly the day-25-in-July trap.
+            # Require POSITIVE month evidence from at least one source (the
+            # bar text or a table month label) before skipping the picker;
+            # with no evidence either way, fall through to the datepicker
+            # path, which ends in _wait_for_booking_bar_dates' hard verify.
+            target_tokens = {target_month.lower(), MONTH_SHORT[target_month].lower()}
+            bar_confirms = not _month_tokens_in_text(bar_text).isdisjoint(target_tokens)
+            table_confirms = any(
+                not _month_tokens_in_text(label).isdisjoint(target_tokens)
+                for label in month_label_texts
+            )
+            return bar_confirms or table_confirms
         except Exception:
             pass
         return False
