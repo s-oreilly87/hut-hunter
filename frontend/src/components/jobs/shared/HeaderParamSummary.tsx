@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
  * Renders a job's stored params as a compact, multi-row label/value list,
  * grouped by visual importance:
  *
- *   row 1: facility / facility_park
+ *   row 1: park (Camis) / facility / facility_park (DOC)
  *   row 2: track / date
  *   row 3: nights / people / direction
  *   row 4: sites
@@ -18,23 +18,32 @@ import { cn } from '@/lib/utils'
  * `centered` reserves a leading spacer so the content stays visually centered
  * when the pencil button is rendered (used in the mobile-back header layout
  * where the title row is centered).
+ *
+ * `parkUrl` (THR-129 item 2) is the backend-computed Camis results-page
+ * deep-link for the job's current params — threaded straight into the
+ * `park` field's href, since (unlike the DOC facility link) it needs
+ * adapter defaults only the backend knows.
  */
 export function HeaderParamSummary({
   params,
+  parkUrl,
   onEdit,
   centered = false,
   compact = false,
 }: {
   params: Record<string, unknown>
+  parkUrl?: string | null
   onEdit?: () => void
   centered?: boolean
   compact?: boolean
 }) {
-  const fields = getHeaderFields(params)
+  const fields = getHeaderFields(params, parkUrl)
 
   const content = fields.length
     ? (() => {
-        const facilityFields = fields.filter((field) => field.key === 'facility' || field.key === 'facility_park')
+        const facilityFields = fields.filter(
+          (field) => field.key === 'park' || field.key === 'facility' || field.key === 'facility_park',
+        )
         const primaryFields = fields.filter((field) => field.key === 'track' || field.key === 'date')
         const secondaryFields = fields.filter(
           (field) => field.key === 'nights' || field.key === 'people' || field.key === 'direction',

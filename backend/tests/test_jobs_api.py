@@ -313,6 +313,41 @@ async def test_get_job_surfaces_expiry_and_artifact_urls(client, seed_job, seed_
     ]
 
 
+async def test_get_job_surfaces_camis_park_url(client, seed_job):
+    # THR-129 item 2: a Camis job with a resolvable park option gets a
+    # park_url the frontend can hyperlink in the ShowJob info bar.
+    job = await seed_job(
+        adapter_id="camis_parks_canada",
+        params={
+            "park": "Banff - Castle Mountain (-2147483511)",
+            "booking_category": "Campsite",
+            "date": "01/08/2099",
+            "nights": 1,
+            "people": 2,
+            "occupants": [],
+        },
+    )
+
+    response = await client.get(f"/api/v1/jobs/{job.id}")
+
+    assert response.status_code == 200
+    park_url = response.json()["park_url"]
+    assert park_url is not None
+    assert park_url.startswith("https://reservation.pc.gc.ca/create-booking/results")
+    assert "resourceLocationId=-2147483511" in park_url
+
+
+async def test_get_job_park_url_null_for_doc_adapter(client, seed_job, make_job_params):
+    # DOC adapters have no results_url override — park_url stays null and
+    # the frontend keeps using parseFacilityOption's client-side link instead.
+    job = await seed_job(params=make_job_params())
+
+    response = await client.get(f"/api/v1/jobs/{job.id}")
+
+    assert response.status_code == 200
+    assert response.json()["park_url"] is None
+
+
 async def test_clear_unavailable_snapshot_removes_only_previous_unavailable_artifact(
     seed_job,
     session_factory,

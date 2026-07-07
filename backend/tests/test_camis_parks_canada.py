@@ -8,6 +8,7 @@ Adapter Builder pipeline. Same thin shape as the Ontario tests.
 from __future__ import annotations
 
 from app.adapters import (
+    adapter_park_url,
     adapter_requires_credentials,
     adapter_supports_automated_booking,
     get_adapter,
@@ -62,3 +63,33 @@ def test_config_only_no_behaviour_overrides():
     for name in ("param_fields", "_resolve_params", "detect_availability",
                  "attempt_hold", "fill_form", "occupant_fields"):
         assert name not in CamisParksCanadaAdapter.__dict__
+
+
+def test_adapter_park_url_builds_results_deep_link():
+    # THR-129 item 2: WatchJobRead.park_url is populated via this helper —
+    # exercise it against the real parks_canada.json catalog (Banff - Castle
+    # Mountain, -2147483511) so a genuine "Name (id)" option round-trips into
+    # a results-page deep-link the frontend can hyperlink.
+    park_option = next(
+        opt for opt in CamisParksCanadaAdapter.param_fields()[0].options
+        if opt.startswith("Banff - Castle Mountain")
+    )
+    url = adapter_park_url(
+        "camis_parks_canada",
+        {"park": park_option, "booking_category": "Campsite", "date": "01/08/2099", "nights": 1, "people": 2},
+    )
+    assert url is not None
+    assert url.startswith("https://reservation.pc.gc.ca/create-booking/results")
+    assert "resourceLocationId=-2147483511" in url
+
+
+def test_adapter_park_url_none_when_unresolvable():
+    # No park selected yet — fails soft to None, same as the adapter method.
+    assert adapter_park_url("camis_parks_canada", {}) is None
+
+
+def test_adapter_park_url_none_for_unknown_or_non_camis_adapter():
+    # Unknown adapter id: tolerated, same fail-open posture as the rest of
+    # this module. DOC adapters: no override, base default is None.
+    assert adapter_park_url("nope", {}) is None
+    assert adapter_park_url("doc_great_walk", {"track": "Routeburn Track"}) is None

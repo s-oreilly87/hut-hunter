@@ -1193,6 +1193,14 @@ class BaseCamisAdapter(BaseAdapter):
             f"&partySize={party_size}"
         )
 
+    def results_url(self, params: dict) -> str | None:
+        """THR-129 item 2: public wrapper around ``_results_deep_link`` so
+        job serialization can surface a park link in the ShowJob info bar
+        without reaching into the adapter's private helper. Same
+        fails-soft-to-None contract as the private method (unresolvable
+        params, e.g. no park selected yet)."""
+        return self._results_deep_link(params)
+
     async def fill_form(self, page: Page, params: dict) -> None:
         """Warm the browser context and snapshot the search results.
 

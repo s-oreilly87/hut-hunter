@@ -1,6 +1,7 @@
 import { Clock3, LockKeyhole, Plus, Users } from 'lucide-react'
 import type { JobFilterKey } from '@/components/jobs/jobFilters'
 import type { DashboardStat } from '@/components/layout/types'
+import { InfoTooltip } from '@/components/ui/SectionHeading'
 import { cn } from '@/lib/utils'
 
 export type { DashboardStat }
@@ -136,6 +137,7 @@ export function StatsGrid({
   onOpenOccupants,
   onOpenCredentials,
   showNewHuntTile = true,
+  compact = false,
 }: {
   stats: DashboardStat[]
   totalJobs: number
@@ -147,6 +149,11 @@ export function StatsGrid({
   onOpenOccupants: () => void
   onOpenCredentials: () => void
   showNewHuntTile?: boolean
+  // THR-129 item 5: desktop-only — moves each tile's description into an
+  // info tooltip beside the label and drops the min-h-28 floor so the
+  // status/filter tile row tightens up, leaving more room for the
+  // Index/Show cards below it. Mobile keeps the full description text.
+  compact?: boolean
 }) {
   const visibleStats = stats.filter((s) => s.value > 0)
   const showOccupantsTile = !hasOccupants
@@ -176,20 +183,33 @@ export function StatsGrid({
             return (
               <article
                 key={stat.filterKey}
+                role="button"
+                tabIndex={0}
                 className={cn(
-                  'app-panel w-full min-h-28 overflow-hidden px-5 py-3.5 sm:w-60',
+                  'app-panel w-full overflow-hidden px-5 py-3.5 text-left sm:w-60',
+                  !compact && 'min-h-28',
                   isActive && 'ring-2 ring-primary/25',
                 )}
+                onClick={() => onFilterSelect(stat.filterKey)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onFilterSelect(stat.filterKey)
+                  }
+                }}
               >
-                <button
-                  type="button"
-                  className="flex w-full items-start justify-between gap-3 text-left"
-                  onClick={() => onFilterSelect(stat.filterKey)}
-                >
+                <div className="flex w-full items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      {stat.label}
-                    </p>
+                    <div className="flex items-center gap-1">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {stat.label}
+                      </p>
+                      {compact && (
+                        <span onClick={(e) => e.stopPropagation()}>
+                          <InfoTooltip content={stat.description} align="start" />
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-foreground">
                       {stat.value}
                     </p>
@@ -200,11 +220,13 @@ export function StatsGrid({
                   )}>
                     <stat.icon className="size-5" />
                   </div>
-                </button>
+                </div>
 
-                <p className="mt-2 text-xs leading-4 text-pretty text-muted-foreground">
-                  {stat.description}
-                </p>
+                {!compact && (
+                  <p className="mt-2 text-xs leading-4 text-pretty text-muted-foreground">
+                    {stat.description}
+                  </p>
+                )}
               </article>
             )
           })}

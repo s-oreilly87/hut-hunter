@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { StatsGrid } from '@/components/dashboard/StatsGrid'
+import { RecentHuntsPreview } from '@/components/dashboard/RecentHuntsPreview'
 import { FilterDropdown } from '@/components/jobs/FilterDropdown'
 import { JobList } from '@/components/jobs/JobList'
 import { JobCard } from '@/components/jobs/JobCard'
@@ -54,20 +55,28 @@ export function MobileApp({
         )}
       >
         {route.name === 'dashboard' && (
-          <StatsGrid
-            stats={stats}
-            totalJobs={totalJobs}
-            activeFilters={statusFilters}
-            hasOccupants={hasOccupants}
-            missingCredentialCount={missingCredentialCount}
-            onFilterSelect={(key) => {
-              onStatusFiltersChange([key])
-              navigate({ name: 'jobs' })
-            }}
-            onCreateJob={() => navigate({ name: 'create-job' })}
-            onOpenOccupants={() => setOccupantsOpen(true)}
-            onOpenCredentials={() => setCredentialsOpen(true)}
-          />
+          <div className="flex flex-col gap-4">
+            <StatsGrid
+              stats={stats}
+              totalJobs={totalJobs}
+              activeFilters={statusFilters}
+              hasOccupants={hasOccupants}
+              missingCredentialCount={missingCredentialCount}
+              onFilterSelect={(key) => {
+                onStatusFiltersChange([key])
+                navigate({ name: 'jobs' })
+              }}
+              onCreateJob={() => navigate({ name: 'create-job' })}
+              onOpenOccupants={() => setOccupantsOpen(true)}
+              onOpenCredentials={() => setCredentialsOpen(true)}
+            />
+            {/* THR-129 item 5: the dashboard used to go mostly blank once the
+                setup tiles clear and every count tile reads zero -- this
+                keeps something worth looking at on the screen. */}
+            <RecentHuntsPreview
+              onSelectJob={(jobId) => navigate({ name: 'job-detail', jobId })}
+            />
+          </div>
         )}
 
         {route.name === 'jobs' && (

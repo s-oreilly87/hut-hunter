@@ -92,6 +92,26 @@ export function parseFacilityOption(value: unknown): ParsedFacility | null {
   }
 }
 
+// THR-129 item 2: Camis (BC Parks / Ontario Parks / Parks Canada) jobs store
+// their selected park as "Name (resource_location_id)" — mirrors the
+// backend's `_PARK_OPTION_RE` convention in base_camis.py. Unlike the DOC
+// facility link (built entirely client-side from the parsed id), the Camis
+// results-page link needs the adapter's map_id/booking_category defaults,
+// which only the backend knows — so this parser only extracts the display
+// name; the href comes from `WatchJob.park_url` (computed server-side).
+const CAMIS_PARK_OPTION_RE = /^(.+?)\s*\((-?\d+)\)$/
+
+interface ParsedCamisPark {
+  name: string
+}
+
+export function parseCamisParkOption(value: unknown): ParsedCamisPark | null {
+  if (typeof value !== 'string') return null
+  const m = CAMIS_PARK_OPTION_RE.exec(value.trim())
+  if (!m) return null
+  return { name: m[1].trim() }
+}
+
 export function getJobParamIcon(key: string): LucideIcon | null {
   switch (key) {
     case 'track':
@@ -112,7 +132,21 @@ export function getJobParamIcon(key: string): LucideIcon | null {
   }
 }
 
-export function getHeaderFields(params: Record<string, unknown>): JobHeaderField[] {
+export function getHeaderFields(
+  params: Record<string, unknown>,
+  parkUrl?: string | null,
+): JobHeaderField[] {
+  const parkParsed = parseCamisParkOption(params.park)
+  const park: JobHeaderField | null = parkParsed
+    ? {
+        key: 'park',
+        label: 'Park',
+        value: parkParsed.name,
+        icon: MapPinned,
+        href: parkUrl ?? undefined,
+      }
+    : null
+
   const facilityParsed = parseFacilityOption(params.facility)
   const facility: JobHeaderField | null = facilityParsed
     ? {
@@ -188,7 +222,7 @@ export function getHeaderFields(params: Record<string, unknown>): JobHeaderField
       }
     : null
 
-  return [facility, facilityPark, track, date, nights, people, direction, sites].filter(
+  return [park, facility, facilityPark, track, date, nights, people, direction, sites].filter(
     (field): field is JobHeaderField => Boolean(field),
   )
 }
@@ -275,6 +309,15 @@ export function getJobSubtitle(
     const startDate = dateFieldKey ? formatDateLabel(job.params[dateFieldKey]) : null
     if (facilityName && startDate) return `${facilityName}, ${startDate}`
     if (facilityName) return facilityName
+  }
+
+  const parkStr = typeof job.params.park === 'string' ? job.params.park.trim() : ''
+  if (parkStr) {
+    const parsedPark = parseCamisParkOption(parkStr)
+    const parkName = parsedPark?.name ?? parkStr
+    const parkStartDate = dateFieldKey ? formatDateLabel(job.params[dateFieldKey]) : null
+    if (parkName && parkStartDate) return `${parkName}, ${parkStartDate}`
+    if (parkName) return parkName
   }
 
   const trackFieldKey = getTrackFieldKey(job, trackFieldKeyById)
