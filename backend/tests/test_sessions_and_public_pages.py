@@ -49,7 +49,7 @@ async def test_pay_page_renders_vnc_embed_for_active_hold(client, seed_job, seed
     assert 'const vncConfig = {"base_url": null, "host": null, "port": 6080, "path": "websockify"};' in response.text
     assert "/vnc.html" in response.text
     assert "window.location.hostname" in response.text
-    assert "resize', isMobileEmbed ? 'scale' : 'remote'" in response.text
+    assert "resize', 'scale'" in response.text
     assert "view_clip', '0'" in response.text
     assert "syncViewportHeight" in response.text
     assert "Open VNC directly" in response.text

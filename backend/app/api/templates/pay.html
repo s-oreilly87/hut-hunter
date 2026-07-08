@@ -335,7 +335,15 @@
 
       const url = new URL(`${baseUrl}/vnc.html`);
       url.searchParams.set('autoconnect', '1');
-      url.searchParams.set('resize', isMobileEmbed ? 'scale' : 'remote');
+      // 'scale' on both desktop and mobile: the remote framebuffer is a fixed
+      // size (SCREEN_GEOMETRY, sized to contain the headed Chromium window) and
+      // 'scale' fits that whole framebuffer into this iframe, preserving aspect
+      // ratio and letterboxing if needed — so the booking window is never
+      // clipped regardless of how wide/narrow the portal is. 'remote' (used
+      // here previously for desktop) relied on the VNC server honouring a
+      // client resize request; when it doesn't, the framebuffer stays put and
+      // anything wider than the iframe gets cropped off the right edge.
+      url.searchParams.set('resize', 'scale');
       url.searchParams.set('scale', '1');
       url.searchParams.set('view_clip', '0');
       if (host) url.searchParams.set('host', host);

@@ -1030,14 +1030,16 @@ class BaseCamisAdapter(BaseAdapter):
                     for day in sorted(days) if 0 <= day <= 6
                 )
                 if cls._range_covers(rng, arrival) and cls._dotnet_day_of_week(arrival) not in days:
+                    arrival_day = cls._STAY_PATTERN_DAY_NAMES[cls._dotnet_day_of_week(arrival)]
                     return (
-                        f"arrival {arrival.isoformat()} isn't an allowed arrival/departure "
-                        f"day for this period — allowed days: {allowed_names}"
+                        f"arrival {arrival.isoformat()} is a {arrival_day} — this period only "
+                        f"allows arrival or departure on {allowed_names}"
                     )
                 if cls._range_covers(rng, departure) and cls._dotnet_day_of_week(departure) not in days:
+                    departure_day = cls._STAY_PATTERN_DAY_NAMES[cls._dotnet_day_of_week(departure)]
                     return (
-                        f"departure {departure.isoformat()} isn't an allowed arrival/departure "
-                        f"day for this period — allowed days: {allowed_names}"
+                        f"departure {departure.isoformat()} is a {departure_day} — this period only "
+                        f"allows arrival or departure on {allowed_names}"
                     )
             for override in schedule.get("minStayOverrides") or []:
                 limit = override.get("stayDurationLimitDays")

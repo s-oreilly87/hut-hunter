@@ -113,8 +113,8 @@ async def test_window_check_endpoint_surfaces_stay_pattern_violation(monkeypatch
         route_jobs, "_check_stay_pattern",
         _fake_stay_pattern_check(StayPatternInfo(
             is_compliant=False,
-            evidence="departure 2026-10-10 isn't an allowed arrival/departure day "
-                     "for this period — allowed days: Monday, Friday",
+            evidence="departure 2026-10-10 is a Saturday — this period only "
+                     "allows arrival or departure on Monday, Friday",
         )),
     )
 
