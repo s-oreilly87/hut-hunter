@@ -15,6 +15,10 @@ from app.models.credential import AdapterCredentialSecret
 class AvailabilityStatus(str, Enum):
     AVAILABLE = "available"
     PARTIALLY_AVAILABLE = "partially_available"
+    # THR-133: sites exist but the requested stay pattern is blocked by a
+    # Camis arrival/departure changeover or min/max-stay rule — distinct from
+    # UNAVAILABLE (sold out) since adjusting dates/nights could still work.
+    RESTRICTED = "restricted"
     UNAVAILABLE = "unavailable"
     UNKNOWN = "unknown"
 

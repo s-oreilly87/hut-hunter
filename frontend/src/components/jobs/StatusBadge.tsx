@@ -22,6 +22,7 @@ const DISPLAY_LABEL: Record<string, string> = {
   hold_expired:         'Hold Expired',
   result_available:     'Available',
   result_partial:       'Partially Available',
+  result_restricted:    'Restricted',
   result_unavailable:   'Unavailable',
   result_hold_failed:   'Hold Failed',
 }
@@ -45,6 +46,10 @@ const STATUS_CLASS: Record<string, string | undefined> = {
   expired:              'bg-zinc-500 hover:bg-zinc-500 text-white',
   result_available:     'bg-emerald-500 hover:bg-emerald-500 text-white',
   result_partial:       'bg-amber-500 hover:bg-amber-500 text-white',
+  // THR-133: distinct from result_partial's amber-500 — reuses the
+  // needs_attention orange-600 token so "restricted" doesn't visually
+  // collide with "partially available".
+  result_restricted:    'bg-orange-600 hover:bg-orange-600 text-white',
   result_unavailable:   'bg-rose-500 hover:bg-rose-500 text-white',
   result_hold_failed:   'bg-rose-500 hover:bg-rose-500 text-white',
 }

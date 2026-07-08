@@ -441,3 +441,85 @@ async def test_check_availability_notification_includes_booking_and_hunt_links(
     assert "Booking site: https://bookings.doc.govt.nz/Web/Default.aspx#!greatwalk-result" in message
     # Hut Hunter show-hunt link — app_url + the hash route for this job.
     assert f"Open in Hut Hunter: https://hunt.example.com/#/jobs/{job.id}" in message
+
+
+# ---------------------------------------------------------------------------
+# THR-133 — a restriction-only result (arrival/departure changeover, not
+# sold out) gets its own distinct notification instead of silent UNAVAILABLE.
+# ---------------------------------------------------------------------------
+
+async def test_check_availability_notifies_on_restricted_only_result(
+    monkeypatch, seed_job, fake_redis,
+):
+    captured: list[dict] = []
+
+    async def fake_dispatch(settings_secret, *, title, message, priority=5):
+        captured.append({"title": title, "message": message})
+
+    async def fake_detect(page, params):
+        return [AvailabilityResult(
+            site="Golden Ears Provincial Park", status=AvailabilityStatus.RESTRICTED,
+            evidence="2 sites restricted (0/2 sites free for the full 2-night stay, 0 with ≥1 free night)",
+            total_available=0,
+        )]
+
+    adapter = _FakeWindowedAdapter(has_booking_windows=False, adapter_id="doc_great_walk")
+    adapter.detect_availability = fake_detect  # type: ignore[method-assign]
+    monkeypatch.setattr(poll_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(poll_worker, "_browser_page", _fake_detect_browser_page)
+    monkeypatch.setattr(poll_worker, "dispatch_notification_targets", fake_dispatch)
+
+    job = await seed_job(
+        adapter_id="doc_great_walk",
+        status=JobStatus.CHECKING.value,
+        enable_monitoring=True,
+        auto_book=True,
+    )
+
+    await poll_worker.check_availability({"redis": fake_redis}, job.id)
+
+    assert len(captured) == 1
+    assert captured[0]["title"] == "🔶 Restricted Availability"
+    assert "Golden Ears Provincial Park: 2 sites restricted" in captured[0]["message"]
+    assert "adjusting the dates or number of nights" in captured[0]["message"]
+    # A restricted-only result must never be treated as bookable, even with
+    # auto_book on — no hold task should be queued.
+    assert fake_redis.calls == []
+
+
+async def test_check_availability_suppresses_repeat_restricted_notification(
+    monkeypatch, seed_job,
+):
+    captured: list[dict] = []
+
+    async def fake_dispatch(settings_secret, *, title, message, priority=5):
+        captured.append({"title": title, "message": message})
+
+    async def fake_detect(page, params):
+        return [AvailabilityResult(
+            site="Golden Ears Provincial Park", status=AvailabilityStatus.RESTRICTED,
+            evidence="2 sites restricted", total_available=0,
+        )]
+
+    adapter = _FakeWindowedAdapter(has_booking_windows=False, adapter_id="doc_great_walk")
+    adapter.detect_availability = fake_detect  # type: ignore[method-assign]
+    monkeypatch.setattr(poll_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(poll_worker, "_browser_page", _fake_detect_browser_page)
+    monkeypatch.setattr(poll_worker, "dispatch_notification_targets", fake_dispatch)
+
+    job = await seed_job(
+        adapter_id="doc_great_walk",
+        status=JobStatus.CHECKING.value,
+        enable_monitoring=True,
+        auto_book=False,
+        last_result=[{
+            "site": "Golden Ears Provincial Park",
+            "status": "restricted",
+            "evidence": "2 sites restricted",
+            "total_available": 0,
+        }],
+    )
+
+    await poll_worker.check_availability({}, job.id)
+
+    assert captured == []

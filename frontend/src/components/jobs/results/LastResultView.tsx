@@ -47,6 +47,17 @@ export function LastResultView({
     (entry) => isAvailabilityResult(entry) && entry.status === 'unavailable',
   )
 
+  // THR-133: same bundling treatment for restriction-only sites, kept as a
+  // separate group from unavailableResults above since the two statuses
+  // shouldn't be merged into one tile.
+  const restrictedResults = result.filter(
+    (entry): entry is AvailabilityResult =>
+      isAvailabilityResult(entry) && entry.status === 'restricted',
+  )
+  const firstRestrictedIndex = result.findIndex(
+    (entry) => isAvailabilityResult(entry) && entry.status === 'restricted',
+  )
+
   return (
     <div className="space-y-3">
       {result.map((entry, index) => {
@@ -60,6 +71,17 @@ export function LastResultView({
                 key="unavailable-results"
                 entries={unavailableResults}
                 unavailableArtifact={unavailableArtifact}
+              />
+            )
+          }
+
+          if (entry.status === 'restricted') {
+            if (index !== firstRestrictedIndex) return null
+            return (
+              <UnavailableResultTile
+                key="restricted-results"
+                entries={restrictedResults}
+                status="restricted"
               />
             )
           }

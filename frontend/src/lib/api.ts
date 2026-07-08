@@ -59,6 +59,7 @@ export type JobStatus =
 export type AvailabilityStatusStr =
   | 'available'
   | 'partially_available'
+  | 'restricted'
   | 'unavailable'
   | 'unknown'
 
