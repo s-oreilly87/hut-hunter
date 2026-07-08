@@ -18,13 +18,13 @@ from app.adapters.base import (
     UnexpectedHoldFailure,
     VerificationStatus,
 )
-from app.adapters import adapter_requires_credentials, get_adapter
+from app.adapters import adapter_park_url, adapter_requires_credentials, get_adapter
 from app.core.adapter_credentials import get_adapter_credential_record, get_user_adapter_credentials
 from app.models.credential import CredentialVerificationState
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notification_settings import get_user_notification_settings_secret
-from app.core.notify import dispatch_notification_targets
+from app.core.notify import dispatch_notification_targets, format_notification_links
 from app.models.job import JobStatus, WatchJob, utcnow
 from app.workers._shared import (
     _browser_page,
@@ -467,6 +467,20 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             booking = BookingResult(success=False, held=False, message=f"Hold task error: {e}")
 
     # --- Notifications ---
+    # THR-130 follow-up: the hold worker sends the outcome email/Gotify for
+    # every auto-book job (poll_worker just enqueues the hold and stays quiet),
+    # so the booking-site + Hut Hunter links THR-130 added must be threaded
+    # here too — otherwise the messages users actually receive carry no links.
+    # Same fail-soft helper as poll_worker: a broken link builder just omits
+    # the booking line. Deliberately NOT appended to the two live-cart
+    # notifications below ("Needs your attention" / "Hold Secured!"), which
+    # already hand the user a specific reservation_url to act on — a second
+    # booking-site link there would steer them into starting a fresh booking
+    # instead of completing the held cart.
+    booking_url = adapter_park_url(job.adapter_id, params)
+    hunt_url = f"{settings.app_url}/#/jobs/{job_id}"
+    links_footer = format_notification_links(booking_url=booking_url, hunt_url=hunt_url)
+
     if needs_attention_url:
         # THR-122: this is time-critical — the browser is sitting on a live
         # cart/checkout page that a real booking site will silently release
@@ -509,7 +523,10 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
         await dispatch_notification_targets(
             notification_settings,
             title="🏕️ Just missed it",
-            message=f"Availability dropped before the hold could be placed for {params.get('date')}.",
+            message=(
+                f"Availability dropped before the hold could be placed for {params.get('date')}."
+                + links_footer
+            ),
             priority=7,
         )
     elif credential_rejected_during_hold:
@@ -526,6 +543,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 f"The stored sign-in for this adapter was rejected while trying to "
                 f"book {params.get('date')} — update it in Booking Site Sign-Ins "
                 "before auto-book can run again."
+                + links_footer
             ),
             priority=9,
         )
@@ -545,6 +563,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 f"The booking site rejected reserving {params.get('date')} as not "
                 f"yet allowed — parked until it opens ({opens_at_text}). This hunt "
                 "will resume automatically; no action needed."
+                + links_footer
             ),
             priority=5,
         )
@@ -563,6 +582,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 message=(
                     f"Availability was ready to book on {params.get('date')}, "
                     f"but {blocked_reason}."
+                    + links_footer
                 ),
                 priority=8,
             )
@@ -574,6 +594,7 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 message=(
                     f"Sites available on {params.get('date')} but hold failed: {msg}\n"
                     + "\n".join(site_lines)
+                    + links_footer
                 ),
                 priority=8,
             )
