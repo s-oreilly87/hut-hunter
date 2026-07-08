@@ -16,3 +16,4 @@ frontend/dist/
 .junie
 .claude/
 .secrets/
+/backend/scripts/phase0_session_ttl.py
