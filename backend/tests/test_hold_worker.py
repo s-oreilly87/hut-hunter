@@ -307,6 +307,17 @@ async def test_successful_hold_is_unaffected_by_needs_attention_branch(
     assert job.id in hold_worker.LIVE_BROWSERS
     assert len(notifications) == 1
     assert notifications[0]["title"] == "🏕️ Hold Secured!"
+    # The Hold Secured link is built from the authoritative WatchJob id, not
+    # from the adapter's reservation_url (here a deliberately different
+    # ".../pay/abc"), so it always points at THIS job's /pay page and can never
+    # drift to a different, already-completed session (misc fix).
+    assert f"/pay/{job.id}" in notifications[0]["message"]
+    assert "/pay/abc" not in notifications[0]["message"]
+    # Fail-safe hunt link so a stale/expired /pay link is never a dead end,
+    # but NOT the booking-site link (that would steer the user into starting a
+    # fresh booking instead of completing the held cart).
+    assert f"/#/jobs/{job.id}" in notifications[0]["message"]
+    assert "Open in Hut Hunter" in notifications[0]["message"]
 
 
 # ---------------------------------------------------------------------------

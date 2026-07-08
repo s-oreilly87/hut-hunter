@@ -472,14 +472,26 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
     # so the booking-site + Hut Hunter links THR-130 added must be threaded
     # here too — otherwise the messages users actually receive carry no links.
     # Same fail-soft helper as poll_worker: a broken link builder just omits
-    # the booking line. Deliberately NOT appended to the two live-cart
-    # notifications below ("Needs your attention" / "Hold Secured!"), which
-    # already hand the user a specific reservation_url to act on — a second
-    # booking-site link there would steer them into starting a fresh booking
-    # instead of completing the held cart.
+    # the line. The full footer (booking-site + hunt link) is used only by the
+    # failure/informational notifications below. The two live-cart
+    # notifications ("Needs your attention" / "Hold Secured!") deliberately omit
+    # the booking-SITE link — it would steer the user into starting a fresh
+    # booking instead of completing the cart already held — but they DO get a
+    # hunt-only footer (see hunt_footer) so a stale/expired /pay link is never a
+    # dead end: the user can always reach this hunt in the app from there.
     booking_url = adapter_park_url(job.adapter_id, params)
     hunt_url = f"{settings.app_url}/#/jobs/{job_id}"
     links_footer = format_notification_links(booking_url=booking_url, hunt_url=hunt_url)
+    hunt_footer = format_notification_links(booking_url=None, hunt_url=hunt_url)
+
+    # The live-cart notifications point at the /pay page for THIS job. Build
+    # that link from the authoritative WatchJob id we were handed — not from
+    # booking.reservation_url / needs_attention_url, which are assembled deep in
+    # the adapter from params["_job_id"] via _persist_cart_session. Those happen
+    # to resolve to the same /pay/{job_id} today, but rebuilding it here from
+    # job_id makes it identical-by-construction to the /pay/{job.id} link the
+    # app shows and removes any way for the two to drift to different sessions.
+    pay_url = f"{settings.app_url}/pay/{job_id}"
 
     if needs_attention_url:
         # THR-122: this is time-critical — the browser is sitting on a live
@@ -498,7 +510,8 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
                 f"Hold worker hit something unexpected booking {params.get('date')} "
                 "and paused with the browser still open on the live site — it needs "
                 "a human to finish or cancel it.\n\n"
-                f"{hold_window_copy}:\n{needs_attention_url}"
+                f"{hold_window_copy}:\n{pay_url}"
+                + hunt_footer
             ),
             priority=10,
         )
@@ -515,7 +528,8 @@ async def attempt_hold_task(ctx: dict, job_id: str) -> dict:
             message=(
                 f"Hold placed for {params.get('date')}:\n"
                 + "\n".join(site_lines)
-                + f"\n\n{hold_window_copy}:\n{booking.reservation_url}"
+                + f"\n\n{hold_window_copy}:\n{pay_url}"
+                + hunt_footer
             ),
             priority=10,
         )

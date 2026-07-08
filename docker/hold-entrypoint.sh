@@ -23,7 +23,15 @@ NOVNC_PORT="${VNC_PORT:-${NOVNC_PORT:-6080}}"
 # Raw RFB/VNC port exposed only inside the container. Keep it distinct from
 # the public noVNC port so setting VNC_PORT in .env does not break startup.
 X11VNC_PORT="${X11VNC_PORT:-5900}"
-SCREEN_GEOMETRY="${SCREEN_GEOMETRY:-1280x800x24}"
+# Must comfortably contain the headed Chromium window the hold worker launches:
+# Playwright uses a 1440x900 context viewport (see _shared.py _browser_page),
+# and the headed window adds ~85px of tab strip + toolbar on top, for a
+# ~1440x985 window drawn at (0,0) with no window manager. A smaller framebuffer
+# clips the window's right/bottom edges *before* VNC ever captures them — no
+# noVNC client setting can recover pixels that aren't in the framebuffer — which
+# is exactly the right-edge clipping seen on the /pay page. Keep this at least as
+# large as the window (with a little headroom).
+SCREEN_GEOMETRY="${SCREEN_GEOMETRY:-1440x1000x24}"
 
 export DISPLAY=":${DISPLAY_NUM}"
 
