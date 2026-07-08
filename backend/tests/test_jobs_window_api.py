@@ -11,7 +11,7 @@ test_base_camis.py.
 import pytest
 
 import app.api._route_jobs as route_jobs
-from app.adapters.base import BookingWindowInfo
+from app.adapters.base import BookingWindowInfo, StayPatternInfo
 from app.models.job import JobStatus, utcnow
 
 pytestmark = pytest.mark.asyncio
@@ -20,6 +20,12 @@ pytestmark = pytest.mark.asyncio
 def _fake_check(window: BookingWindowInfo):
     async def _check(adapter_id, params):
         return window
+    return _check
+
+
+def _fake_stay_pattern_check(stay: StayPatternInfo):
+    async def _check(adapter_id, params):
+        return stay
     return _check
 
 
@@ -95,6 +101,47 @@ async def test_window_check_endpoint_surfaces_not_open(monkeypatch, client):
     body = response.json()
     assert body["is_open"] is False
     assert body["opens_at_precise"] is True
+
+
+async def test_window_check_endpoint_surfaces_stay_pattern_violation(monkeypatch, client):
+    # THR-133: an open window doesn't mean the requested stay pattern is
+    # bookable — the endpoint surfaces both independently.
+    monkeypatch.setattr(
+        route_jobs, "_check_booking_window", _fake_check(BookingWindowInfo(is_open=True)),
+    )
+    monkeypatch.setattr(
+        route_jobs, "_check_stay_pattern",
+        _fake_stay_pattern_check(StayPatternInfo(
+            is_compliant=False,
+            evidence="departure 2026-10-10 isn't an allowed arrival/departure day "
+                     "for this period — allowed days: Monday, Friday",
+        )),
+    )
+
+    response = await client.post(
+        "/api/v1/jobs/window-check",
+        json={"adapter_id": "camis_bc_parks", "params": {"date": "08/10/2026"}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_open"] is True
+    assert body["stay_pattern_compliant"] is False
+    assert "Monday, Friday" in body["stay_pattern_evidence"]
+
+
+async def test_window_check_endpoint_defaults_stay_pattern_compliant(client):
+    # doc_great_walk has no rolling window (or stay-pattern concept) — both
+    # checks fail open with no monkeypatching needed.
+    response = await client.post(
+        "/api/v1/jobs/window-check",
+        json={"adapter_id": "doc_great_walk", "params": {"date": "01/01/2099"}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["stay_pattern_compliant"] is True
+    assert body["stay_pattern_evidence"] == ""
 
 
 async def test_update_job_params_edit_moves_into_awaiting_window(

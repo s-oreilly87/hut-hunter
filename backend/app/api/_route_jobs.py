@@ -12,6 +12,7 @@ from app.api.auth import get_current_user
 from app.api._route_deps import (
     LIVE_HOLD_STATUSES,
     _check_booking_window,
+    _check_stay_pattern,
     _clamp_interval,
     _delete_job_artifacts,
     _enqueue_browser_close,
@@ -167,13 +168,22 @@ async def check_job_window(
     wizard before the user saves, so the not-yet-released case can be
     explained up front rather than discovered after the fact. Never 4xxs on
     an unknown/non-windowed adapter or a lookup failure — see
-    ``_check_booking_window``'s fail-open contract."""
+    ``_check_booking_window``'s fail-open contract.
+
+    THR-133: also runs the advisory stay-pattern check (arrival/departure
+    changeover, min/max-stay) so the wizard can warn that this exact
+    date/nights combo can never be booked, before the user waits out a
+    booking window that would only fail the same way later.
+    """
     window = await _check_booking_window(body.adapter_id, body.params)
+    stay_pattern = await _check_stay_pattern(body.adapter_id, body.params)
     return WindowCheckResponse(
         is_open=window.is_open,
         opens_at=window.opens_at,
         opens_at_precise=window.opens_at_precise,
         evidence=window.evidence,
+        stay_pattern_compliant=stay_pattern.is_compliant,
+        stay_pattern_evidence=stay_pattern.evidence,
     )
 
 

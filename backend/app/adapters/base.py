@@ -144,6 +144,24 @@ class BookingWindowInfo:
     evidence: str = ""
 
 
+@dataclass
+class StayPatternInfo:
+    """Result of validating a requested arrival/nights combo against an
+    adapter's own stay-pattern rules (THR-133) — e.g. Camis's arrival/
+    departure changeover day-of-week restriction and min/max-stay bands.
+
+    Distinct from ``BookingWindowInfo``: a booking window is about WHEN a
+    date becomes reservable; this is about whether the requested date/
+    nights combo is bookable AT ALL, independent of timing — a date can be
+    inside an open booking window and still be unbookable because the stay
+    pattern itself violates the site's rules (the Golden Ears Thu-arrival/
+    Sat-departure repro this ticket fixes: the window had opened and fired
+    correctly, but the changeover rule made the hold fail anyway).
+    """
+    is_compliant: bool
+    evidence: str = ""
+
+
 class BookingWindowClosedDuringHold(Exception):
     """Raised by an adapter's ``attempt_hold`` when the booking site itself
     rejects the Reserve action with a "not yet allowed" / booking-window
@@ -307,6 +325,19 @@ class BaseAdapter(ABC):
         THR-124.
         """
         return BookingWindowInfo(is_open=True)
+
+    async def check_stay_pattern(self, params: dict) -> StayPatternInfo:
+        """Whether the requested arrival/nights combo satisfies this
+        adapter's own stay-pattern rules (THR-133) — e.g. Camis's arrival/
+        departure changeover day-of-week restriction and min/max-stay
+        bands.
+
+        Default: no such concept — always compliant. ``BaseCamisAdapter``
+        overrides this using the ``/api/dateschedule`` season calendar; DOC
+        adapters (and any future adapter without stay-pattern rules) keep
+        this default.
+        """
+        return StayPatternInfo(is_compliant=True)
 
     def results_url(self, params: dict) -> str | None:
         """THR-129: a deep-link to this adapter's booking-site results page

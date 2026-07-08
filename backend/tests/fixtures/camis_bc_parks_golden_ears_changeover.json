@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "captured": "2026-07-08",
+    "source": "GET /api/dateschedule/resourcelocationid?resourceLocationId=-2147483606 (camping.bcparks.ca, authenticated), THR-133",
+    "park": "Golden Ears Provincial Park",
+    "resource_location_id": -2147483606,
+    "notes": [
+      "This is the Campsite schedule (scheduleId -2147483453); reservableDates trimmed to the 2026 season, minStayOverrides trimmed to 3 representative 2022 entries out of 16 total (shape only — none fall in the 2026 season), maxStayOverrides is genuinely empty for every park probed (BC Parks doesn't appear to use it), allowedArrivalDepartureDays kept in full for 2026 (8 entries).",
+      "Live cross-check: querying /api/availability/map for this resource, Thu 2026-10-08 arrival / Sat 2026-10-10 departure (2 nights, 1 Tent — the exact THR-133 repro), returned 54 of 439 sites at site-day code 3 ['Restrictions', 3,3,3] — matching the allowedArrivalDepartureDays entry below for 2026-10-09..2026-10-12 (daysOfWeek [1,5] = Mon/Fri): the requested Sat departure isn't allowed for that period.",
+      "daysOfWeek uses .NET System.DayOfWeek (Sunday=0..Saturday=6), confirmed by this exact match: [1,5] = Monday, Friday, and the site's own banner for this stay reads 'must depart on any of the following days: Monday, Friday'."
+    ]
+  },
+  "schedule": {
+    "scheduleId": -2147483453,
+    "resourceLocationId": -2147483606,
+    "reservableDates": [
+      {
+        "reservableDates": { "start": "2026-03-27T07:00:00Z", "end": "2026-10-12T07:00:00Z" },
+        "goLiveDate": null,
+        "goLiveDateUtc": null,
+        "goLiveTimeZone": "Pacific Standard Time"
+      }
+    ],
+    "minStayOverrides": [
+      {
+        "range": { "start": "2022-02-18T05:00:00Z", "end": "2022-02-20T05:00:00Z" },
+        "stayDurationLimitDays": 3,
+        "stayDurationLimitTime": null
+      },
+      {
+        "range": { "start": "2022-04-14T04:00:00Z", "end": "2022-04-16T04:00:00Z" },
+        "stayDurationLimitDays": 3,
+        "stayDurationLimitTime": null
+      },
+      {
+        "range": { "start": "2022-05-20T04:00:00Z", "end": "2022-05-22T04:00:00Z" },
+        "stayDurationLimitDays": 3,
+        "stayDurationLimitTime": null
+      }
+    ],
+    "maxStayOverrides": [],
+    "allowedArrivalDepartureDays": [
+      { "range": { "start": "2026-02-13T05:00:00Z", "end": "2026-02-16T05:00:00Z" }, "daysOfWeek": [1, 5] },
+      { "range": { "start": "2026-04-02T04:00:00Z", "end": "2026-04-05T04:00:00Z" }, "daysOfWeek": [0, 4] },
+      { "range": { "start": "2026-05-15T04:00:00Z", "end": "2026-05-18T04:00:00Z" }, "daysOfWeek": [1, 5] },
+      { "range": { "start": "2026-07-31T04:00:00Z", "end": "2026-08-03T04:00:00Z" }, "daysOfWeek": [1, 5] },
+      { "range": { "start": "2026-09-04T04:00:00Z", "end": "2026-09-07T04:00:00Z" }, "daysOfWeek": [1, 5] },
+      { "range": { "start": "2026-10-09T04:00:00Z", "end": "2026-10-12T04:00:00Z" }, "daysOfWeek": [1, 5] },
+      { "range": { "start": "2026-12-24T05:00:00Z", "end": "2026-12-27T05:00:00Z" }, "daysOfWeek": [0, 4] },
+      { "range": { "start": "2026-12-31T05:00:00Z", "end": "2027-01-03T05:00:00Z" }, "daysOfWeek": [0, 4] }
+    ]
+  }
+}
