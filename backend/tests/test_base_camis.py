@@ -201,10 +201,10 @@ def test_classify_no_single_site_covers_stay_is_partial():
     assert r.total_available == 0
 
 
-@pytest.mark.parametrize("codes", [[1, 1], [3, 3], [1, 3], [2, 6]])
+@pytest.mark.parametrize("codes", [[1, 1], [1, 3], [2, 6]])
 def test_classify_unavailable_site_codes(codes):
-    # 1 (booked), 3 (non-reservable/filter mismatch), 2/6 (closed / not
-    # released) — and any unknown code — are all "not bookable".
+    # 1 (booked), 2/6 (closed / not released) — and any code mixed with a
+    # non-restricted code — are all "not bookable" and not purely restricted.
     r = _StubCamisAdapter()._classify_site_days({"-1": codes}, "Park", 2)
     assert r.status == AvailabilityStatus.UNAVAILABLE
     assert r.total_available == 0
@@ -213,6 +213,29 @@ def test_classify_unavailable_site_codes(codes):
 def test_classify_empty_is_unknown():
     r = _StubCamisAdapter()._classify_site_days({}, "Park", 1)
     assert r.status == AvailabilityStatus.UNKNOWN
+
+
+def test_classify_all_restricted_is_restricted():
+    # THR-133: every site/night is code 3 (the live-confirmed "Restrictions"
+    # state) — a changeover/min-max-stay rule blocks the stay, not sold-out
+    # capacity, so this must be distinct from UNAVAILABLE.
+    r = _StubCamisAdapter()._classify_site_days(
+        {"-1": [3, 3], "-2": [3, 3]}, "Park", 2
+    )
+    assert r.status == AvailabilityStatus.RESTRICTED
+    assert r.total_available == 0
+    assert "restricted" in r.evidence
+
+
+def test_classify_restricted_mixed_with_booked_out_stays_unavailable():
+    # A genuinely sold-out site alongside a restricted one must NOT read as
+    # RESTRICTED — that would misleadingly suggest adjusting dates always
+    # helps, even when some sites are just sold out.
+    r = _StubCamisAdapter()._classify_site_days(
+        {"-1": [3, 3], "-2": [1, 1]}, "Park", 2
+    )
+    assert r.status == AvailabilityStatus.UNAVAILABLE
+    assert r.total_available == 0
 
 
 def test_extract_site_days_tolerates_shapes():

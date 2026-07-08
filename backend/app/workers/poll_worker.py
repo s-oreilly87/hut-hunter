@@ -157,7 +157,10 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                 await adapter.fill_form(page, params)
                 results = await adapter.detect_availability(page, params)
                 logger.info(f"Detect results for job {job_id}: {results}")
-                if results and all(r.status == AvailabilityStatus.UNAVAILABLE for r in results):
+                if results and all(
+                    r.status in (AvailabilityStatus.UNAVAILABLE, AvailabilityStatus.RESTRICTED)
+                    for r in results
+                ):
                     base = await _snapshot_safe(adapter, page, UNAVAILABLE_SNAPSHOT_LABEL)
                     await _save_artifacts(job_id, _consume_adapter_artifacts(adapter), last_base=base)
             except Exception as e:
@@ -186,6 +189,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     fully_available = [r for r in results if r.status == AvailabilityStatus.AVAILABLE]
     partially_available = [r for r in results if r.status == AvailabilityStatus.PARTIALLY_AVAILABLE]
     unavailable = [r for r in results if r.status == AvailabilityStatus.UNAVAILABLE]
+    restricted = [r for r in results if r.status == AvailabilityStatus.RESTRICTED]
 
     # Hold is only attempted when every requested site is fully available.
     # A mixed result goes out as an informational notification — the hold
@@ -314,6 +318,30 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
             )
         else:
             logger.info(f"Job {job_id}: still partial — suppressing repeat notification")
+    elif restricted:
+        # THR-133: sites exist but the requested stay pattern (arrival/
+        # departure changeover, min/max-stay) isn't bookable — distinct from
+        # a genuinely sold-out park, and worth telling the user since
+        # adjusting dates/nights could still work. Reuses the same
+        # suppression gate as the partial branch so a job stuck in
+        # "restricted" every poll doesn't re-notify each cycle.
+        if not _was_previously_partial(prev_last_result):
+            lines = [f"- {r.site}: {r.evidence}" for r in restricted]
+            await dispatch_notification_targets(
+                notification_settings,
+                title="🔶 Restricted Availability",
+                message=(
+                    f"Sites have capacity on {params.get('date')} but the requested "
+                    "stay pattern isn't bookable (e.g. an arrival/departure changeover "
+                    "or min/max-stay rule) — not auto-holding.\n"
+                    + "\n".join(lines)
+                    + "\n\nTry adjusting the dates or number of nights for this hunt."
+                    + links_footer
+                ),
+                priority=6,
+            )
+        else:
+            logger.info(f"Job {job_id}: still restricted — suppressing repeat notification")
 
     # --- Persist detect results ---
     result_dicts = [

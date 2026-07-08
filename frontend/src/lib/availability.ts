@@ -8,6 +8,7 @@ export type DisplayStatus =
   | 'hold_expired'
   | 'result_available'
   | 'result_partial'
+  | 'result_restricted'
   | 'result_unavailable'
   | 'result_hold_failed'
   | string  // JobStatus passthrough
@@ -78,6 +79,15 @@ export function getDisplayStatus(
     if (avail.length > 0) {
       if (avail.every(r => r.status === 'available')) return 'result_available'
       if (avail.every(r => r.status === 'unavailable')) return 'result_unavailable'
+      // THR-133: nothing bookable, but at least one site is restricted
+      // (changeover/min-max-stay) rather than sold out — distinct from a
+      // flat "Unavailable" since adjusting dates/nights could still work.
+      if (
+        avail.some(r => r.status === 'restricted')
+        && avail.every(r => r.status === 'restricted' || r.status === 'unavailable')
+      ) {
+        return 'result_restricted'
+      }
       return 'result_partial'
     }
   }

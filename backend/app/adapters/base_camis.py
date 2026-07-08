@@ -1232,6 +1232,12 @@ class BaseCamisAdapter(BaseAdapter):
         6: "not operating",
     }
 
+    # THR-133: the live-confirmed "Restrictions" code (THR-129 Finding B
+    # above) — a site in this state has capacity but the requested stay
+    # pattern (arrival/departure changeover, min/max-stay) isn't bookable,
+    # unlike a genuinely sold-out (1/5) or closed (6) site.
+    AVAILABILITY_RESTRICTED_CODE = 3
+
     @classmethod
     def _site_state_label(cls, code: int) -> str:
         return cls._SITE_STATE_LABELS.get(code, f"code {code}")
@@ -1273,7 +1279,11 @@ class BaseCamisAdapter(BaseAdapter):
         - ≥1 site available (code 0) every night → AVAILABLE (count = such sites)
         - no full-stay site but some site/night available → PARTIALLY_AVAILABLE
           (e.g. different sites free on different nights, or part of the stay)
-        - nothing available → UNAVAILABLE
+        - nothing available, and every code present is the restricted code
+          (THR-133: arrival/departure changeover or min/max-stay, not sold
+          out) → RESTRICTED
+        - nothing available otherwise (sold out/closed, or restricted mixed
+          with a genuinely sold-out/closed site) → UNAVAILABLE
         - no per-site data → UNKNOWN
         """
         if not site_days:
@@ -1296,7 +1306,11 @@ class BaseCamisAdapter(BaseAdapter):
         elif any_night:
             status = AvailabilityStatus.PARTIALLY_AVAILABLE
         else:
-            status = AvailabilityStatus.UNAVAILABLE
+            all_codes = {c for codes in stay.values() for c in codes}
+            if all_codes == {self.AVAILABILITY_RESTRICTED_CODE}:
+                status = AvailabilityStatus.RESTRICTED
+            else:
+                status = AvailabilityStatus.UNAVAILABLE
         return AvailabilityResult(
             site=site,
             status=status,

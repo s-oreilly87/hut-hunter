@@ -6,26 +6,40 @@ import {
 import { Badge } from '@/components/ui/Badge'
 import { ArtifactGallery } from './ArtifactGallery'
 
+const BUNDLE_LABEL: Record<'unavailable' | 'restricted', string> = {
+  unavailable: 'Unavailable',
+  restricted: 'Restricted',
+}
+
+const BUNDLE_SUMMARY: Record<'unavailable' | 'restricted', (count: number) => string> = {
+  unavailable: (count) => `No availability was found for ${count} selected sites.`,
+  restricted: (count) => `${count} selected sites are restricted for this stay pattern.`,
+}
+
 /**
- * Bundled tile for unavailable per-site results. The card collapses many
- * unavailable sites into a single tile (with a chip per site) rather than
- * rendering one tile per site, which keeps the result list readable when
- * most sites came back empty.
+ * Bundled tile for unavailable/restricted per-site results. The card
+ * collapses many same-status sites into a single tile (with a chip per site)
+ * rather than rendering one tile per site, which keeps the result list
+ * readable when most sites came back empty or restricted.
  */
 export function UnavailableResultTile({
   entries,
   unavailableArtifact,
+  status = 'unavailable',
 }: {
   entries: AvailabilityResult[]
   unavailableArtifact?: ArtifactRecord | null
+  // THR-133: 'restricted' reuses this bundled-tile layout for the new
+  // restriction-only outcome instead of duplicating it.
+  status?: 'unavailable' | 'restricted'
 }) {
-  const visual = getAvailabilityVisual('unavailable')
+  const visual = getAvailabilityVisual(status)
   const Icon = visual.icon
   const siteCount = entries.length
   const firstCopy = entries[0] ? getAvailabilityCopy(entries[0]) : null
   const summary = siteCount === 1
     ? (firstCopy?.summary ?? 'No availability was found for this site.')
-    : `No availability was found for ${siteCount} selected sites.`
+    : BUNDLE_SUMMARY[status](siteCount)
   // THR-129 Finding E: only meaningful for the single-site case — a bundled
   // tile's entries can each have different evidence, so it isn't shown
   // there (the summary/chip-per-site treatment already covers that case).
@@ -53,7 +67,7 @@ export function UnavailableResultTile({
               )}
             </div>
             <Badge className={`shrink-0 ${visual.badgeClass}`}>
-              Unavailable
+              {BUNDLE_LABEL[status]}
             </Badge>
           </div>
 
@@ -62,7 +76,9 @@ export function UnavailableResultTile({
               {entries.map((entry) => (
                 <span
                   key={entry.site}
-                  className="rounded-full border border-rose-500/20 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
+                  className={`rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground bg-background/80 ${
+                    status === 'restricted' ? 'border-orange-500/20' : 'border-rose-500/20'
+                  }`}
                 >
                   {entry.site}
                 </span>

@@ -267,10 +267,14 @@ async def _save_error(job_id: str, error: str) -> None:
 
 
 def _was_previously_partial(last_result_json: str | None) -> bool:
-    """Return True if the last stored result was a partial or mixed-availability outcome.
+    """Return True if the last stored result was a partial, restricted, or
+    mixed-availability outcome that already notified — used to suppress a
+    repeat notification while the situation hasn't changed.
 
-    Partial means at least one "partially_available" entry, or a mix of
-    "available" and "unavailable". Error-shaped entries (no "status" key) are ignored.
+    True for: at least one "partially_available" entry, a mix of "available"
+    and "unavailable", or (THR-133) any "restricted" entry — a job stuck in
+    "restricted" every poll shouldn't re-notify each cycle either. Error-shaped
+    entries (no "status" key) are ignored.
     """
     if not last_result_json:
         return False
@@ -281,7 +285,7 @@ def _was_previously_partial(last_result_json: str | None) -> bool:
     statuses = {e["status"] for e in entries if isinstance(e, dict) and "status" in e}
     if not statuses:
         return False
-    if "partially_available" in statuses:
+    if "partially_available" in statuses or "restricted" in statuses:
         return True
     return "available" in statuses and "unavailable" in statuses
 

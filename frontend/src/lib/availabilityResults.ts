@@ -85,6 +85,16 @@ export function getAvailabilityVisual(
         iconClass: 'bg-amber-500/12 text-amber-700',
         badgeClass: 'bg-amber-500 text-white hover:bg-amber-500',
       }
+    case 'restricted':
+      // THR-133: distinct from both partially_available's amber and
+      // unavailable's rose — reuses an orange token consistent with
+      // StatusBadge's result_restricted color.
+      return {
+        icon: AlertTriangle,
+        tileClass: 'border-orange-500/25 bg-orange-500/10',
+        iconClass: 'bg-orange-500/12 text-orange-700',
+        badgeClass: 'bg-orange-600 text-white hover:bg-orange-600',
+      }
     case 'unavailable':
       return {
         icon: XCircle,
@@ -136,6 +146,17 @@ export function getAvailabilityCopy(entry: AvailabilityResult): AvailabilityCopy
           ? [`${totalAvailable} spot${totalAvailable === 1 ? '' : 's'} found`]
           : [],
       }
+    case 'restricted': {
+      // THR-133: sites have capacity but the requested stay pattern isn't
+      // bookable (arrival/departure changeover, min/max-stay) — surface the
+      // evidence so the actual constraint is visible, same as 'unavailable'.
+      const evidence = entry.evidence?.trim()
+      return {
+        summary: 'Restricted for these dates — sites exist but this stay '
+          + "pattern isn't bookable.",
+        details: evidence ? [evidence] : [],
+      }
+    }
     case 'unavailable': {
       // THR-129 Finding E: surface the evidence string instead of always
       // rendering an empty details list — the backend now names actual
