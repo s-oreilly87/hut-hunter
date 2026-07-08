@@ -23,6 +23,14 @@ Output (written to ``backend/app/adapters/<slug>.json`` by default)::
         {"booking_category_id": 0, "booking_model": 0, "name": "Campsite"},
         ...
       ],
+      "equipment": [
+        {"equipment_category_id": -32768, "name": "Equipment", "order": 1,
+         "sub_categories": [
+           {"sub_equipment_category_id": -32768, "name": "1 Tent", "order": 1},
+           ...
+         ]},
+        ...
+      ],
       "parks": [
         {
           "resource_location_id": -2147483646,
@@ -77,6 +85,7 @@ ADAPTERS_DIR = Path(__file__).resolve().parents[1] / "app" / "adapters"
 
 RESOURCE_LOCATION_PATH = "/api/resourcelocation"
 BOOKING_CATEGORIES_PATH = "/api/bookingcategories"
+EQUIPMENT_PATH = "/api/equipment"
 
 
 # --------------------------------------------------------------------------- #
@@ -147,12 +156,51 @@ def normalize_booking_categories(raw: list[dict], culture: str = "en-CA") -> lis
     return sorted(out, key=lambda c: c["booking_category_id"])
 
 
+def normalize_equipment(raw: list[dict], culture: str = "en-CA") -> list[dict]:
+    """Normalize ``/api/equipment`` into category → sub-category trees.
+
+    THR-132: ``/api/equipment`` is a **flat, site-level** list — it returns the
+    same equipment tree regardless of ``bookingCategoryId`` (confirmed live
+    2026-07-08 on BC Parks, Ontario Parks, and Parks Canada), so it's fetched
+    once per site. Each top-level entry is an equipment *category* (e.g.
+    "Equipment" for frontcountry, "Backcountry" on Parks Canada); its
+    ``subEquipmentCategories`` are the actual tent/RV sizes the availability
+    read (``equipmentCategoryId`` / ``subEquipmentCategoryId``) and the reserve
+    funnel filter on. All three sites share the same id enum (category
+    ``-32768`` "Equipment", sub ``-32768`` = the smallest/first tent), differing
+    only in labels ("1 Tent" / "Single Tent" / "Small Tent").
+    """
+    out = []
+    for cat in raw:
+        cat_id = cat.get("equipmentCategoryId")
+        if cat_id is None:
+            continue
+        subs = []
+        for sub in cat.get("subEquipmentCategories") or []:
+            sub_id = sub.get("subEquipmentCategoryId")
+            if sub_id is None:
+                continue
+            subs.append({
+                "sub_equipment_category_id": sub_id,
+                "name": _pick_localized(sub.get("localizedValues"), culture, "name"),
+                "order": sub.get("order"),
+            })
+        out.append({
+            "equipment_category_id": cat_id,
+            "name": _pick_localized(cat.get("localizedValues"), culture, "name"),
+            "order": cat.get("order"),
+            "sub_categories": subs,
+        })
+    return out
+
+
 def build_catalog(
     base_url: str,
     resource_locations: list[dict],
     booking_categories: list[dict],
     culture: str,
     *,
+    equipment: list[dict] | None = None,
     now: datetime | None = None,
 ) -> dict:
     """Assemble the final catalog dict from raw API responses."""
@@ -164,6 +212,7 @@ def build_catalog(
         "base_url": base_url.rstrip("/"),
         "culture": culture,
         "booking_categories": normalize_booking_categories(booking_categories, culture),
+        "equipment": normalize_equipment(equipment or [], culture),
         "parks": normalize_parks(resource_locations, culture),
     }
 
@@ -207,7 +256,11 @@ def scrape(base_url: str, culture: str) -> dict:
         resource_locations = fetch_json(client, base_url, RESOURCE_LOCATION_PATH)
         log.info("fetching booking categories from %s%s", base_url, BOOKING_CATEGORIES_PATH)
         booking_categories = fetch_json(client, base_url, BOOKING_CATEGORIES_PATH)
-    return build_catalog(base_url, resource_locations, booking_categories, culture)
+        log.info("fetching equipment from %s%s", base_url, EQUIPMENT_PATH)
+        equipment = fetch_json(client, base_url, EQUIPMENT_PATH)
+    return build_catalog(
+        base_url, resource_locations, booking_categories, culture, equipment=equipment
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -222,8 +275,9 @@ def write_output(catalog: dict, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n")
     log.info(
-        "wrote %d parks + %d booking categories → %s",
-        len(catalog["parks"]), len(catalog["booking_categories"]), out_path,
+        "wrote %d parks + %d booking categories + %d equipment categories → %s",
+        len(catalog["parks"]), len(catalog["booking_categories"]),
+        len(catalog.get("equipment") or []), out_path,
     )
 
 

@@ -17,6 +17,7 @@ from scripts.scrape_camis_catalog import (
     _pick_localized,
     build_catalog,
     normalize_booking_categories,
+    normalize_equipment,
     normalize_parks,
 )
 
@@ -64,6 +65,29 @@ BOOKING_CATEGORIES = [
     {"bookingCategoryId": 2, "bookingModel": 0, "localizedValues": [{"cultureName": "en-CA", "name": "Cabin"}]},
     {"bookingCategoryId": 0, "bookingModel": 0, "localizedValues": [{"cultureName": "en-CA", "name": "Campsite"}]},
     {"bookingCategoryId": None},  # malformed — skipped
+]
+
+# Shape of /api/equipment (THR-132): a flat list of equipment categories, each
+# with nested subEquipmentCategories. Bilingual entries mirror Parks Canada.
+EQUIPMENT = [
+    {
+        "equipmentCategoryId": -32768,
+        "order": 1,
+        "localizedValues": [
+            {"cultureName": "en-CA", "name": "Equipment"},
+            {"cultureName": "fr-CA", "name": "Équipement"},
+        ],
+        "subEquipmentCategories": [
+            {"subEquipmentCategoryId": -32768, "order": 1,
+             "localizedValues": [{"cultureName": "en-CA", "name": "Small Tent"},
+                                 {"cultureName": "fr-CA", "name": "Petite tente"}]},
+            {"subEquipmentCategoryId": None, "order": 2,  # malformed — skipped
+             "localizedValues": [{"cultureName": "en-CA", "name": "Nameless"}]},
+            {"subEquipmentCategoryId": -32765, "order": 3,
+             "localizedValues": [{"cultureName": "en-CA", "name": "Van/Pickup"}]},
+        ],
+    },
+    {"equipmentCategoryId": None, "subEquipmentCategories": []},  # malformed — skipped
 ]
 
 
@@ -115,6 +139,27 @@ def test_normalize_booking_categories():
     ]
 
 
+def test_normalize_equipment():
+    # THR-132: nested category → sub-category tree, dropping malformed entries
+    # (no id) and honoring the requested culture for names.
+    equip = normalize_equipment(EQUIPMENT, "en-CA")
+    assert equip == [{
+        "equipment_category_id": -32768,
+        "name": "Equipment",
+        "order": 1,
+        "sub_categories": [
+            {"sub_equipment_category_id": -32768, "name": "Small Tent", "order": 1},
+            {"sub_equipment_category_id": -32765, "name": "Van/Pickup", "order": 3},
+        ],
+    }]
+
+
+def test_normalize_equipment_bilingual_culture_selection():
+    equip = normalize_equipment(EQUIPMENT, "fr-CA")
+    assert equip[0]["name"] == "Équipement"
+    assert equip[0]["sub_categories"][0]["name"] == "Petite tente"
+
+
 def test_build_catalog_shape():
     now = datetime(2026, 7, 5, 19, 30, 0, tzinfo=timezone.utc)
     catalog = build_catalog(
@@ -122,6 +167,7 @@ def test_build_catalog_shape():
         RESOURCE_LOCATIONS,
         BOOKING_CATEGORIES,
         "en-CA",
+        equipment=EQUIPMENT,
         now=now,
     )
     assert catalog["scraped_at"] == "2026-07-05T19:30:00Z"
@@ -130,12 +176,25 @@ def test_build_catalog_shape():
     assert catalog["culture"] == "en-CA"
     assert len(catalog["parks"]) == 2
     assert len(catalog["booking_categories"]) == 2
+    assert len(catalog["equipment"]) == 1
+    assert catalog["equipment"][0]["sub_categories"][0]["name"] == "Small Tent"
+
+
+def test_build_catalog_equipment_defaults_empty():
+    # No equipment passed → empty list, not a missing key (keeps the schema
+    # stable for a site scraped before /api/equipment was added).
+    catalog = build_catalog(
+        "https://camping.bcparks.ca", RESOURCE_LOCATIONS, BOOKING_CATEGORIES, "en-CA",
+    )
+    assert catalog["equipment"] == []
 
 
 _ADAPTERS_DIR = Path(__file__).resolve().parents[1] / "app" / "adapters"
 
 
-@pytest.mark.parametrize("filename", ["bc_parks.json", "ontario_parks.json"])
+@pytest.mark.parametrize(
+    "filename", ["bc_parks.json", "ontario_parks.json", "parks_canada.json"]
+)
 def test_committed_catalog_is_wellformed(filename):
     """The catalogs the scraper produced and we committed must stay consumable."""
     catalog = json.loads((_ADAPTERS_DIR / filename).read_text())
@@ -147,3 +206,16 @@ def test_committed_catalog_is_wellformed(filename):
     # Sorted by full name (case-insensitive), as normalize_parks guarantees.
     names = [p["full_name"].lower() for p in catalog["parks"]]
     assert names == sorted(names)
+
+    # THR-132: every committed catalog carries a non-empty equipment tree with
+    # the shared frontcountry small-tent option (category -32768, sub -32768).
+    equipment = catalog["equipment"]
+    assert equipment, "catalog has no equipment"
+    front = next(c for c in equipment if c["equipment_category_id"] == -32768)
+    subs = {s["sub_equipment_category_id"] for s in front["sub_categories"]}
+    assert -32768 in subs
+    for cat in equipment:
+        assert isinstance(cat["equipment_category_id"], int)
+        for sub in cat["sub_categories"]:
+            assert isinstance(sub["sub_equipment_category_id"], int)
+            assert sub["name"]

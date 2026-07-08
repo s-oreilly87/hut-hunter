@@ -118,6 +118,26 @@ def _parse_park_option(value: str) -> int | None:
     return int(m.group("rl_id")) if m else None
 
 
+# Equipment option strings embed BOTH ids — category and sub-category — in a
+# trailing "(cat/sub)", e.g. "1 Tent (-32768/-32768)". The availability read
+# filters on both (equipmentCategoryId + subEquipmentCategoryId), so a single
+# self-describing option carries the whole selection, same convention as the
+# park option above. The name group is greedy so an equipment label containing
+# parentheses still parses (THR-132).
+_EQUIPMENT_OPTION_RE = re.compile(r"^(?P<name>.+)\s\((?P<cat>-?\d+)/(?P<sub>-?\d+)\)$")
+
+
+def _format_equipment_option(cat_id: int, sub_id: int, sub_name: str) -> str:
+    return f"{sub_name} ({cat_id}/{sub_id})"
+
+
+def _parse_equipment_option(value: str) -> tuple[int, int] | None:
+    """Return the embedded (equipment_category_id, sub_equipment_category_id),
+    or None if unparseable."""
+    m = _EQUIPMENT_OPTION_RE.match(value.strip())
+    return (int(m.group("cat")), int(m.group("sub"))) if m else None
+
+
 class BaseCamisAdapter(BaseAdapter):
     """Intermediate base for all Camis booking-site adapters.
 
@@ -244,49 +264,54 @@ class BaseCamisAdapter(BaseAdapter):
     # park doesn't get truncated before reaching real per-site data.
     _MAX_DRILL_REQUESTS = 40
 
-    # MISC (regression fix): THR-129 Finding C added equipmentCategoryId/
-    # subEquipmentCategoryId/peopleCapacityCategoryCounts/isReserving/
-    # filterData/numEquipment to EVERY Camis adapter's /api/availability/map
-    # query, using enum values (-32768/-32767) confirmed live only against
-    # Parks Canada's reservation.pc.gc.ca. Those are Parks-Canada-specific
-    # equipment/capacity category ids — BC Parks has its own equipment enum
-    # (see camis_bc_parks's confirmed "1 Tent"/"Single Tent" option
-    # strings), so sending Parks Canada's ids to BC's /api/availability/map
-    # 400s outright (live regression: the Golden Ears watch job started
-    # failing right after this shipped). The extra query shape is now
-    # opt-in per adapter (``_INCLUDE_UI_QUERY_EXTRAS``, default False) and
-    # only ``CamisParksCanadaAdapter`` turns it on, since that's the only
-    # site it was actually confirmed against — every other adapter reverts
-    # to the simpler query that was working before THR-129.
-    _INCLUDE_UI_QUERY_EXTRAS = False
+    # THR-132: equipment (a tent/RV size) is a real availability filter on
+    # EVERY Camis site, and it's now driven by a Form field (see the
+    # ``equipment`` ParamField and ``_resolve_params``) rather than an
+    # invisible constant. It rides the /api/availability/map query as
+    # equipmentCategoryId/subEquipmentCategoryId (+ the accompanying
+    # isReserving/filterData/numEquipment the UI sends alongside).
+    #
+    # This CORRECTS the THR-129 assumption that the equipment enum was
+    # "Parks-Canada-specific" and that sending it to BC 400'd: verified live
+    # 2026-07-08, all three sites (BC Parks, Ontario Parks, Parks Canada)
+    # expose the SAME id enum — category -32768 "Equipment", sub -32768 the
+    # smallest/first tent ("1 Tent"/"Single Tent"/"Small Tent"), ascending
+    # through tents → vans → trailers/RVs by size — and each accepts the
+    # equipment params with HTTP 200 (with or without them). The real THR-129
+    # BC regression was the malformed ``peopleCapacityCategoryCounts`` param
+    # (a Python list httpx serialized as a repr → 400), which THR-131 already
+    # fixed; the equipment ids were never the culprit. So the old
+    # ``_INCLUDE_UI_QUERY_EXTRAS`` PC-only gate is gone — equipment is sent by
+    # every adapter, sourced from the form with these class defaults as the
+    # fallback for jobs saved before the field existed.
+    #
+    # The default is the frontcountry small/single tent (least-constrained,
+    # fits every site — a safe default that never hides availability). The
+    # sub-category genuinely changes results (live: PC Banff-Castle, an RV
+    # over 35ft reports 0 available where a small tent reports 14), which is
+    # exactly why it must be user-selectable. Same shared enum on all three,
+    # so this default lives on the base class.
+    DEFAULT_EQUIPMENT_CATEGORY_ID: int | None = -32768
+    DEFAULT_SUB_EQUIPMENT_CATEGORY_ID: int | None = -32768
 
-    # THR-129 Finding C defaults — confirmed live 2026-07-07 against
-    # reservation.pc.gc.ca ONLY. Meaningless (and actively harmful, see
-    # above) outside Parks Canada, so these default to None here;
-    # ``_build_availability_query`` never sends them unless
-    # ``_INCLUDE_UI_QUERY_EXTRAS`` is on AND an adapter/job params supplies
-    # a real value. category -32768/"Equipment" + sub -32768/"Small Tent"
-    # is Parks Canada's frontcountry default; category -32767/"Backcountry"
-    # + sub -32758/"Single Tent" is its backcountry equivalent (not
-    # defaulted to, since most watch jobs target frontcountry campsites).
-    DEFAULT_EQUIPMENT_CATEGORY_ID: int | None = None
-    DEFAULT_SUB_EQUIPMENT_CATEGORY_ID: int | None = None
     # capacityCategoryId used by the Angular app's own party-size query
     # (peopleCapacityCategoryCounts) — confirmed live 2026-07-07, Parks
-    # Canada only (see above). Confirmed live 2026-07-07 to apply to the
-    # Accommodation category too (same capacityCategoryId -32767 as Campsite).
+    # Canada only. Confirmed live to apply to the Accommodation category too
+    # (same capacityCategoryId -32767 as Campsite). Unlike equipment (above),
+    # this stays opt-in per adapter — only Parks Canada was confirmed to
+    # accept it — so it defaults to None and gates the capacity block in
+    # ``_build_availability_query`` (BC/Ontario send no party-size filter).
     DEFAULT_CAPACITY_CATEGORY_ID: int | None = None
 
-    # THR-131: booking-category ids that must NOT receive the frontcountry
-    # equipment extras (equipmentCategoryId/subEquipmentCategoryId/isReserving/
-    # numEquipment/filterData) even when ``_INCLUDE_UI_QUERY_EXTRAS`` is on.
-    # Parks Canada's Accommodation category (oTENTiks/cabins/yurts — the huts)
-    # has no equipment step, and its availability reads correctly with no
-    # equipment params at all (confirmed live against reservation.pc.gc.ca:
-    # sending the frontcountry "Small Tent" ids is a semantic no-op there).
-    # The party-size capacity filter below is still sent for these categories.
-    # Default empty (every category gets equipment, i.e. the pre-THR-131
-    # behavior); set per-adapter.
+    # THR-131: booking-category ids that take NO equipment filter (no
+    # equipmentCategoryId/subEquipmentCategoryId/isReserving/numEquipment/
+    # filterData). Parks Canada's Accommodation category (oTENTiks/cabins/
+    # yurts — the huts) has no equipment step, and its availability reads
+    # correctly with no equipment params at all (confirmed live against
+    # reservation.pc.gc.ca: the frontcountry "Small Tent" ids are a semantic
+    # no-op there). The party-size capacity filter is still sent for these
+    # categories. Default empty (every category gets equipment); set
+    # per-adapter.
     _NON_EQUIPMENT_BOOKING_CATEGORY_IDS: frozenset[int] = frozenset()
 
     # ------------------------------------------------------------------
@@ -406,6 +431,8 @@ class BaseCamisAdapter(BaseAdapter):
             else (category_options[0] if category_options else "")
         )
 
+        equipment_tree, equipment_flat, default_equipment = cls._equipment_options(catalog)
+
         return [
             ParamField(
                 key="park",
@@ -444,6 +471,26 @@ class BaseCamisAdapter(BaseAdapter):
                 min=1,
                 max=len(PEOPLE_OPTIONS),
             ),
+            # THR-132: equipment (tent/RV size) is a real availability filter
+            # on every Camis site — it changes which sites report available
+            # (a large RV won't fit a tent-only site) — so it's a visible,
+            # configurable field, grouped by equipment category (frontcountry
+            # "Equipment" vs Parks Canada's "Backcountry"). The option string
+            # embeds both ids (see ``_format_equipment_option``);
+            # ``_resolve_params`` decodes them into equipmentCategoryId/
+            # subEquipmentCategoryId for the availability read and the reserve
+            # funnel. Optional with a small-tent default so existing jobs (and
+            # availability-only hunts) keep working — an absent value falls
+            # back to ``DEFAULT_EQUIPMENT_CATEGORY_ID``/sub in the query.
+            ParamField(
+                key="equipment",
+                label="Equipment",
+                type="select",
+                options=equipment_flat,
+                options_tree=equipment_tree or None,
+                default=default_equipment,
+                required=False,
+            ),
             # Renders the camper picker in the job wizard (the frontend
             # special-cases key == "occupants") and gates auto-book: the poll
             # worker only enqueues a hold when params.occupants is non-empty.
@@ -461,6 +508,42 @@ class BaseCamisAdapter(BaseAdapter):
                 required=False,
             ),
         ]
+
+    @staticmethod
+    def _equipment_options(catalog: dict) -> tuple[list[dict], list[str], str]:
+        """Build the equipment select's ``(options_tree, options, default)``.
+
+        Sourced from the catalog's ``equipment`` tree (scraped from
+        ``/api/equipment`` — THR-132). Returns a grouped tree (one group per
+        equipment category, e.g. "Equipment" / "Backcountry"), the flattened
+        option list (for API clients that don't understand ``options_tree``),
+        and the default option string — the first sub-category of the first
+        category, i.e. the frontcountry small/single tent (least-constrained,
+        fits every site). Empty/absent equipment yields empty lists and no
+        default, so a not-yet-rescraped catalog degrades gracefully.
+        """
+        tree: list[dict] = []
+        flat: list[str] = []
+        for cat in sorted(
+            catalog.get("equipment") or [], key=lambda c: c.get("order") or 0
+        ):
+            cat_id = cat.get("equipment_category_id")
+            if cat_id is None:
+                continue
+            items: list[str] = []
+            for sub in sorted(
+                cat.get("sub_categories") or [], key=lambda s: s.get("order") or 0
+            ):
+                sub_id = sub.get("sub_equipment_category_id")
+                sub_name = sub.get("name")
+                if sub_id is None or not sub_name:
+                    continue
+                opt = _format_equipment_option(int(cat_id), int(sub_id), sub_name)
+                items.append(opt)
+                flat.append(opt)
+            if items:
+                tree.append({"group": cat.get("name") or "Equipment", "items": items})
+        return tree, flat, (flat[0] if flat else "")
 
     def _resolve_params(self, params: dict) -> dict:
         """Return a copy of ``params`` with the Camis IDs filled in.
@@ -489,6 +572,20 @@ class BaseCamisAdapter(BaseAdapter):
                 if (cat.get("name") or "").strip().lower() == wanted:
                     resolved["booking_category_id"] = cat.get("booking_category_id")
                     break
+
+        # THR-132: decode the equipment option string ("Name (cat/sub)") into
+        # the two ids the availability read filters on. Explicit ids win, so a
+        # power user or test can pass equipment_category_id/
+        # sub_equipment_category_id directly.
+        if resolved.get("equipment_category_id") is None and resolved.get("equipment"):
+            ids = _parse_equipment_option(str(resolved["equipment"]))
+            if ids is not None:
+                resolved["equipment_category_id"], resolved["sub_equipment_category_id"] = ids
+            else:
+                logger.warning(
+                    "could not parse equipment option %r — expected 'Name (cat/sub)'",
+                    resolved["equipment"],
+                )
 
         return resolved
 
@@ -947,53 +1044,53 @@ class BaseCamisAdapter(BaseAdapter):
             "getDailyAvailability": "true",
         }
 
-        if self._INCLUDE_UI_QUERY_EXTRAS:
-            # THR-129 Finding C: mirror the UI's own query shape so a
-            # filtered park can't silently diverge from our simpler query.
-            # Parks-Canada-only — see the class-attribute comment above on
-            # why this can't be a shared default.
-            #
-            # THR-131: the equipment half of these extras is camping-specific
-            # (a tent size) and meaningless for the Accommodation category —
-            # confirmed live that Accommodation availability reads correctly
-            # with no equipment params — so it is skipped for the categories
-            # in ``_NON_EQUIPMENT_BOOKING_CATEGORY_IDS`` (Accommodation on
-            # Parks Canada). Every other category keeps the exact THR-129
-            # shape.
-            if int(category_id) not in self._NON_EQUIPMENT_BOOKING_CATEGORY_IDS:
+        # THR-132: equipment filter — sent by EVERY Camis adapter now (all
+        # three sites share the enum and accept the params; verified live
+        # 2026-07-08), driven by the ``equipment`` Form field via
+        # ``_resolve_params`` with the class default as the fallback for jobs
+        # saved before the field existed. Skipped for the categories in
+        # ``_NON_EQUIPMENT_BOOKING_CATEGORY_IDS`` (THR-131: Parks Canada's
+        # Accommodation — the huts — take no equipment; a tent size is a
+        # semantic no-op there). ``numEquipment`` stays 0: the fit-filter
+        # engages via ``subEquipmentCategoryId`` alone (live: an RV-over-35ft
+        # sub still zeroes out tent-only sites with numEquipment=0), so the
+        # count doesn't change results and 0 preserves the exact shape Parks
+        # Canada was already confirmed on.
+        if int(category_id) not in self._NON_EQUIPMENT_BOOKING_CATEGORY_IDS:
+            equipment_category_id = params.get(
+                "equipment_category_id", self.DEFAULT_EQUIPMENT_CATEGORY_ID
+            )
+            sub_equipment_category_id = params.get(
+                "sub_equipment_category_id", self.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID
+            )
+            if equipment_category_id is not None:
                 query["isReserving"] = "true"
                 query["filterData"] = "[]"
                 query["numEquipment"] = 0
-
-                equipment_category_id = params.get(
-                    "equipment_category_id", self.DEFAULT_EQUIPMENT_CATEGORY_ID
-                )
-                sub_equipment_category_id = params.get(
-                    "sub_equipment_category_id", self.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID
-                )
-                if equipment_category_id is not None:
-                    query["equipmentCategoryId"] = int(equipment_category_id)
+                query["equipmentCategoryId"] = int(equipment_category_id)
                 if sub_equipment_category_id is not None:
                     query["subEquipmentCategoryId"] = int(sub_equipment_category_id)
 
-            # THR-131: party-size capacity applies to BOTH campsites and
-            # accommodations (both use capacityCategoryId -32767, honored live
-            # for each) so it lives outside the equipment gate above. It MUST
-            # be a JSON *string*, not a Python list-of-dict: the live API
-            # accepts ``peopleCapacityCategoryCounts=[{...}]`` (URL-encoded
-            # JSON array) and 400s on a bare object, and neither httpx nor
-            # Playwright can encode a nested list/dict query value — the
-            # previous ``= [{...}]`` serialized to a Python repr and 400'd the
-            # availability read (masked on the campsite path only because
-            # production drove it through a browser context that dropped the
-            # malformed param). ``json.dumps`` makes it a scalar string both
-            # transports encode identically and correctly.
+        # THR-131: party-size capacity applies to BOTH campsites and
+        # accommodations (both use capacityCategoryId -32767, honored live for
+        # each). Unlike equipment, it stays PC-only — gated on
+        # ``DEFAULT_CAPACITY_CATEGORY_ID`` (None on BC/Ontario, which were
+        # never confirmed to accept it). It MUST be a JSON *string*, not a
+        # Python list-of-dict: the live API accepts
+        # ``peopleCapacityCategoryCounts=[{...}]`` (URL-encoded JSON array) and
+        # 400s on a bare object, and neither httpx nor Playwright can encode a
+        # nested list/dict query value — the previous ``= [{...}]`` serialized
+        # to a Python repr and 400'd the availability read (masked on the
+        # campsite path only because production drove it through a browser
+        # context that dropped the malformed param). ``json.dumps`` makes it a
+        # scalar string both transports encode identically and correctly.
+        if self.DEFAULT_CAPACITY_CATEGORY_ID is not None:
             people = params.get("people")
             try:
                 party_size = int(people) if people not in (None, "") else None
             except (TypeError, ValueError):
                 party_size = None
-            if party_size and self.DEFAULT_CAPACITY_CATEGORY_ID is not None:
+            if party_size:
                 query["peopleCapacityCategoryCounts"] = json.dumps([{
                     "capacityCategoryId": self.DEFAULT_CAPACITY_CATEGORY_ID,
                     "subCapacityCategoryId": None,

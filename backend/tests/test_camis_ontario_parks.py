@@ -10,7 +10,11 @@ milestone exists to measure.
 from __future__ import annotations
 
 from app.adapters import adapter_requires_credentials, get_adapter, list_adapters
-from app.adapters.base_camis import BaseCamisAdapter, _parse_park_option
+from app.adapters.base_camis import (
+    BaseCamisAdapter,
+    _parse_equipment_option,
+    _parse_park_option,
+)
 from app.adapters.camis_ontario_parks import CamisOntarioParksAdapter
 
 
@@ -36,7 +40,16 @@ def test_ontario_config():
 
 def test_param_fields_from_ontario_catalog():
     fields = {f.key: f for f in CamisOntarioParksAdapter.param_fields()}
-    assert set(fields) == {"park", "booking_category", "date", "nights", "people", "occupants"}
+    assert set(fields) == {
+        "park", "booking_category", "date", "nights", "people",
+        "equipment", "occupants",
+    }
+
+    # THR-132: equipment select from the scraped tree; Ontario's frontcountry
+    # small tent is labelled "Single Tent", id -32768/-32768 (shared enum).
+    equipment = fields["equipment"]
+    assert _parse_equipment_option(equipment.default) == (-32768, -32768)
+    assert equipment.default.startswith("Single Tent ")
 
     park = fields["park"]
     # ontario_parks.json ships 129 parks; every option must round-trip.

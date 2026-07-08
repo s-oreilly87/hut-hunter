@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-06T00:52:24Z",
+  "scraped_at": "2026-07-08T03:16:36Z",
   "source": "reservation.pc.gc.ca",
   "base_url": "https://reservation.pc.gc.ca",
   "culture": "en-CA",
@@ -88,6 +88,102 @@
       "booking_category_id": 17,
       "booking_model": 5,
       "name": "Chilkoot Trail"
+    }
+  ],
+  "equipment": [
+    {
+      "equipment_category_id": -32768,
+      "name": "Equipment",
+      "order": 1,
+      "sub_categories": [
+        {
+          "sub_equipment_category_id": -32768,
+          "name": "Small Tent",
+          "order": 1
+        },
+        {
+          "sub_equipment_category_id": -32767,
+          "name": "Medium Tent",
+          "order": 2
+        },
+        {
+          "sub_equipment_category_id": -32766,
+          "name": "Large Tent",
+          "order": 3
+        },
+        {
+          "sub_equipment_category_id": -32765,
+          "name": "Van/Pickup",
+          "order": 4
+        },
+        {
+          "sub_equipment_category_id": -32764,
+          "name": "Tent Trailer",
+          "order": 5
+        },
+        {
+          "sub_equipment_category_id": -32763,
+          "name": "Trailer or Motorhome up to 21ft",
+          "order": 6
+        },
+        {
+          "sub_equipment_category_id": -32762,
+          "name": "Trailer or Motorhome up to 24ft",
+          "order": 7
+        },
+        {
+          "sub_equipment_category_id": -32761,
+          "name": "Trailer or Motorhome up to 27ft",
+          "order": 8
+        },
+        {
+          "sub_equipment_category_id": -32760,
+          "name": "Trailer or Motorhome up to 35ft",
+          "order": 9
+        },
+        {
+          "sub_equipment_category_id": -32759,
+          "name": "Trailer or Motorhome over 35ft",
+          "order": 10
+        }
+      ]
+    },
+    {
+      "equipment_category_id": -32767,
+      "name": "Backcountry",
+      "order": 2,
+      "sub_categories": [
+        {
+          "sub_equipment_category_id": -32758,
+          "name": "Single Tent",
+          "order": 1
+        },
+        {
+          "sub_equipment_category_id": -32757,
+          "name": "2 Tents",
+          "order": 2
+        },
+        {
+          "sub_equipment_category_id": -32756,
+          "name": "3 Tents",
+          "order": 3
+        },
+        {
+          "sub_equipment_category_id": -32755,
+          "name": "4 Tents",
+          "order": 4
+        },
+        {
+          "sub_equipment_category_id": -32754,
+          "name": "5 Tents",
+          "order": 5
+        },
+        {
+          "sub_equipment_category_id": -32753,
+          "name": "6 Tents",
+          "order": 6
+        }
+      ]
     }
   ],
   "parks": [

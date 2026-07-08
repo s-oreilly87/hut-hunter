@@ -14,6 +14,7 @@ from app.adapters import adapter_requires_credentials, get_adapter, list_adapter
 from app.adapters.base_camis import (
     BaseCamisAdapter,
     _format_park_option,
+    _parse_equipment_option,
     _parse_park_option,
 )
 from app.adapters.camis_bc_parks import CamisBcParksAdapter
@@ -57,11 +58,24 @@ def test_list_adapters_exposes_expiry_metadata():
 
 def test_param_fields_schema():
     fields = {f.key: f for f in CamisBcParksAdapter.param_fields()}
-    assert set(fields) == {"park", "booking_category", "date", "nights", "people", "occupants"}
+    assert set(fields) == {
+        "park", "booking_category", "date", "nights", "people",
+        "equipment", "occupants",
+    }
 
     # The camper picker + auto-book gate both key off an `occupants` param
     # field existing (HH-103); optional so availability-only hunts work.
     assert fields["occupants"].required is False
+
+    # THR-132: equipment is a visible, configurable select built from the
+    # scraped /api/equipment tree, defaulting to the frontcountry "1 Tent",
+    # and every option round-trips through the equipment parser.
+    equipment = fields["equipment"]
+    assert equipment.type == "select"
+    assert equipment.required is False
+    assert equipment.options and _parse_equipment_option(equipment.default) == (-32768, -32768)
+    assert equipment.default.startswith("1 Tent ")
+    assert all(_parse_equipment_option(opt) is not None for opt in equipment.options)
 
     park = fields["park"]
     assert park.type == "select"
