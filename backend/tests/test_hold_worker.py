@@ -24,6 +24,7 @@ from app.adapters.base import (
     UnexpectedHoldFailure,
 )
 from app.core.adapter_credentials import get_adapter_credential_record
+from app.core.config import settings
 from app.models.job import JobStatus, as_utc, utcnow
 from app.models.session import CartSession
 
@@ -229,6 +230,10 @@ async def test_parking_failure_falls_back_to_hold_failed_teardown(
     # were available, hold failed) — no needs-attention notification fires.
     assert len(notifications) == 1
     assert notifications[0]["title"] == "🏕️ Available but hold failed"
+    # THR-130 follow-up: this hold-worker email must carry the Hut Hunter
+    # show-hunt link (the fake adapter isn't in the real registry so the
+    # booking link is omitted, but the hunt link is always present).
+    assert f"Open in Hut Hunter: {settings.app_url}/#/jobs/{job.id}" in notifications[0]["message"]
 
 
 async def test_known_clean_negative_outcome_still_uses_existing_hold_failed_path(
