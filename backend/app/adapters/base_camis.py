@@ -273,8 +273,21 @@ class BaseCamisAdapter(BaseAdapter):
     DEFAULT_SUB_EQUIPMENT_CATEGORY_ID: int | None = None
     # capacityCategoryId used by the Angular app's own party-size query
     # (peopleCapacityCategoryCounts) — confirmed live 2026-07-07, Parks
-    # Canada only (see above).
+    # Canada only (see above). Confirmed live 2026-07-07 to apply to the
+    # Accommodation category too (same capacityCategoryId -32767 as Campsite).
     DEFAULT_CAPACITY_CATEGORY_ID: int | None = None
+
+    # THR-131: booking-category ids that must NOT receive the frontcountry
+    # equipment extras (equipmentCategoryId/subEquipmentCategoryId/isReserving/
+    # numEquipment/filterData) even when ``_INCLUDE_UI_QUERY_EXTRAS`` is on.
+    # Parks Canada's Accommodation category (oTENTiks/cabins/yurts — the huts)
+    # has no equipment step, and its availability reads correctly with no
+    # equipment params at all (confirmed live against reservation.pc.gc.ca:
+    # sending the frontcountry "Small Tent" ids is a semantic no-op there).
+    # The party-size capacity filter below is still sent for these categories.
+    # Default empty (every category gets equipment, i.e. the pre-THR-131
+    # behavior); set per-adapter.
+    _NON_EQUIPMENT_BOOKING_CATEGORY_IDS: frozenset[int] = frozenset()
 
     # ------------------------------------------------------------------
     # JSON API access (the catalog + availability read path)
@@ -939,32 +952,53 @@ class BaseCamisAdapter(BaseAdapter):
             # filtered park can't silently diverge from our simpler query.
             # Parks-Canada-only — see the class-attribute comment above on
             # why this can't be a shared default.
-            query["isReserving"] = "true"
-            query["filterData"] = []
-            query["numEquipment"] = 0
+            #
+            # THR-131: the equipment half of these extras is camping-specific
+            # (a tent size) and meaningless for the Accommodation category —
+            # confirmed live that Accommodation availability reads correctly
+            # with no equipment params — so it is skipped for the categories
+            # in ``_NON_EQUIPMENT_BOOKING_CATEGORY_IDS`` (Accommodation on
+            # Parks Canada). Every other category keeps the exact THR-129
+            # shape.
+            if int(category_id) not in self._NON_EQUIPMENT_BOOKING_CATEGORY_IDS:
+                query["isReserving"] = "true"
+                query["filterData"] = "[]"
+                query["numEquipment"] = 0
 
-            equipment_category_id = params.get(
-                "equipment_category_id", self.DEFAULT_EQUIPMENT_CATEGORY_ID
-            )
-            sub_equipment_category_id = params.get(
-                "sub_equipment_category_id", self.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID
-            )
-            if equipment_category_id is not None:
-                query["equipmentCategoryId"] = int(equipment_category_id)
-            if sub_equipment_category_id is not None:
-                query["subEquipmentCategoryId"] = int(sub_equipment_category_id)
+                equipment_category_id = params.get(
+                    "equipment_category_id", self.DEFAULT_EQUIPMENT_CATEGORY_ID
+                )
+                sub_equipment_category_id = params.get(
+                    "sub_equipment_category_id", self.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID
+                )
+                if equipment_category_id is not None:
+                    query["equipmentCategoryId"] = int(equipment_category_id)
+                if sub_equipment_category_id is not None:
+                    query["subEquipmentCategoryId"] = int(sub_equipment_category_id)
 
+            # THR-131: party-size capacity applies to BOTH campsites and
+            # accommodations (both use capacityCategoryId -32767, honored live
+            # for each) so it lives outside the equipment gate above. It MUST
+            # be a JSON *string*, not a Python list-of-dict: the live API
+            # accepts ``peopleCapacityCategoryCounts=[{...}]`` (URL-encoded
+            # JSON array) and 400s on a bare object, and neither httpx nor
+            # Playwright can encode a nested list/dict query value — the
+            # previous ``= [{...}]`` serialized to a Python repr and 400'd the
+            # availability read (masked on the campsite path only because
+            # production drove it through a browser context that dropped the
+            # malformed param). ``json.dumps`` makes it a scalar string both
+            # transports encode identically and correctly.
             people = params.get("people")
             try:
                 party_size = int(people) if people not in (None, "") else None
             except (TypeError, ValueError):
                 party_size = None
             if party_size and self.DEFAULT_CAPACITY_CATEGORY_ID is not None:
-                query["peopleCapacityCategoryCounts"] = [{
+                query["peopleCapacityCategoryCounts"] = json.dumps([{
                     "capacityCategoryId": self.DEFAULT_CAPACITY_CATEGORY_ID,
                     "subCapacityCategoryId": None,
                     "count": party_size,
-                }]
+                }])
 
         return query
 

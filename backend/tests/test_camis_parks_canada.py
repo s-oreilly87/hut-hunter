@@ -7,6 +7,9 @@ Adapter Builder pipeline. Same thin shape as the Ontario tests.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from app.adapters import (
     adapter_park_url,
     adapter_requires_credentials,
@@ -14,8 +17,13 @@ from app.adapters import (
     get_adapter,
     list_adapters,
 )
+from app.adapters.base import AvailabilityStatus, BookingWindowInfo
 from app.adapters.base_camis import BaseCamisAdapter, _parse_park_option
 from app.adapters.camis_parks_canada import CamisParksCanadaAdapter
+
+_ACCOM_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "camis_parks_canada_accommodation_fundy.json"
+)
 
 
 def test_registered_in_registry():
@@ -114,12 +122,76 @@ def test_availability_query_includes_confirmed_ui_extras():
         "people": 2,
     })
     assert query["isReserving"] == "true"
-    assert query["filterData"] == []
+    assert query["filterData"] == "[]"
     assert query["numEquipment"] == 0
     assert query["equipmentCategoryId"] == -32768
     assert query["subEquipmentCategoryId"] == -32768
-    assert query["peopleCapacityCategoryCounts"] == [{
+    # THR-131: peopleCapacityCategoryCounts is now a JSON *string*, not a
+    # Python list — the live API accepts the URL-encoded JSON array and 400s
+    # on anything httpx/Playwright produce from a nested list/dict value.
+    assert isinstance(query["peopleCapacityCategoryCounts"], str)
+    assert json.loads(query["peopleCapacityCategoryCounts"]) == [{
         "capacityCategoryId": -32767,
         "subCapacityCategoryId": None,
         "count": 2,
     }]
+
+
+def test_accommodation_query_omits_equipment_but_keeps_capacity():
+    # THR-131: the "Parks Canada Accommodation" category (id 1 — the huts)
+    # takes NO equipment filter (a tent size is meaningless for an oTENTik/
+    # cabin/yurt; confirmed live that availability reads correctly without
+    # one), but it DOES take the party-size capacity filter — same
+    # capacityCategoryId (-32767) as Campsite, honored live for category 1.
+    adapter = CamisParksCanadaAdapter()
+    query = adapter._build_availability_query({
+        "resource_location_id": -2147483621,
+        "map_id": -1,
+        "booking_category_id": 1,
+        "date": "19/09/2026",
+        "nights": 2,
+        "people": 3,
+    })
+    for key in (
+        "equipmentCategoryId", "subEquipmentCategoryId",
+        "isReserving", "numEquipment", "filterData",
+    ):
+        assert key not in query, f"accommodation query must not send {key}"
+    assert json.loads(query["peopleCapacityCategoryCounts"]) == [{
+        "capacityCategoryId": -32767,
+        "subCapacityCategoryId": None,
+        "count": 3,
+    }]
+
+
+async def test_accommodation_detection_from_live_fixture():
+    # THR-131: the huts (Parks Canada Accommodation, category 1) detect
+    # correctly through the shared BaseCamisAdapter availability path — same
+    # /api/availability/map endpoint, map tree, drill and per-site code shape
+    # as Campsite. Fixture captured live from reservation.pc.gc.ca (Fundy -
+    # Headquarters, 2026-09-19, 2 nights): 6 of 117 units free for the full
+    # stay. Offline + deterministic — the network reads are stubbed.
+    fixture = json.loads(_ACCOM_FIXTURE.read_text())
+    responses = fixture["responses_by_map_id"]
+    adapter = CamisParksCanadaAdapter()
+
+    async def fake_map(page, query):
+        return responses[str(query["mapId"])]
+
+    async def fake_window(params):
+        return BookingWindowInfo(is_open=True)
+
+    adapter._get_map_availability = fake_map  # type: ignore[method-assign]
+    adapter.check_booking_window = fake_window  # type: ignore[method-assign]
+
+    results = await adapter.detect_availability(None, {
+        "resource_location_id": -2147483621,
+        "booking_category": "Parks Canada Accommodation",
+        "date": "19/09/2026",
+        "nights": 2,
+        "people": 2,
+    })
+    assert len(results) == 1
+    assert results[0].status == AvailabilityStatus.AVAILABLE
+    assert results[0].total_available == 6
+    assert "6 sites available" in results[0].evidence

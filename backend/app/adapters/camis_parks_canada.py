@@ -58,3 +58,14 @@ class CamisParksCanadaAdapter(BaseCamisAdapter):
     DEFAULT_EQUIPMENT_CATEGORY_ID = -32768
     DEFAULT_SUB_EQUIPMENT_CATEGORY_ID = -32768
     DEFAULT_CAPACITY_CATEGORY_ID = -32767
+
+    # THR-131: the "Parks Canada Accommodation" booking category (id 1 — the
+    # huts: oTENTiks, cabins, yurts) rides the same /api/availability/map
+    # endpoint, map tree, and per-site code shape as Campsite (bookingModel 0,
+    # capacityCategoryId -32767, both confirmed live), so detection is pure
+    # config over the shared BaseCamisAdapter path. The one required
+    # difference: it takes no equipment (tent) filter — sending the
+    # frontcountry equipment ids is meaningless for a unit-type booking — so
+    # category 1 is exempted from the equipment extras while still receiving
+    # the party-size capacity filter. See docs/adapters/camis-recon.md §8.
+    _NON_EQUIPMENT_BOOKING_CATEGORY_IDS = frozenset({1})

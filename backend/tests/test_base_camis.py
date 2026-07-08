@@ -269,7 +269,7 @@ def test_build_query_includes_ui_extras_when_adapter_opts_in(tmp_path):
         {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
     )
     assert query["isReserving"] == "true"
-    assert query["filterData"] == []
+    assert query["filterData"] == "[]"
     assert query["numEquipment"] == 0
     assert query["equipmentCategoryId"] == -32768
     assert query["subEquipmentCategoryId"] == -32768
@@ -288,7 +288,8 @@ def test_build_query_includes_party_size_when_people_given(tmp_path):
     query = adapter._build_availability_query(
         {"resource_location_id": -100, "date": "01/08/2026", "nights": 2, "people": 4}
     )
-    assert query["peopleCapacityCategoryCounts"] == [{
+    # THR-131: JSON-encoded string, not a Python list (see _build_availability_query).
+    assert json.loads(query["peopleCapacityCategoryCounts"]) == [{
         "capacityCategoryId": -32767,
         "subCapacityCategoryId": None,
         "count": 4,
