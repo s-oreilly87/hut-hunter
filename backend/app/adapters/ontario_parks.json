@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-05T19:44:38Z",
+  "scraped_at": "2026-07-08T03:16:36Z",
   "source": "reservations.ontarioparks.ca",
   "base_url": "https://reservations.ontarioparks.ca",
   "culture": "en-CA",
@@ -78,6 +78,50 @@
       "booking_category_id": 51,
       "booking_model": 1,
       "name": "Pay & Display Parking"
+    }
+  ],
+  "equipment": [
+    {
+      "equipment_category_id": -32768,
+      "name": "Equipment",
+      "order": 1,
+      "sub_categories": [
+        {
+          "sub_equipment_category_id": -32768,
+          "name": "Single Tent",
+          "order": 1
+        },
+        {
+          "sub_equipment_category_id": -32767,
+          "name": "2 Tents",
+          "order": 2
+        },
+        {
+          "sub_equipment_category_id": -32766,
+          "name": "3 Tents",
+          "order": 3
+        },
+        {
+          "sub_equipment_category_id": -32765,
+          "name": "Trailer or RV up to 18ft (5.5m)",
+          "order": 4
+        },
+        {
+          "sub_equipment_category_id": -32764,
+          "name": "Trailer or RV up to 25ft (7.6m)",
+          "order": 5
+        },
+        {
+          "sub_equipment_category_id": -32763,
+          "name": "Trailer or RV up to 32ft (9.7m)",
+          "order": 6
+        },
+        {
+          "sub_equipment_category_id": -32762,
+          "name": "Trailer or RV over 32ft (9.7m)",
+          "order": 7
+        }
+      ]
     }
   ],
   "parks": [

@@ -228,11 +228,12 @@ def test_extract_site_days_tolerates_shapes():
 
 
 def test_build_query_resolves_map_id_and_category_from_catalog(tmp_path):
-    # MISC (regression fix): the base adapter (and BC/Ontario, which never
-    # opt into _INCLUDE_UI_QUERY_EXTRAS) must build the SIMPLE query shape
-    # that was working before THR-129 Finding C — no isReserving/filterData/
-    # numEquipment/equipment/capacity fields, since those Parks-Canada
-    # defaults 400 against BC's own /api/availability/map.
+    # THR-132: every Camis adapter now sends the equipment filter (all three
+    # sites share the enum and accept it — the THR-129 "BC-specific 400" was
+    # really the malformed peopleCapacityCategoryCounts, fixed in THR-131), so
+    # the base query carries the shared small-tent default. Party-size
+    # capacity stays PC-only (DEFAULT_CAPACITY_CATEGORY_ID is None here), so no
+    # peopleCapacityCategoryCounts key.
     adapter = _catalog_adapter(tmp_path)
     query = adapter._build_availability_query(
         {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
@@ -244,46 +245,44 @@ def test_build_query_resolves_map_id_and_category_from_catalog(tmp_path):
         "startDate": "2026-08-01",
         "endDate": "2026-08-04",  # checkout date = start + nights
         "getDailyAvailability": "true",
+        "isReserving": "true",
+        "filterData": "[]",
+        "numEquipment": 0,
+        "equipmentCategoryId": -32768,  # shared frontcountry small-tent default
+        "subEquipmentCategoryId": -32768,
     }
 
 
-def test_build_query_omits_ui_extras_by_default():
-    # Belt-and-suspenders on the regression: _INCLUDE_UI_QUERY_EXTRAS is off
-    # unless an adapter explicitly opts in (only CamisParksCanadaAdapter
-    # does — see test_camis_parks_canada.py).
-    assert BaseCamisAdapter._INCLUDE_UI_QUERY_EXTRAS is False
-    assert BaseCamisAdapter.DEFAULT_EQUIPMENT_CATEGORY_ID is None
-    assert BaseCamisAdapter.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID is None
+def test_base_equipment_defaults_are_shared_small_tent():
+    # THR-132: the equipment enum is identical on BC/Ontario/Parks Canada
+    # (verified live 2026-07-08), so the small-tent default lives on the base
+    # class. Party-size capacity, by contrast, was only confirmed on Parks
+    # Canada, so it stays opt-in (None on the base).
+    assert BaseCamisAdapter.DEFAULT_EQUIPMENT_CATEGORY_ID == -32768
+    assert BaseCamisAdapter.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID == -32768
     assert BaseCamisAdapter.DEFAULT_CAPACITY_CATEGORY_ID is None
 
 
-def test_build_query_includes_ui_extras_when_adapter_opts_in(tmp_path):
-    # THR-129 Finding C's shape still exists and still works — just gated
-    # behind _INCLUDE_UI_QUERY_EXTRAS (Parks Canada turns it on; see
-    # camis_parks_canada.py).
+def test_build_query_omits_equipment_when_no_default(tmp_path):
+    # An adapter that explicitly clears the equipment default (or a booking
+    # category with no equipment concept) sends the simple query — no
+    # isReserving/filterData/numEquipment/equipment keys.
     adapter = _catalog_adapter(tmp_path)
-    adapter._INCLUDE_UI_QUERY_EXTRAS = True
-    adapter.DEFAULT_EQUIPMENT_CATEGORY_ID = -32768
-    adapter.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID = -32768
+    adapter.DEFAULT_EQUIPMENT_CATEGORY_ID = None
+    adapter.DEFAULT_SUB_EQUIPMENT_CATEGORY_ID = None
     query = adapter._build_availability_query(
         {"resource_location_id": -100, "date": "01/08/2026", "nights": 3}
     )
-    assert query["isReserving"] == "true"
-    assert query["filterData"] == "[]"
-    assert query["numEquipment"] == 0
-    assert query["equipmentCategoryId"] == -32768
-    assert query["subEquipmentCategoryId"] == -32768
-    # no `people` in params → no peopleCapacityCategoryCounts key at all
-    assert "peopleCapacityCategoryCounts" not in query
+    for k in ("isReserving", "filterData", "numEquipment",
+              "equipmentCategoryId", "subEquipmentCategoryId"):
+        assert k not in query
 
 
 def test_build_query_includes_party_size_when_people_given(tmp_path):
-    # THR-129 Finding C: party size is sent the way the Angular app's own
-    # query sends it — at minimum party size + equipment protects against
-    # divergence on parks that filter search results by either. Only
-    # reachable when an adapter opts into _INCLUDE_UI_QUERY_EXTRAS.
+    # Party-size capacity is sent the way the Angular app's own query sends it,
+    # gated on DEFAULT_CAPACITY_CATEGORY_ID (Parks Canada only — see
+    # camis_parks_canada.py).
     adapter = _catalog_adapter(tmp_path)
-    adapter._INCLUDE_UI_QUERY_EXTRAS = True
     adapter.DEFAULT_CAPACITY_CATEGORY_ID = -32767
     query = adapter._build_availability_query(
         {"resource_location_id": -100, "date": "01/08/2026", "nights": 2, "people": 4}
@@ -296,15 +295,53 @@ def test_build_query_includes_party_size_when_people_given(tmp_path):
     }]
 
 
-def test_build_query_equipment_and_capacity_category_overridable(tmp_path):
+def test_build_query_no_capacity_when_default_unset(tmp_path):
+    # BC/Ontario (DEFAULT_CAPACITY_CATEGORY_ID None) never send party size,
+    # even when `people` is given.
     adapter = _catalog_adapter(tmp_path)
-    adapter._INCLUDE_UI_QUERY_EXTRAS = True
+    query = adapter._build_availability_query(
+        {"resource_location_id": -100, "date": "01/08/2026", "people": 4}
+    )
+    assert "peopleCapacityCategoryCounts" not in query
+
+
+def test_build_query_equipment_ids_overridable(tmp_path):
+    # THR-132: explicit equipment ids win over the class default (what tests
+    # and power users pass).
+    adapter = _catalog_adapter(tmp_path)
     query = adapter._build_availability_query({
         "resource_location_id": -100, "date": "01/08/2026",
         "equipment_category_id": -32767, "sub_equipment_category_id": -32758,
     })
     assert query["equipmentCategoryId"] == -32767
     assert query["subEquipmentCategoryId"] == -32758
+
+
+def test_build_query_equipment_from_resolved_option_string(tmp_path):
+    # THR-132: the `equipment` Form option ("Name (cat/sub)") decodes into the
+    # two ids via _resolve_params before the query is built.
+    adapter = _catalog_adapter(tmp_path)
+    resolved = adapter._resolve_params({
+        "resource_location_id": -100, "date": "01/08/2026",
+        "equipment": "Trailer or RV over 32ft (-32768/-32762)",
+    })
+    query = adapter._build_availability_query(resolved)
+    assert query["equipmentCategoryId"] == -32768
+    assert query["subEquipmentCategoryId"] == -32762
+
+
+def test_non_equipment_category_skips_equipment(tmp_path):
+    # THR-131/132: a booking category in _NON_EQUIPMENT_BOOKING_CATEGORY_IDS
+    # (e.g. Parks Canada Accommodation) takes no equipment filter, even with
+    # the shared default set.
+    adapter = _catalog_adapter(tmp_path)
+    adapter._NON_EQUIPMENT_BOOKING_CATEGORY_IDS = frozenset({0})
+    query = adapter._build_availability_query(
+        {"resource_location_id": -100, "booking_category_id": 0, "date": "01/08/2026"}
+    )
+    for k in ("isReserving", "filterData", "numEquipment",
+              "equipmentCategoryId", "subEquipmentCategoryId"):
+        assert k not in query
 
 
 def test_build_query_explicit_values_win(tmp_path):

@@ -18,7 +18,11 @@ from app.adapters import (
     list_adapters,
 )
 from app.adapters.base import AvailabilityStatus, BookingWindowInfo
-from app.adapters.base_camis import BaseCamisAdapter, _parse_park_option
+from app.adapters.base_camis import (
+    BaseCamisAdapter,
+    _parse_equipment_option,
+    _parse_park_option,
+)
 from app.adapters.camis_parks_canada import CamisParksCanadaAdapter
 
 _ACCOM_FIXTURE = (
@@ -58,13 +62,25 @@ def test_parks_canada_config():
 
 def test_param_fields_from_parks_canada_catalog():
     fields = {f.key: f for f in CamisParksCanadaAdapter.param_fields()}
-    assert set(fields) == {"park", "booking_category", "date", "nights", "people", "occupants"}
+    assert set(fields) == {
+        "park", "booking_category", "date", "nights", "people",
+        "equipment", "occupants",
+    }
     park = fields["park"]
     # parks_canada.json ships 114 locations; every option must round-trip.
     assert park.options and len(park.options) > 100
     assert all(_parse_park_option(opt) is not None for opt in park.options)
     # "Campsite" is booking category 0 on this instance too.
     assert fields["booking_category"].default == "Campsite"
+
+    # THR-132: Parks Canada exposes TWO equipment groups (frontcountry
+    # "Equipment" + "Backcountry"); the default is the frontcountry "Small
+    # Tent" (-32768/-32768), and the grouped tree carries both.
+    equipment = fields["equipment"]
+    assert _parse_equipment_option(equipment.default) == (-32768, -32768)
+    assert equipment.default.startswith("Small Tent ")
+    groups = {g["group"] for g in (equipment.options_tree or [])}
+    assert {"Equipment", "Backcountry"} <= groups
 
 
 def test_config_only_no_behaviour_overrides():
@@ -104,15 +120,15 @@ def test_adapter_park_url_none_for_unknown_adapter():
 
 
 def test_availability_query_includes_confirmed_ui_extras():
-    # MISC (regression fix): THR-129 Finding C's extended /api/availability/map
-    # shape (equipmentCategoryId/subEquipmentCategoryId/isReserving/
-    # filterData/numEquipment/peopleCapacityCategoryCounts) was confirmed
-    # live only against reservation.pc.gc.ca, so it's opt-in per adapter and
-    # only this one turns it on (every other Camis adapter would 400 on
-    # these Parks-Canada-specific equipment/capacity ids — see
-    # base_camis.py's _INCLUDE_UI_QUERY_EXTRAS).
+    # Parks Canada's Campsite query carries the full /api/availability/map
+    # shape: the equipment filter (equipmentCategoryId/subEquipmentCategoryId/
+    # isReserving/filterData/numEquipment — THR-132, now shared across all
+    # Camis adapters) PLUS the party-size capacity filter
+    # (peopleCapacityCategoryCounts), which stays Parks-Canada-only via
+    # DEFAULT_CAPACITY_CATEGORY_ID (confirmed live only against
+    # reservation.pc.gc.ca).
     adapter = CamisParksCanadaAdapter()
-    assert adapter._INCLUDE_UI_QUERY_EXTRAS is True
+    assert adapter.DEFAULT_CAPACITY_CATEGORY_ID == -32767
     query = adapter._build_availability_query({
         "resource_location_id": -2147483511,
         "map_id": -1,

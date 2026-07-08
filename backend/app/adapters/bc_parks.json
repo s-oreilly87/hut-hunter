@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-05T19:44:38Z",
+  "scraped_at": "2026-07-08T03:16:35Z",
   "source": "camping.bcparks.ca",
   "base_url": "https://camping.bcparks.ca",
   "culture": "en-CA",
@@ -53,6 +53,50 @@
       "booking_category_id": 14,
       "booking_model": 0,
       "name": "Backcountry Shelter"
+    }
+  ],
+  "equipment": [
+    {
+      "equipment_category_id": -32768,
+      "name": "Equipment",
+      "order": 1,
+      "sub_categories": [
+        {
+          "sub_equipment_category_id": -32768,
+          "name": "1 Tent",
+          "order": 1
+        },
+        {
+          "sub_equipment_category_id": -32767,
+          "name": "2 Tents",
+          "order": 2
+        },
+        {
+          "sub_equipment_category_id": -32766,
+          "name": "3 Tents",
+          "order": 3
+        },
+        {
+          "sub_equipment_category_id": -32765,
+          "name": "Van/Camper",
+          "order": 4
+        },
+        {
+          "sub_equipment_category_id": -32764,
+          "name": "Trailer up to 18ft",
+          "order": 5
+        },
+        {
+          "sub_equipment_category_id": -32763,
+          "name": "Trailer or RV up to 32ft",
+          "order": 6
+        },
+        {
+          "sub_equipment_category_id": -32762,
+          "name": "Trailer or RV over 32ft",
+          "order": 7
+        }
+      ]
     }
   ],
   "parks": [

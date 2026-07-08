@@ -48,15 +48,14 @@ class CamisParksCanadaAdapter(BaseCamisAdapter):
     # Westernmost of the 7 zones Parks Canada spans — see module docstring.
     booking_timezone = "America/Vancouver"
 
-    # THR-129 Finding C: reservation.pc.gc.ca's own Angular app sends
-    # equipmentCategoryId/subEquipmentCategoryId/peopleCapacityCategoryCounts/
-    # isReserving/filterData/numEquipment on /api/availability/map, confirmed
-    # live 2026-07-07 — this is the one adapter that shape was actually
-    # verified against (see base_camis.py's _INCLUDE_UI_QUERY_EXTRAS comment
-    # for why every other Camis adapter leaves this off).
-    _INCLUDE_UI_QUERY_EXTRAS = True
-    DEFAULT_EQUIPMENT_CATEGORY_ID = -32768
-    DEFAULT_SUB_EQUIPMENT_CATEGORY_ID = -32768
+    # THR-132: the equipment filter (equipmentCategoryId/subEquipmentCategoryId
+    # + isReserving/filterData/numEquipment) is now sent by every Camis adapter
+    # from the shared base defaults (all three sites share the enum — see
+    # base_camis.py), so the Parks-Canada-specific equipment overrides that
+    # THR-129 added here are gone. The party-size capacity filter
+    # (peopleCapacityCategoryCounts), by contrast, was only ever confirmed live
+    # against reservation.pc.gc.ca (2026-07-07), so it stays opt-in here via
+    # DEFAULT_CAPACITY_CATEGORY_ID (base default None → BC/Ontario send none).
     DEFAULT_CAPACITY_CATEGORY_ID = -32767
 
     # THR-131: the "Parks Canada Accommodation" booking category (id 1 — the
