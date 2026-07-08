@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.adapters import adapter_ids_for_credential_key, adapter_requires_credentials, get_adapter
-from app.adapters.base import BookingWindowInfo
+from app.adapters.base import BookingWindowInfo, StayPatternInfo
 from app.core.adapter_credentials import get_user_configured_adapter_ids, get_user_failed_adapter_ids
 from app.core.config import settings
 from app.core.crypto import decrypt
@@ -326,6 +326,28 @@ async def _check_booking_window(adapter_id: str, params: dict) -> BookingWindowI
     except Exception:
         logger.exception("check_booking_window failed for %s — treating window as open", adapter_id)
         return BookingWindowInfo(is_open=True)
+
+
+async def _check_stay_pattern(adapter_id: str, params: dict) -> StayPatternInfo:
+    """THR-133: check whether ``params``'s requested arrival/nights combo
+    satisfies the adapter's own stay-pattern rules (Camis arrival/departure
+    changeover, min/max-stay). Same fail-open contract as
+    ``_check_booking_window``: an unknown adapter, an adapter without
+    booking windows (stay-pattern rules only exist alongside them today —
+    see ``BaseCamisAdapter``), or any error raised while checking all
+    report ``is_compliant=True`` rather than blocking job creation.
+    """
+    try:
+        adapter = get_adapter(adapter_id)
+    except ValueError:
+        return StayPatternInfo(is_compliant=True)
+    if not adapter.has_booking_windows:
+        return StayPatternInfo(is_compliant=True)
+    try:
+        return await adapter.check_stay_pattern(params)
+    except Exception:
+        logger.exception("check_stay_pattern failed for %s — treating stay pattern as compliant", adapter_id)
+        return StayPatternInfo(is_compliant=True)
 
 
 def _validate_job_start_date_for_adapter(adapter_id: str, params: dict) -> None:

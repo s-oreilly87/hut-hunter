@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from datetime import date as date_cls, datetime, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -16,7 +17,9 @@ import pytest
 from app.adapters.base import (
     AvailabilityStatus,
     BaseAdapter,
+    BookingWindowInfo,
     CredentialsRejectedError,
+    StayPatternInfo,
     UnexpectedHoldFailure,
 )
 from app.adapters.base_camis import BaseCamisAdapter
@@ -1572,7 +1575,11 @@ async def test_detect_availability_proceeds_when_window_open(tmp_path):
     async def fake_check_window(params):
         raise RuntimeError("boom")
 
+    async def fake_check_stay_pattern(params):
+        return StayPatternInfo(is_compliant=True)
+
     adapter.check_booking_window = fake_check_window  # type: ignore[method-assign]
+    adapter.check_stay_pattern = fake_check_stay_pattern  # type: ignore[method-assign]
 
     async def fake_get(page, query):
         return {"resourceAvailabilities": {"-50": [{"availability": 0}]}}
@@ -1862,3 +1869,175 @@ async def test_login_raises_plain_runtime_error_when_no_credentials_configured()
     with pytest.raises(RuntimeError) as exc_info:
         await adapter._login(page)
     assert not isinstance(exc_info.value, CredentialsRejectedError)
+
+
+# ---------------------------------------------------------------------------
+# THR-133 — stay-pattern rules (arrival/departure changeover, min/max-stay)
+# parsed from /api/dateschedule, and pre-validated against the requested
+# arrival/nights combo. Golden Ears fixture captured live 2026-07-08 — see
+# tests/fixtures/camis_bc_parks_golden_ears_changeover.json's _meta for the
+# live cross-check against /api/availability/map (54 sites at site-day code
+# 3 for this exact Thu-arrival/Sat-departure stay).
+# ---------------------------------------------------------------------------
+
+_GOLDEN_EARS_CHANGEOVER_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "camis_bc_parks_golden_ears_changeover.json"
+)
+
+
+def _golden_ears_dateschedule_data() -> dict:
+    fixture = json.loads(_GOLDEN_EARS_CHANGEOVER_FIXTURE.read_text())
+    schedule = fixture["schedule"]
+    return {str(schedule["scheduleId"]): schedule}
+
+
+def test_check_stay_pattern_from_schedules_flags_changeover_violation():
+    # THR-133 repro: Thu Oct 8 2026 arrival, 2 nights -> Sat Oct 10 departure.
+    # The live-captured allowedArrivalDepartureDays entry for 2026-10-09..
+    # 2026-10-12 only allows Monday/Friday departures.
+    data = _golden_ears_dateschedule_data()
+    violation = BaseCamisAdapter._check_stay_pattern_from_schedules(
+        data, date_cls(2026, 10, 8), date_cls(2026, 10, 10), 2,
+    )
+    assert violation is not None
+    assert "departure 2026-10-10" in violation
+    assert "Monday, Friday" in violation
+
+
+def test_check_stay_pattern_from_schedules_compliant_departure_is_fine():
+    # Same restricted window, but departing Monday Oct 12 (an allowed day)
+    # must NOT be flagged.
+    data = _golden_ears_dateschedule_data()
+    violation = BaseCamisAdapter._check_stay_pattern_from_schedules(
+        data, date_cls(2026, 10, 8), date_cls(2026, 10, 12), 4,
+    )
+    assert violation is None
+
+
+def test_check_stay_pattern_from_schedules_arrival_outside_window_is_fine():
+    # A stay entirely outside any override's range is never flagged —
+    # e.g. arriving/departing in the middle of the open season with no
+    # override nearby.
+    data = _golden_ears_dateschedule_data()
+    violation = BaseCamisAdapter._check_stay_pattern_from_schedules(
+        data, date_cls(2026, 6, 1), date_cls(2026, 6, 3), 2,
+    )
+    assert violation is None
+
+
+def test_check_stay_pattern_from_schedules_flags_min_stay_violation():
+    # Synthetic min-stay override (BC Parks' own min-stay overrides never
+    # happened to fall in the live-captured 2026 window — see the fixture's
+    # _meta) — the parsing logic itself is exercised directly here.
+    data = {
+        "-1": {
+            "reservableDates": [],
+            "minStayOverrides": [{
+                "range": {"start": "2026-08-01T00:00:00Z", "end": "2026-08-03T00:00:00Z"},
+                "stayDurationLimitDays": 3,
+            }],
+            "maxStayOverrides": [],
+            "allowedArrivalDepartureDays": [],
+        },
+    }
+    violation = BaseCamisAdapter._check_stay_pattern_from_schedules(
+        data, date_cls(2026, 8, 2), date_cls(2026, 8, 3), 1,
+    )
+    assert violation is not None
+    assert "minimum stay of 3 nights" in violation
+
+
+def test_check_stay_pattern_from_schedules_flags_max_stay_violation():
+    data = {
+        "-1": {
+            "reservableDates": [],
+            "minStayOverrides": [],
+            "maxStayOverrides": [{
+                "range": {"start": "2026-08-01T00:00:00Z", "end": "2026-08-10T00:00:00Z"},
+                "stayDurationLimitDays": 2,
+            }],
+            "allowedArrivalDepartureDays": [],
+        },
+    }
+    violation = BaseCamisAdapter._check_stay_pattern_from_schedules(
+        data, date_cls(2026, 8, 2), date_cls(2026, 8, 6), 4,
+    )
+    assert violation is not None
+    assert "maximum stay of 2 nights" in violation
+
+
+def test_check_stay_pattern_from_schedules_no_overrides_is_compliant():
+    assert BaseCamisAdapter._check_stay_pattern_from_schedules(
+        {}, date_cls(2026, 8, 2), date_cls(2026, 8, 3), 1,
+    ) is None
+
+
+async def test_check_stay_pattern_queries_dateschedule_and_flags_violation(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    data = _golden_ears_dateschedule_data()
+
+    async def fake_fetch_json(path, params=None, **kwargs):
+        return data
+
+    adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
+
+    stay = await adapter.check_stay_pattern(
+        {"resource_location_id": -100, "date": "08/10/2026", "nights": 2}
+    )
+    assert stay.is_compliant is False
+    assert "Monday, Friday" in stay.evidence
+
+
+async def test_check_stay_pattern_missing_params_fails_open(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+    stay = await adapter.check_stay_pattern({})
+    assert stay.is_compliant is True
+    assert "missing" in stay.evidence
+
+
+async def test_check_stay_pattern_network_error_fails_open(tmp_path):
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_fetch_json(path, params=None, **kwargs):
+        raise RuntimeError("connection reset")
+
+    adapter.fetch_json = fake_fetch_json  # type: ignore[method-assign]
+
+    stay = await adapter.check_stay_pattern(
+        {"resource_location_id": -100, "date": "08/10/2026", "nights": 2}
+    )
+    assert stay.is_compliant is True
+    assert "dateschedule lookup failed" in stay.evidence
+
+
+async def test_detect_availability_reports_restricted_for_stay_pattern_violation(tmp_path):
+    # THR-133: a stay pattern the site's own rules reject reports RESTRICTED
+    # (not UNAVAILABLE) with a reason naming the actual constraint, and never
+    # reaches the availability/map query at all.
+    adapter = _catalog_adapter(tmp_path)
+
+    async def fake_check_window(params):
+        return BookingWindowInfo(is_open=True)
+
+    async def fake_check_stay_pattern(params):
+        return StayPatternInfo(
+            is_compliant=False,
+            evidence="departure 2026-10-10 isn't an allowed arrival/departure day "
+                     "for this period — allowed days: Monday, Friday",
+        )
+
+    async def fake_get(page, query):
+        raise AssertionError("must not query availability/map when the stay pattern is rejected")
+
+    adapter.check_booking_window = fake_check_window  # type: ignore[method-assign]
+    adapter.check_stay_pattern = fake_check_stay_pattern  # type: ignore[method-assign]
+    adapter._get_map_availability = fake_get  # type: ignore[method-assign]
+
+    results = await adapter.detect_availability(
+        None, {"resource_location_id": -100, "date": "08/10/2026", "nights": 2}
+    )
+    assert len(results) == 1
+    assert results[0].status == AvailabilityStatus.RESTRICTED
+    assert results[0].total_available == 0
+    assert "stay pattern not bookable" in results[0].evidence
+    assert "Monday, Friday" in results[0].evidence

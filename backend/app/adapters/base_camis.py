@@ -73,6 +73,7 @@ from app.adapters.base import (
     CredentialVerificationResult,
     OccupantField,
     ParamField,
+    StayPatternInfo,
     UnexpectedHoldFailure,
     VerificationStatus,
 )
@@ -925,24 +926,165 @@ class BaseCamisAdapter(BaseAdapter):
             ),
         )
 
-    async def check_booking_window(self, params: dict) -> BookingWindowInfo:
-        """Query the season calendar to see if ``params['date']`` is already
-        reservable (THR-124). See the module comment above for caveats.
+    # ------------------------------------------------------------------
+    # THR-133 — stay-pattern rules (arrival/departure changeover,
+    # min/max-stay) from the same /api/dateschedule response.
+    #
+    # Confirmed live 2026-07-08 (Golden Ears Provincial Park,
+    # resource_location_id -2147483606): the response is a dict keyed by
+    # scheduleId, and each schedule value carries these THREE arrays
+    # directly (siblings of the ``reservableDates`` season list
+    # ``_schedule_entries``/``_entry_range`` already parse above):
+    #   - ``allowedArrivalDepartureDays``: [{"range": {"start","end"},
+    #     "daysOfWeek": [int, ...]}] — daysOfWeek uses .NET's
+    #     ``System.DayOfWeek`` (Sunday=0 .. Saturday=6). Confirmed: for
+    #     2026-10-09..2026-10-12, daysOfWeek=[1, 5] (Mon/Fri) — querying
+    #     availability/map for a Thu Oct 8 -> Sat Oct 10 stay against this
+    #     exact resource returned 54 sites at site-day code 3
+    #     ("Restrictions"), and the site's own banner for that stay reads
+    #     "must depart on any of the following days: Monday, Friday" — an
+    #     exact match.
+    #   - ``minStayOverrides`` / ``maxStayOverrides``: [{"range": {...},
+    #     "stayDurationLimitDays": int, "stayDurationLimitTime": null}].
+    #     ``minStayOverrides`` shape confirmed live (16-17 holiday-weekend
+    #     entries requiring 3-night minimums); no non-empty
+    #     ``maxStayOverrides`` example was found on any park probed, so its
+    #     shape is inferred by symmetry with ``minStayOverrides`` rather
+    #     than independently confirmed.
+    #
+    # Mirrors ``_parse_booking_window``'s existing choice to check every
+    # schedule the response returns rather than discriminating by booking
+    # category — the dateschedule endpoint doesn't appear to filter by
+    # ``bookingCategoryId`` server-side either (a probed resource returned
+    # every schedule regardless of the query's category).
+    # ------------------------------------------------------------------
 
-        Fails open (``is_open=True``) on any missing param, network error, or
-        unparseable response — a broken lookup must never park a job that
-        would otherwise have worked exactly as it did before this feature.
+    # .NET System.DayOfWeek: Sunday=0 .. Saturday=6 (confirmed live — see
+    # comment above).
+    _STAY_PATTERN_DAY_NAMES = (
+        "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+    )
+
+    @staticmethod
+    def _dotnet_day_of_week(d: date_cls) -> int:
+        """Python's ``date.weekday()`` is Monday=0..Sunday=6; the Camis API's
+        ``daysOfWeek`` uses .NET's Sunday=0..Saturday=6."""
+        return (d.weekday() + 1) % 7
+
+    @classmethod
+    def _schedules(cls, data: Any) -> list[dict]:
+        """Per-schedule dicts from a dateschedule response — the level at
+        which ``minStayOverrides``/``maxStayOverrides``/
+        ``allowedArrivalDepartureDays`` live. Tolerates a bare list of
+        schedule dicts too, for forward-compat with an unrecon'd site."""
+        if isinstance(data, list):
+            return [e for e in data if isinstance(e, dict)]
+        if isinstance(data, dict):
+            return [v for v in data.values() if isinstance(v, dict)]
+        return []
+
+    @classmethod
+    def _range_covers(cls, rng: Any, d: date_cls) -> bool:
+        """True if calendar date ``d`` falls within ``rng`` (inclusive),
+        comparing via ``.date()`` exactly like ``_parse_booking_window``
+        does for season ranges — no timezone re-localization, since these
+        overrides are day-granularity bands, not instant-in-time ones."""
+        if not isinstance(rng, dict):
+            return False
+        start = cls._parse_iso_datetime(rng.get("start"))
+        end = cls._parse_iso_datetime(rng.get("end"))
+        if start is None and end is None:
+            return False
+        return (start is None or d >= start.date()) and (end is None or d <= end.date())
+
+    @classmethod
+    def _range_overlaps_stay(
+        cls, rng: Any, arrival: date_cls, departure: date_cls
+    ) -> bool:
+        """True if the requested stay ``[arrival, departure]`` (inclusive)
+        overlaps ``rng`` at all — used for min/max-stay bands, which apply
+        to the whole requested stay rather than a single endpoint."""
+        if not isinstance(rng, dict):
+            return False
+        start = cls._parse_iso_datetime(rng.get("start"))
+        end = cls._parse_iso_datetime(rng.get("end"))
+        if start is None and end is None:
+            return False
+        return (start is None or departure >= start.date()) and (end is None or arrival <= end.date())
+
+    @classmethod
+    def _check_stay_pattern_from_schedules(
+        cls, data: Any, arrival: date_cls, departure: date_cls, nights: int,
+    ) -> str | None:
+        """Validate a requested arrival/nights combo against every
+        schedule's stay-pattern override arrays. Returns the first
+        violation's human-readable reason, or ``None`` if compliant."""
+        for schedule in cls._schedules(data):
+            for override in schedule.get("allowedArrivalDepartureDays") or []:
+                days = override.get("daysOfWeek")
+                if not days:
+                    continue
+                rng = override.get("range")
+                allowed_names = ", ".join(
+                    cls._STAY_PATTERN_DAY_NAMES[day]
+                    for day in sorted(days) if 0 <= day <= 6
+                )
+                if cls._range_covers(rng, arrival) and cls._dotnet_day_of_week(arrival) not in days:
+                    return (
+                        f"arrival {arrival.isoformat()} isn't an allowed arrival/departure "
+                        f"day for this period — allowed days: {allowed_names}"
+                    )
+                if cls._range_covers(rng, departure) and cls._dotnet_day_of_week(departure) not in days:
+                    return (
+                        f"departure {departure.isoformat()} isn't an allowed arrival/departure "
+                        f"day for this period — allowed days: {allowed_names}"
+                    )
+            for override in schedule.get("minStayOverrides") or []:
+                limit = override.get("stayDurationLimitDays")
+                if limit and cls._range_overlaps_stay(override.get("range"), arrival, departure) and nights < limit:
+                    return f"minimum stay of {limit} night{'s' if limit != 1 else ''} required for this period"
+            for override in schedule.get("maxStayOverrides") or []:
+                limit = override.get("stayDurationLimitDays")
+                if limit and cls._range_overlaps_stay(override.get("range"), arrival, departure) and nights > limit:
+                    return f"maximum stay of {limit} night{'s' if limit != 1 else ''} allowed for this period"
+        return None
+
+    async def _check_dateschedule(
+        self, params: dict
+    ) -> tuple[BookingWindowInfo, StayPatternInfo]:
+        """Shared ``/api/dateschedule`` fetch + parse for BOTH
+        ``check_booking_window`` (WHEN a date becomes reservable) and
+        ``check_stay_pattern`` (THR-133 — whether the requested arrival/
+        nights combo is bookable AT ALL) — they're conceptually independent
+        gates over the same response, so this keeps the fetch/error-handling
+        code in one place. Each half fails open independently on its own
+        parse error so one broken parser can't take out the other. Each
+        public method calls this itself (i.e. calling both means two
+        network fetches) rather than sharing one call, so that
+        monkeypatching either public method independently — as existing
+        tests and any future adapter override do — keeps working.
         """
         resolved = self._resolve_params(params)
         rl_id = resolved.get("resource_location_id")
         date_str = resolved.get("date")
         if rl_id is None or not date_str:
-            return BookingWindowInfo(is_open=True, evidence="missing resource_location_id/date")
+            reason = "missing resource_location_id/date"
+            return (
+                BookingWindowInfo(is_open=True, evidence=reason),
+                StayPatternInfo(is_compliant=True, evidence=reason),
+            )
 
         try:
             target_date = datetime.strptime(str(date_str), "%d/%m/%Y").date()
         except ValueError:
-            return BookingWindowInfo(is_open=True, evidence=f"unparseable date {date_str!r}")
+            reason = f"unparseable date {date_str!r}"
+            return (
+                BookingWindowInfo(is_open=True, evidence=reason),
+                StayPatternInfo(is_compliant=True, evidence=reason),
+            )
+
+        nights = int(resolved.get("nights", 1) or 1)
+        departure_date = target_date + timedelta(days=nights)
 
         category_id = resolved.get("booking_category_id")
         if category_id is None:
@@ -957,13 +1099,17 @@ class BaseCamisAdapter(BaseAdapter):
         except Exception as exc:
             logger.warning(
                 "dateschedule lookup failed for resourceLocationId=%s: %s — "
-                "treating booking window as open", rl_id, exc,
+                "treating booking window as open and stay pattern as compliant", rl_id, exc,
             )
-            return BookingWindowInfo(is_open=True, evidence=f"dateschedule lookup failed: {exc}")
+            reason = f"dateschedule lookup failed: {exc}"
+            return (
+                BookingWindowInfo(is_open=True, evidence=reason),
+                StayPatternInfo(is_compliant=True, evidence=reason),
+            )
 
         tz = ZoneInfo(self.booking_timezone) if self.booking_timezone else None
         try:
-            return self._parse_booking_window(
+            window = self._parse_booking_window(
                 data,
                 target_date,
                 tz,
@@ -972,7 +1118,52 @@ class BaseCamisAdapter(BaseAdapter):
             )
         except Exception as exc:
             logger.warning("failed to parse dateschedule response: %s — treating window as open", exc)
-            return BookingWindowInfo(is_open=True, evidence=f"dateschedule parse error: {exc}")
+            window = BookingWindowInfo(is_open=True, evidence=f"dateschedule parse error: {exc}")
+
+        try:
+            violation = self._check_stay_pattern_from_schedules(
+                data, target_date, departure_date, nights
+            )
+            stay = StayPatternInfo(is_compliant=not violation, evidence=violation or "")
+        except Exception as exc:
+            logger.warning(
+                "failed to parse stay-pattern rules from dateschedule response: %s — "
+                "treating stay pattern as compliant", exc,
+            )
+            stay = StayPatternInfo(is_compliant=True, evidence=f"stay-pattern parse error: {exc}")
+
+        return window, stay
+
+    async def check_booking_window(self, params: dict) -> BookingWindowInfo:
+        """Query the season calendar to see if ``params['date']`` is already
+        reservable (THR-124). See the module comment above for caveats.
+
+        Fails open (``is_open=True``) on any missing param, network error, or
+        unparseable response — a broken lookup must never park a job that
+        would otherwise have worked exactly as it did before this feature.
+        """
+        window, _ = await self._check_dateschedule(params)
+        return window
+
+    async def check_stay_pattern(self, params: dict) -> StayPatternInfo:
+        """THR-133: validate the requested arrival/nights combo against
+        ``/api/dateschedule``'s ``minStayOverrides``/``maxStayOverrides``/
+        ``allowedArrivalDepartureDays`` (confirmed live 2026-07-08 against
+        Golden Ears Provincial Park, resource_location_id -2147483606 — a
+        Thu-arrival/Sat-departure 2-night stay for Oct 8-10 2026 returned 54
+        sites at site-day code 3 ["Restrictions"], and the dateschedule
+        response's ``allowedArrivalDepartureDays`` for that exact window
+        (2026-10-09 to 2026-10-12) is ``daysOfWeek: [1, 5]`` — .NET
+        ``DayOfWeek`` Monday/Friday — matching the site's own banner text
+        verbatim: "must depart on any of the following days: Monday,
+        Friday"). See ``_check_stay_pattern_from_schedules``.
+
+        Fails open (``is_compliant=True``) on any missing param, network
+        error, or unparseable response — same contract as
+        ``check_booking_window``.
+        """
+        _, stay = await self._check_dateschedule(params)
+        return stay
 
     # ------------------------------------------------------------------
     # Search + availability detection (HH-99, corrected in HH-102)
@@ -1440,6 +1631,13 @@ class BaseCamisAdapter(BaseAdapter):
         # params, network error, unparseable response), so this can only
         # ever make an otherwise-AVAILABLE result MORE conservative, never
         # less — it never invents unavailability the site itself wouldn't.
+        #
+        # Calls the PUBLIC check_booking_window/check_stay_pattern (each a
+        # thin wrapper over the shared _check_dateschedule fetch+parse)
+        # rather than _check_dateschedule directly — subclasses/tests that
+        # monkeypatch either public method must still take effect here.
+        # This does mean two /api/dateschedule fetches per poll when a stay
+        # pattern needs checking; acceptable next to correctness/testability.
         try:
             window = await self.check_booking_window(params)
         except Exception as exc:
@@ -1455,6 +1653,31 @@ class BaseCamisAdapter(BaseAdapter):
                 site=site_name,
                 status=AvailabilityStatus.UNAVAILABLE,
                 evidence=f"outside the booking window (opens {opens_at_text}): {window.evidence}",
+                total_available=0,
+            )]
+
+        # THR-133: a stay pattern the site's own rules reject (arrival/
+        # departure changeover, min/max-stay) can never be AVAILABLE either,
+        # regardless of capacity — and unlike UNAVAILABLE, this is
+        # RESTRICTED (adjusting dates/nights could still work), with a
+        # reason that names the actual constraint instead of a generic
+        # "no bookable site found." Fails open the same way the window
+        # check above does — a broken lookup must never invent a
+        # restriction the site itself wouldn't report.
+        try:
+            stay_pattern = await self.check_stay_pattern(params)
+        except Exception as exc:
+            logger.warning(
+                "stay-pattern check failed during detect_availability for "
+                "resource_location_id=%s: %s — proceeding without the stay-pattern gate",
+                params.get("resource_location_id"), exc,
+            )
+            stay_pattern = StayPatternInfo(is_compliant=True)
+        if not stay_pattern.is_compliant:
+            return [AvailabilityResult(
+                site=site_name,
+                status=AvailabilityStatus.RESTRICTED,
+                evidence=f"stay pattern not bookable: {stay_pattern.evidence}",
                 total_available=0,
             )]
 

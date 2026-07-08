@@ -17,7 +17,7 @@ from app.adapters import (
     get_adapter,
     list_adapters,
 )
-from app.adapters.base import AvailabilityStatus, BookingWindowInfo
+from app.adapters.base import AvailabilityStatus, BookingWindowInfo, StayPatternInfo
 from app.adapters.base_camis import (
     BaseCamisAdapter,
     _parse_equipment_option,
@@ -197,8 +197,12 @@ async def test_accommodation_detection_from_live_fixture():
     async def fake_window(params):
         return BookingWindowInfo(is_open=True)
 
+    async def fake_stay_pattern(params):
+        return StayPatternInfo(is_compliant=True)
+
     adapter._get_map_availability = fake_map  # type: ignore[method-assign]
     adapter.check_booking_window = fake_window  # type: ignore[method-assign]
+    adapter.check_stay_pattern = fake_stay_pattern  # type: ignore[method-assign]
 
     results = await adapter.detect_availability(None, {
         "resource_location_id": -2147483621,

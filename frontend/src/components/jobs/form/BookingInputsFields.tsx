@@ -5,6 +5,7 @@ import { ParamFieldInput } from './ParamFieldInput'
 import { ParamLabel } from './ParamLabel'
 import { shouldHideBookingInputField } from './paramHelpers'
 import { PermitHolderPicker } from './PermitHolderPicker'
+import { StayPatternNotice } from './StayPatternNotice'
 
 /**
  * Step-1 content: the per-adapter booking inputs plus the camper picker.
@@ -130,6 +131,9 @@ export function BookingInputsFields({
           acknowledged={Boolean(windowAcknowledged)}
           onAcknowledge={() => acknowledgeWindow?.()}
         />
+      )}
+      {windowCheck && !windowCheck.stay_pattern_compliant && (
+        <StayPatternNotice windowCheck={windowCheck} />
       )}
     </>
   )

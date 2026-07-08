@@ -209,6 +209,9 @@ export interface WindowCheckResult {
   opens_at: string | null
   opens_at_precise: boolean
   evidence: string
+  // THR-133: advisory only — never blocks save, unlike is_open.
+  stay_pattern_compliant: boolean
+  stay_pattern_evidence: string
 }
 
 export interface Occupant {

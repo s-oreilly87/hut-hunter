@@ -253,11 +253,21 @@ class WindowCheckRequest(SQLModel):
 
 class WindowCheckResponse(SQLModel):
     """Response body for POST /jobs/window-check — mirrors
-    ``BookingWindowInfo`` (see app/adapters/base.py)."""
+    ``BookingWindowInfo`` (see app/adapters/base.py).
+
+    THR-133: also carries ``StayPatternInfo`` for the same params — an
+    advisory-only check (unlike the window fields, a non-compliant stay
+    pattern never blocks job creation or changes job status) so the wizard
+    can warn the user up front that e.g. an arrival/departure changeover
+    rule will keep this exact date/nights combo from ever being bookable,
+    before they wait out a booking window that can never yield a hold.
+    """
     is_open: bool
     opens_at: datetime | None = None
     opens_at_precise: bool = True
     evidence: str = ""
+    stay_pattern_compliant: bool = True
+    stay_pattern_evidence: str = ""
 
 
 class WatchJobRead(SQLModel):
