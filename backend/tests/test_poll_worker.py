@@ -395,3 +395,49 @@ async def test_check_availability_persists_normally_when_params_unchanged_mid_fl
     assert updated.last_checked_at is not None
     next_at = as_utc(updated.next_check_at)
     assert next_at > utcnow() + timedelta(minutes=14)
+
+
+# ---------------------------------------------------------------------------
+# THR-130 — availability notifications carry a booking-site link and a Hut
+# Hunter show-hunt link.
+# ---------------------------------------------------------------------------
+
+async def test_check_availability_notification_includes_booking_and_hunt_links(
+    monkeypatch, seed_job,
+):
+    """An availability notification must include both the booking-site link
+    (here the DOC Great Walk landing page, via the adapter's results_url) and
+    a link back to the hunt in Hut Hunter (settings.app_url + hash route)."""
+    captured: list[dict] = []
+
+    async def fake_dispatch(settings_secret, *, title, message, priority=5):
+        captured.append({"title": title, "message": message})
+
+    async def fake_detect(page, params):
+        return [AvailabilityResult(
+            site="Routeburn Track", status=AvailabilityStatus.AVAILABLE,
+            evidence="2 free", total_available=2,
+        )]
+
+    adapter = _FakeWindowedAdapter(has_booking_windows=False, adapter_id="doc_great_walk")
+    adapter.detect_availability = fake_detect  # type: ignore[method-assign]
+    monkeypatch.setattr(poll_worker, "get_adapter", lambda adapter_id: adapter)
+    monkeypatch.setattr(poll_worker, "_browser_page", _fake_detect_browser_page)
+    monkeypatch.setattr(poll_worker, "dispatch_notification_targets", fake_dispatch)
+    monkeypatch.setattr(poll_worker.settings, "app_url", "https://hunt.example.com")
+
+    job = await seed_job(
+        adapter_id="doc_great_walk",
+        status=JobStatus.CHECKING.value,
+        enable_monitoring=True,
+        auto_book=False,
+    )
+
+    await poll_worker.check_availability({}, job.id)
+
+    assert len(captured) == 1
+    message = captured[0]["message"]
+    # Booking-site link — the Great Walk landing page from results_url.
+    assert "Booking site: https://bookings.doc.govt.nz/Web/Default.aspx#!greatwalk-result" in message
+    # Hut Hunter show-hunt link — app_url + the hash route for this job.
+    assert f"Open in Hut Hunter: https://hunt.example.com/#/jobs/{job.id}" in message

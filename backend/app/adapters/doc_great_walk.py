@@ -118,6 +118,20 @@ class DocGreatWalkAdapter(BaseDOCAdapter):
     name = "NZ DOC Great Walk"
     base_url = "https://bookings.doc.govt.nz/Web/Default.aspx#!greatwalk-result"
 
+    def results_url(self, params: dict) -> str | None:
+        """THR-130 (DOC link parity): the Great Walk booking landing page.
+
+        DOC's booking site is a JS/Playwright search flow that takes no
+        URL-param prefill of dates or party size, and — unlike a standard hut —
+        a Great Walk has no per-track facility page either (the track is
+        chosen via an in-page dropdown). The landing page is therefore the
+        deep-link ceiling. It's still worth surfacing server-side so Great
+        Walk jobs flow through the same ``park_url`` path as every other
+        adapter (info bar, availability-tile Go To Site button, notification
+        links) rather than being a silent per-site exception.
+        """
+        return self.base_url
+
     @classmethod
     def param_fields(cls) -> list[ParamField]:
         return [

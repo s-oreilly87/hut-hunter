@@ -50,6 +50,7 @@ export function BookingInProgressSection({
             artifactPng={job.last_artifact_png}
             artifactHtml={job.last_artifact_html}
             unavailableArtifact={unavailableArtifact}
+            parkUrl={job.park_url}
           />
           {jobHasPartialAvailability(job) && (
             <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">

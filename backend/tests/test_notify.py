@@ -1,10 +1,34 @@
-import pytest
-
-from app.core.notify import dispatch_notification_targets
+from app.core.notify import dispatch_notification_targets, format_notification_links
 from app.models.notification import UserNotificationSettingsSecret
 
+# NB: no module-level asyncio mark — the suite runs with asyncio_mode=auto
+# (pytest.ini), so async tests are detected automatically and the sync
+# format_notification_links tests below stay sync.
 
-pytestmark = pytest.mark.asyncio
+
+def test_format_notification_links_includes_both_links():
+    # THR-130: both the booking-site link and the Hut Hunter hunt link.
+    footer = format_notification_links(
+        booking_url="https://reservation.pc.gc.ca/create-booking/results?x=1",
+        hunt_url="https://app.example.com/#/jobs/abc123",
+    )
+    assert "Booking site: https://reservation.pc.gc.ca/create-booking/results?x=1" in footer
+    assert "Open in Hut Hunter: https://app.example.com/#/jobs/abc123" in footer
+    # Rendered as a trailing block, separated from the message body.
+    assert footer.startswith("\n\n")
+
+
+def test_format_notification_links_omits_missing_booking_url():
+    footer = format_notification_links(
+        booking_url=None,
+        hunt_url="https://app.example.com/#/jobs/abc123",
+    )
+    assert "Booking site:" not in footer
+    assert "Open in Hut Hunter: https://app.example.com/#/jobs/abc123" in footer
+
+
+def test_format_notification_links_empty_when_no_links():
+    assert format_notification_links(booking_url=None, hunt_url=None) == ""
 
 
 async def test_dispatch_notification_targets_fans_out_enabled_channels(monkeypatch):

@@ -10,6 +10,7 @@ from arq.connections import RedisSettings
 
 from app.adapters.base import AvailabilityStatus, BookingWindowInfo
 from app.adapters import (
+    adapter_park_url,
     adapter_requires_credentials,
     adapter_supports_automated_booking,
     get_adapter,
@@ -19,7 +20,7 @@ from app.models.credential import CredentialVerificationState
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.notification_settings import get_user_notification_settings_secret
-from app.core.notify import dispatch_notification_targets
+from app.core.notify import dispatch_notification_targets, format_notification_links
 from app.models.job import JobStatus, WatchJob, is_job_expired, utcnow
 from sqlmodel import select
 
@@ -191,6 +192,16 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
     # worker's flow can't handle "fewer spots than requested" cells.
     all_fully_available = bool(results) and all(r.status == AvailabilityStatus.AVAILABLE for r in results)
 
+    # THR-130: every availability notification carries a link back to the
+    # booking site (Camis: date/party-prefilled results page; DOC: the
+    # facility/landing page) and a link to this hunt in Hut Hunter. Computed
+    # once here and appended to each message below. adapter_park_url is the
+    # same fail-soft helper job serialization uses, so a broken link builder
+    # just omits the booking link rather than breaking the notification.
+    booking_url = adapter_park_url(adapter.adapter_id, params)
+    hunt_url = f"{settings.app_url}/#/jobs/{job_id}"
+    links_footer = format_notification_links(booking_url=booking_url, hunt_url=hunt_url)
+
     # --- Enqueue hold or notify ---
     hold_enqueued = False
     if all_fully_available and auto_book and not adapter_supports_automated_booking(adapter.adapter_id):
@@ -206,6 +217,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                 + "\n".join(lines)
                 + "\n\nThis booking site signs in with third-party SSO, which "
                 "Hut Hunter can't automate — book manually on the site."
+                + links_footer
             ),
             priority=8,
         )
@@ -219,6 +231,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                 "has no occupants selected, so booking could not start.\n"
                 + "\n".join(lines)
                 + "\n\nAdd occupants to the job, then book manually."
+                + links_footer
             ),
             priority=8,
         )
@@ -237,6 +250,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                 f"{credentials_reason}, so booking could not start.\n"
                 + "\n".join(lines)
                 + "\n\nFix the sign-in for this adapter, then book manually."
+                + links_footer
             ),
             priority=8,
         )
@@ -255,6 +269,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                     f"All sites fully available on {params.get('date')} but the "
                     f"auto-hold could not be queued ({e}). Book manually:\n"
                     + "\n".join(lines)
+                    + links_footer
                 ),
                 priority=9,
             )
@@ -263,7 +278,11 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
         await dispatch_notification_targets(
             notification_settings,
             title="🏕️ Availability Detected!",
-            message=f"All sites fully available on {params.get('date')}. Book now!\n" + "\n".join(lines),
+            message=(
+                f"All sites fully available on {params.get('date')}. Book now!\n"
+                + "\n".join(lines)
+                + links_footer
+            ),
             priority=8,
         )
     elif fully_available or partially_available:
@@ -289,6 +308,7 @@ async def check_availability(ctx: dict, job_id: str) -> dict:
                     + "\n".join(lines)
                     + "\n\nTo book partial: create a new watch job scoped to the "
                     "partial site(s) with a smaller party size, then Book it."
+                    + links_footer
                 ),
                 priority=6,
             )

@@ -11,6 +11,33 @@ from app.models.notification import UserNotificationSettingsSecret
 logger = logging.getLogger(__name__)
 
 
+def format_notification_links(
+    *,
+    booking_url: str | None,
+    hunt_url: str | None,
+) -> str:
+    """THR-130: a trailing links block appended to availability/hold
+    notifications (email + Gotify).
+
+    Both channels render plain text; a bare URL is clickable in Gotify and in
+    virtually every email client, so no markup is needed. Returns "" when
+    neither link is available, so callers can unconditionally append it.
+
+    - ``booking_url``: the booking-site link for this job — a date/party
+      prefilled results page for Camis, at least the site/facility page for
+      DOC (see ``BaseAdapter.results_url``).
+    - ``hunt_url``: the Hut Hunter show-hunt route on this deployment.
+    """
+    lines = []
+    if booking_url:
+        lines.append(f"Booking site: {booking_url}")
+    if hunt_url:
+        lines.append(f"Open in Hut Hunter: {hunt_url}")
+    if not lines:
+        return ""
+    return "\n\n" + "\n".join(lines)
+
+
 def _smtp_from_header() -> str:
     if settings.smtp_from_name:
         return f"{settings.smtp_from_name} <{settings.smtp_from_email}>"

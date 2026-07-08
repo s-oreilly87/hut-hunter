@@ -25,11 +25,15 @@ export function LastResultView({
   artifactPng,
   artifactHtml,
   unavailableArtifact,
+  parkUrl,
 }: {
   result: LastResultEntry[]
   artifactPng?: string | null
   artifactHtml?: string | null
   unavailableArtifact?: ArtifactRecord | null
+  // THR-130: the job's booking-site link, surfaced as a "Go To Site" button
+  // on each confirmed-availability tile. Null for adapters/params without one.
+  parkUrl?: string | null
 }) {
   if (!result.length) {
     return <p className="text-sm text-muted-foreground">No results captured yet.</p>
@@ -60,7 +64,7 @@ export function LastResultView({
             )
           }
 
-          return <AvailabilityResultTile key={index} entry={entry} />
+          return <AvailabilityResultTile key={index} entry={entry} siteUrl={parkUrl} />
         }
 
         if (isHoldFailedEntry(entry)) {
