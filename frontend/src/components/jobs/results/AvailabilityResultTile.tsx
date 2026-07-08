@@ -1,3 +1,4 @@
+import { ExternalLink } from 'lucide-react'
 import type { AvailabilityResult } from '@/lib/api'
 import {
   getAvailabilityCopy,
@@ -5,17 +6,25 @@ import {
   titleize,
 } from '@/lib/availabilityResults'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 
 /**
  * Single per-site availability tile. Renders the appropriate icon, summary
  * copy, and status pill for an `available` / `partially_available` /
  * `unknown` result. Use `UnavailableResultTile` for the bundled-unavailable
  * case.
+ *
+ * THR-130: once availability is confirmed, `siteUrl` (the job's backend-
+ * computed `park_url` — a prefilled booking-site link for Camis, a
+ * facility/landing page for DOC) surfaces a "Go To Site" button so the user
+ * can jump straight to the booking site.
  */
 export function AvailabilityResultTile({
   entry,
+  siteUrl,
 }: {
   entry: AvailabilityResult
+  siteUrl?: string | null
 }) {
   const visual = getAvailabilityVisual(entry.status)
   const copy = getAvailabilityCopy(entry)
@@ -56,6 +65,20 @@ export function AvailabilityResultTile({
                 </span>
               ))}
             </div>
+          )}
+
+          {siteUrl && (
+            <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
+              <a
+                href={siteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Go To Site
+                <ExternalLink className="size-3.5" />
+              </a>
+            </Button>
           )}
         </div>
       </div>

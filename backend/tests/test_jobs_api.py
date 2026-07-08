@@ -337,15 +337,37 @@ async def test_get_job_surfaces_camis_park_url(client, seed_job):
     assert "resourceLocationId=-2147483511" in park_url
 
 
-async def test_get_job_park_url_null_for_doc_adapter(client, seed_job, make_job_params):
-    # DOC adapters have no results_url override — park_url stays null and
-    # the frontend keeps using parseFacilityOption's client-side link instead.
-    job = await seed_job(params=make_job_params())
+async def test_get_job_park_url_great_walk_landing_page(client, seed_job, make_job_params):
+    # THR-130 (DOC link parity): a Great Walk has no per-track URL, so its
+    # results_url is the booking landing page — the page-level deep-link
+    # ceiling for DOC's JS search flow.
+    job = await seed_job(adapter_id="doc_great_walk", params=make_job_params())
 
     response = await client.get(f"/api/v1/jobs/{job.id}")
 
     assert response.status_code == 200
-    assert response.json()["park_url"] is None
+    assert (
+        response.json()["park_url"]
+        == "https://bookings.doc.govt.nz/Web/Default.aspx#!greatwalk-result"
+    )
+
+
+async def test_get_job_park_url_standard_hut_facility_link(client, seed_job):
+    # THR-130 (DOC link parity): a standard-hut job surfaces the facility page
+    # deep-link server-side (the same #!park/{park}/{facility} link the
+    # frontend builds client-side), so every adapter flows through park_url.
+    job = await seed_job(
+        adapter_id="doc_standard_hut",
+        params={"facility": "Mueller Hut (747/2487)", "date": "01/08/2099", "nights": 1},
+    )
+
+    response = await client.get(f"/api/v1/jobs/{job.id}")
+
+    assert response.status_code == 200
+    assert (
+        response.json()["park_url"]
+        == "https://bookings.doc.govt.nz/Web/#!park/747/2487"
+    )
 
 
 async def test_clear_unavailable_snapshot_removes_only_previous_unavailable_artifact(

@@ -96,11 +96,11 @@ def test_adapter_park_url_none_when_unresolvable():
     assert adapter_park_url("camis_parks_canada", {}) is None
 
 
-def test_adapter_park_url_none_for_unknown_or_non_camis_adapter():
+def test_adapter_park_url_none_for_unknown_adapter():
     # Unknown adapter id: tolerated, same fail-open posture as the rest of
-    # this module. DOC adapters: no override, base default is None.
+    # this module. (THR-130: DOC adapters now DO return a page-level
+    # results_url — see test_get_job_park_url_* in test_jobs_api.py.)
     assert adapter_park_url("nope", {}) is None
-    assert adapter_park_url("doc_great_walk", {"track": "Routeburn Track"}) is None
 
 
 def test_availability_query_includes_confirmed_ui_extras():

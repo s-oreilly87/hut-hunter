@@ -372,6 +372,24 @@ class DocStandardHutAdapter(BaseDOCAdapter):
         park_id, facility_id, _ = self._resolve_site(params)
         return self.base_url.format(park_id=park_id, facility_id=facility_id)
 
+    def results_url(self, params: dict) -> str | None:
+        """THR-130 (DOC link parity): the facility page deep-link — the same
+        ``#!park/{park_id}/{facility_id}`` link the frontend already builds
+        client-side via ``parseFacilityOption``.
+
+        DOC's booking site is a JS/Playwright search flow that takes no
+        URL-param prefill of dates or party size, so the facility page is the
+        deep-link ceiling (there's no dated/party-prefilled equivalent of the
+        Camis ``/create-booking/results`` link). Surfacing it server-side lets
+        every adapter flow through one ``park_url`` code path — info bar,
+        availability-tile Go To Site button, and notification links. Fails
+        soft to None when no facility is selected yet.
+        """
+        try:
+            return self._url_for(params)
+        except ValueError:
+            return None
+
     def _login_check_url(self) -> str:
         # THR-123: base_url is a per-park template — verify_credentials has
         # no job params to resolve it, so use the park-agnostic landing page.
