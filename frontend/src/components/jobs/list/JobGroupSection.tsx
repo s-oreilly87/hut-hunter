@@ -56,16 +56,16 @@ export function JobGroupSection({
         onClick={() => onToggle(group.adapterId)}
       >
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight text-foreground">
+          <p className="truncate text-base font-semibold tracking-tight text-foreground sm:text-sm">
             {group.adapterName}
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-base text-muted-foreground sm:text-sm">
             {group.jobs.length} hunt{group.jobs.length === 1 ? '' : 's'}
           </p>
         </div>
         <ChevronDown
           className={cn(
-            'size-4 shrink-0 text-muted-foreground',
+            'size-5 shrink-0 text-muted-foreground sm:size-4',
             isExpanded && 'rotate-180',
           )}
         />

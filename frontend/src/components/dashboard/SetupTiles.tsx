@@ -13,20 +13,20 @@ export function OccupantsTile({ onOpen, className }: { onOpen: () => void; class
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
             <Users className="size-4" />
           </div>
-          <p className="text-sm font-semibold tracking-tight text-foreground">
+          <p className="text-base font-semibold tracking-tight text-foreground sm:text-sm">
             Campers
           </p>
         </div>
         <button
           type="button"
-          className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/8 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-500/10 hover:bg-amber-500/14"
+          className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/8 px-2.5 py-1.5 text-base font-medium text-amber-700 ring-1 ring-amber-500/10 hover:bg-amber-500/14 sm:px-2 sm:py-1 sm:text-xs"
           onClick={onOpen}
         >
-          <Plus className="size-3" />
+          <Plus className="size-3.5 sm:size-3" />
           Add
         </button>
       </div>
-      <p className="mt-2.5 text-xs/4 text-pretty text-muted-foreground">
+      <p className="mt-2.5 text-base/5 text-pretty text-muted-foreground sm:text-sm/5">
         Add camper details to enable automated booking. Hut Hunter needs this info to complete checkout.
       </p>
     </article>
@@ -67,7 +67,7 @@ export function CredentialsTile({
         <div className="flex w-full items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-1">
-              <p className="text-sm font-medium text-muted-foreground">
+              <p className="text-base font-medium text-muted-foreground sm:text-sm">
                 Sign-Ins
               </p>
               <span onClick={(e) => e.stopPropagation()}>
@@ -95,20 +95,20 @@ export function CredentialsTile({
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-700">
             <LockKeyhole className="size-4" />
           </div>
-          <p className="text-sm font-semibold tracking-tight text-foreground">
+          <p className="text-base font-semibold tracking-tight text-foreground sm:text-sm">
             Sign-Ins
           </p>
         </div>
         <button
           type="button"
-          className="flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/8 px-2 py-1 text-xs font-medium text-sky-800 ring-1 ring-sky-500/10 hover:bg-sky-500/14"
+          className="flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/8 px-2.5 py-1.5 text-base font-medium text-sky-800 ring-1 ring-sky-500/10 hover:bg-sky-500/14 sm:px-2 sm:py-1 sm:text-xs"
           onClick={onOpen}
         >
-          <Plus className="size-3" />
+          <Plus className="size-3.5 sm:size-3" />
           Add
         </button>
       </div>
-      <p className="mt-2.5 text-xs/4 text-pretty text-muted-foreground">
+      <p className="mt-2.5 text-base/5 text-pretty text-muted-foreground sm:text-sm/5">
         {CREDENTIALS_TILE_DESCRIPTION}
         {missingCount > 1 ? ` ${missingCount} sites still need a sign-in.` : ''}
       </p>
@@ -125,10 +125,10 @@ export function NoJobsTile({ onCreateJob, className }: { onCreateJob: () => void
             <Clock3 className="size-4.5" />
           </div>
           <div>
-            <p className="text-sm font-semibold tracking-tight text-foreground">
+            <p className="text-base font-semibold tracking-tight text-foreground sm:text-sm">
               No hunts yet
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-base text-muted-foreground sm:text-sm">
               Create a hunt to start monitoring.
             </p>
           </div>
@@ -151,10 +151,10 @@ export function CreateMoreJobsTile({ onCreateJob, className }: { onCreateJob: ()
     <article className={cn('flex min-h-28 w-full flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4', className)}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold tracking-tight text-foreground">
+          <p className="text-base font-semibold tracking-tight text-foreground sm:text-sm">
             New Hunt
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-base text-muted-foreground sm:text-sm">
             Monitor more routes or dates.
           </p>
         </div>

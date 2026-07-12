@@ -45,13 +45,13 @@ export function AuthForm({ className }: { className?: string }) {
   }
 
   return (
-    <section className={cn('app-panel flex flex-col justify-center p-6 sm:p-8', className)}>
+    <section className={cn('app-panel flex flex-col justify-center p-6 sm:p-8 lg:p-10', className)}>
       <div className="flex justify-center">
         <div className="inline-flex w-fit rounded-full border border-border/80 bg-secondary/55 p-1">
           <button
             type="button"
             className={cn(
-              'rounded-full px-5 py-2 text-sm font-medium transition',
+              'rounded-full px-5 py-2.5 text-base font-medium transition sm:py-2 sm:text-sm',
               mode === 'login'
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
@@ -63,7 +63,7 @@ export function AuthForm({ className }: { className?: string }) {
           <button
             type="button"
             className={cn(
-              'rounded-full px-5 py-2 text-sm font-medium transition',
+              'rounded-full px-5 py-2.5 text-base font-medium transition sm:py-2 sm:text-sm',
               mode === 'register'
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
@@ -76,14 +76,14 @@ export function AuthForm({ className }: { className?: string }) {
       </div>
 
       <div className="mt-6 flex items-center gap-3">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           {mode === 'register' ? <UserPlus className="size-5" /> : <LockKeyhole className="size-5" />}
         </div>
-        <div>
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold tracking-tight text-foreground">
             {mode === 'register' ? 'Create your account' : 'Welcome back'}
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-base text-muted-foreground sm:text-sm">
             {mode === 'register'
               ? 'Set up your roster and start creating hunts.'
               : 'Sign in to get back to your hunts, holds, and saved campers.'}

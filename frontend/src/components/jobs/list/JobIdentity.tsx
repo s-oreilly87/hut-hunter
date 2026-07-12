@@ -25,15 +25,15 @@ export function JobIdentity({
   hasOutdatedCampers: boolean
 }) {
   return (
-    <div className="space-y-0.5">
-      <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight text-foreground">
+    <div className="min-w-0 space-y-0.5">
+      <p className="flex min-w-0 items-center gap-1.5 text-base font-semibold tracking-tight text-foreground sm:text-sm">
         <span className="truncate">{getJobTitle(job)}</span>
         {hasOutdatedCampers && <OutdatedCampersIcon />}
       </p>
-      <p className="text-xs tracking-tight text-muted-foreground/90">
+      <p className="text-base tracking-tight text-muted-foreground/90 sm:text-sm">
         {getJobSubtitle(job, adapterDateFieldKeyById, adapterTrackFieldKeyById)}
       </p>
-      <p className="text-xs text-muted-foreground/60">
+      <p className="text-base text-muted-foreground/60 sm:text-sm">
         {getJobMetaLine(job)}
       </p>
     </div>

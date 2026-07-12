@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react'
 import { AppHeader } from '@/components/layout/AppHeader'
+import { MobilePrimaryNav } from '@/components/layout/MobilePrimaryNav'
 import { StatsGrid } from '@/components/dashboard/StatsGrid'
 import { RecentHuntsPreview } from '@/components/dashboard/RecentHuntsPreview'
 import { FilterDropdown } from '@/components/jobs/FilterDropdown'
@@ -35,6 +36,8 @@ export function MobileApp({
   hasOccupants,
   missingCredentialCount,
 }: AppViewProps) {
+  const showPrimaryNav = route.name === 'dashboard' || route.name === 'jobs' || route.name === 'job-detail'
+
   return (
     <div className="app-shell flex h-dvh flex-col overflow-y-auto">
       <AppHeader
@@ -50,8 +53,9 @@ export function MobileApp({
 
       <div
         className={cn(
-          'mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 p-4',
+          'mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-4 p-4 sm:max-w-6xl lg:max-w-7xl',
           'max-sm:gap-0 max-sm:p-0',
+          showPrimaryNav && 'pb-[calc(var(--app-mobile-nav-height,4.5rem)+0.75rem)]',
         )}
       >
         {route.name === 'dashboard' && (
@@ -82,10 +86,10 @@ export function MobileApp({
         {route.name === 'jobs' && (
           <section className="app-panel app-panel-frame flex-1">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 p-4 sm:px-5">
-              <h2 className="text-base font-semibold tracking-tight text-foreground">
+              <h2 className="min-w-0 text-base font-semibold tracking-tight text-foreground">
                 Hunts
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <FilterDropdown
                   filters={statusFilters}
                   onChange={onStatusFiltersChange}
@@ -144,6 +148,10 @@ export function MobileApp({
           />
         )}
       </div>
+
+      {showPrimaryNav && (
+        <MobilePrimaryNav route={route} navigate={navigate} />
+      )}
 
       <OccupantsDialog open={occupantsOpen} onOpenChange={setOccupantsOpen} />
       <NotificationsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} />

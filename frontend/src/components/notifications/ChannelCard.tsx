@@ -27,10 +27,10 @@ export function ChannelCardHeader({
           <Icon className="size-4.5" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold tracking-tight text-foreground">
+          <h3 className="text-base font-semibold tracking-tight text-foreground sm:text-sm">
             {title}
           </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-base text-muted-foreground sm:text-sm">
             {description}
           </p>
         </div>
@@ -69,8 +69,8 @@ export function ChannelEnableRow({
       )}
     >
       <div>
-        <p className="text-sm font-medium text-foreground">Enable channel</p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-base font-medium text-foreground sm:text-sm">Enable channel</p>
+        <p className="text-base text-muted-foreground sm:text-sm">
           {configured ? configuredHint : lockedHint}
         </p>
       </div>
