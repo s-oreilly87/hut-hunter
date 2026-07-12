@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
 import {
@@ -12,20 +12,7 @@ import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Card, CardContent } from '../ui/Card'
 import { EditJobDialog } from '@/components/jobs/CreateJobDialog'
-import {
-  getDisplayStatus,
-  hasHoldExpired,
-  isLiveJob,
-  jobHasOccupants,
-} from '@/lib/availability'
 import { useJobsQuery } from '@/components/jobs/useJobsQuery'
-import { isJobOutdatedOnCampers } from '@/lib/occupantSnapshots'
-import {
-  getCompletedBookingArtifacts,
-  getHoldFlowArtifacts,
-  getReceiptArtifact,
-  getUnavailableArtifact,
-} from '@/lib/availabilityResults'
 import { OutdatedCampersNotice } from '@/components/jobs/shared/OutdatedCampers'
 import {
   JobCardEmptySelection,
@@ -46,6 +33,10 @@ import { NeedsAttentionSection } from '@/components/jobs/card/NeedsAttentionSect
 import { BookingInProgressSection } from '@/components/jobs/card/BookingInProgressSection'
 import { LatestResultSection } from '@/components/jobs/card/LatestResultSection'
 import { HeaderParamSummary } from '@/components/jobs/shared/HeaderParamSummary'
+import {
+  deriveJobCardView,
+  useAdapterById,
+} from '@/components/jobs/card/deriveJobCardView'
 import { cn } from '@/lib/utils'
 
 const MOBILE_FLAT_CARD_CLASSES = 'max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0 max-sm:border-b-0 max-sm:shadow-none max-sm:ring-0 max-sm:backdrop-blur-none'
@@ -118,10 +109,7 @@ export function JobCard({
     queryFn: occupantsApi.list,
   })
 
-  const adapterById = useMemo(
-    () => new Map(adapters.map((adapter) => [adapter.adapter_id, adapter])),
-    [adapters],
-  )
+  const adapterById = useAdapterById(adapters)
 
   const trigger = useMutation({
     mutationFn: jobsApi.trigger,
@@ -162,71 +150,12 @@ export function JobCard({
     setEditOpen(true)
   }
 
-  const displayStatus = getDisplayStatus(job, pendingBookings)
-  const adapter = adapterById.get(job.adapter_id)
-  const hasOutdatedCampers = isJobOutdatedOnCampers(job, occupants, adapter)
-  const holdExpired = hasHoldExpired(job)
-  const isLocked = job.status === 'booking_complete'
-  const isLive = isLiveJob(job)
-  // Watch/notify-only sites can't book at all, so the "…required before
-  // booking can start" nudges don't apply — a single explanatory notice
-  // replaces them.
-  const manualBookingOnly = !job.supports_automated_booking
-  const missingOccupants = !jobHasOccupants(job) && isLive && !manualBookingOnly
-  // credentials_configured is false for both "no credential" and "failed
-  // verification" (THR-123) — credentials_failed disambiguates so each gets
-  // its own notice.
-  const missingCredentials = !job.credentials_configured && !job.credentials_failed && isLive && !manualBookingOnly
-  const failedCredentials = job.credentials_failed && isLive && !manualBookingOnly
-
-  // ── Section gating ──
-  // The body sections are mutually exclusive on `job.status` / displayStatus;
-  // these booleans capture the routing so the JSX below stays readable.
-  const isBookingComplete = job.status === 'booking_complete'
-  const showHoldActive = job.status === 'hold_placed' && !holdExpired
-  // THR-122: needs_attention parks the session the same way a successful
-  // hold does (same cart, same countdown) — it just renders different copy
-  // pointing at the takeover flow instead of payment.
-  const showNeedsAttention = job.status === 'needs_attention' && !holdExpired
-  const isMidBookingFlow =
-    displayStatus === 'booking' || displayStatus === 'attempting_hold'
-  const isSettled =
-    !isBookingComplete
-    && !showHoldActive
-    && !showNeedsAttention
-    && !holdExpired
-    && !isMidBookingFlow
-    && displayStatus !== 'checking'
-  const showBookingInProgress =
-    !isBookingComplete && !showHoldActive && !showNeedsAttention && !holdExpired && isMidBookingFlow
-
-  const hideTrigger =
-    isBookingComplete
-    || job.status === 'expired'
-    // THR-124: nothing to check yet — the hunt hasn't reached its booking
-    // window, so a manual "Check Now" would just poll a not-yet-released
-    // date. The scheduler auto-arms it the moment the window opens.
-    || job.status === 'awaiting_window'
-    || isMidBookingFlow
-
-  const queued = optimisticTriggers.has(job.id)
-
-  // ── Artifact selection ──
-  // Booking-complete jobs sometimes only have last_artifact_png/html (older
-  // records) rather than a full artifact_history; synthesise a receipt entry
-  // in that case so the gallery still shows it.
-  const receiptArtifact = getReceiptArtifact(job.artifact_history) ?? (
-    isBookingComplete && job.last_artifact_png && job.last_artifact_html
-      ? {
-          label: 'booking_complete',
-          png_url: job.last_artifact_png,
-          html_url: job.last_artifact_html,
-        }
-      : null
-  )
-  const holdArtifacts = getHoldFlowArtifacts(job.artifact_history)
-  const completedArtifacts = getCompletedBookingArtifacts(holdArtifacts, receiptArtifact)
-  const unavailableArtifact = getUnavailableArtifact(job.artifact_history)
+  const view = deriveJobCardView(job, {
+    adaptersById: adapterById,
+    occupants,
+    pendingBookings,
+    optimisticTriggers,
+  })
 
   const headerActions = (
     <Button
@@ -246,7 +175,7 @@ export function JobCard({
       <Card className={cn('app-panel app-panel-frame gap-0 py-0 border-border/80', MOBILE_FLAT_CARD_CLASSES, className)}>
         <JobCardHeader
           job={job}
-          isLocked={isLocked}
+          isLocked={view.isLocked}
           onEditTitle={() => handleEdit(0)}
           onBack={onBack}
           backLabel={backLabel}
@@ -258,63 +187,65 @@ export function JobCard({
             <HeaderParamSummary
               params={job.params}
               parkUrl={job.park_url}
-              onEdit={!isLocked ? () => handleEdit(1) : undefined}
+              onEdit={!view.isLocked ? () => handleEdit(1) : undefined}
               compact
             />
           </div>
 
           <div className="space-y-6 px-4 pt-6 pb-6 sm:px-6">
-            {hasOutdatedCampers && (
+            {view.hasOutdatedCampers && (
               <OutdatedCampersNotice
                 onEditJob={() => handleEdit()}
                 onEditCampers={() => onOpenOccupants?.()}
               />
             )}
-            {manualBookingOnly && isLive && <ManualBookingOnlyNotice siteName={adapter?.name} />}
-            {missingOccupants && <MissingOccupantsNotice />}
-            {missingCredentials && <MissingCredentialsNotice />}
-            {failedCredentials && <FailedCredentialsNotice />}
+            {view.manualBookingOnly && view.isLive && (
+              <ManualBookingOnlyNotice siteName={view.adapter?.name} />
+            )}
+            {view.missingOccupants && <MissingOccupantsNotice />}
+            {view.missingCredentials && <MissingCredentialsNotice />}
+            {view.failedCredentials && <FailedCredentialsNotice />}
 
             <MonitoringSection
               job={job}
-              displayStatus={displayStatus}
+              displayStatus={view.displayStatus}
               onTrigger={() => trigger.mutate(job.id)}
-              triggerQueued={queued}
-              hideTrigger={hideTrigger}
-              hasOutdatedCampers={hasOutdatedCampers}
-              onEdit={!isLocked ? () => handleEdit(2) : undefined}
+              triggerQueued={view.queued}
+              hideTrigger={view.hideTrigger}
+              hasOutdatedCampers={view.hasOutdatedCampers}
+              onEdit={!view.isLocked ? () => handleEdit(2) : undefined}
             />
 
-            {isBookingComplete && (
+            {view.isBookingComplete && (
               <BookingCompleteSection
                 job={job}
-                completedArtifacts={completedArtifacts}
+                completedArtifacts={view.completedArtifacts}
               />
             )}
 
-            {showHoldActive && (
-              <HoldActiveSection job={job} holdArtifacts={holdArtifacts} />
+            {view.showHoldActive && (
+              <HoldActiveSection job={job} holdArtifacts={view.holdArtifacts} />
             )}
 
-            {showNeedsAttention && (
-              <NeedsAttentionSection job={job} holdArtifacts={holdArtifacts} />
+            {view.showNeedsAttention && (
+              <NeedsAttentionSection job={job} holdArtifacts={view.holdArtifacts} />
             )}
 
-            {holdExpired && (
-              <HoldExpiredSection job={job} holdArtifacts={holdArtifacts} />
+            {view.holdExpired && (
+              <HoldExpiredSection job={job} holdArtifacts={view.holdArtifacts} />
             )}
 
-            {showBookingInProgress && (
+            {view.showBookingInProgress && (
               <BookingInProgressSection
                 job={job}
-                unavailableArtifact={unavailableArtifact}
+                unavailableArtifact={view.unavailableArtifact}
               />
             )}
 
-            {isSettled && (
+            {view.isSettled && (
               <LatestResultSection
                 job={job}
-                unavailableArtifact={unavailableArtifact}
+                unavailableArtifact={view.unavailableArtifact}
               />
             )}
           </div>
@@ -352,3 +283,4 @@ export function JobCard({
     </>
   )
 }
+
