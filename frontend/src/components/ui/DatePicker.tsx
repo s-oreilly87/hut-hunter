@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { Calendar, X } from 'lucide-react'
 import {
   formatDateForDisplay,
   formatDateForInput,
-  isSameCalendarDay,
   parseInputDateValue,
 } from '@/lib/jobDate'
 import {
@@ -13,6 +12,7 @@ import {
   popoverLayerEventHandlers,
 } from '@/lib/popoverLayer'
 import { cn } from '@/lib/utils'
+import { DatePickerCalendar } from './DatePickerCalendar'
 
 /**
  * Date input that pairs a typeable mm/dd/yyyy field with a popover calendar.
@@ -247,85 +247,19 @@ export function DatePicker({
           ref={popoverRef}
           {...{ [POPOVER_LAYER_ATTR]: '' }}
           style={popoverStyle}
-          className="w-[min(20rem,calc(100vw-3rem))] rounded-2xl border border-border/80 bg-popover p-3 text-popover-foreground shadow-xl ring-1 ring-black/5 dark:ring-white/5"
           {...popoverLayerEventHandlers}
         >
-          {/* Month nav */}
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              aria-label="Previous month"
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => shiftMonth(-1)}
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <p className="text-sm font-semibold tracking-tight text-foreground">{monthLabel}</p>
-            <button
-              type="button"
-              aria-label="Next month"
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => shiftMonth(1)}
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-
-          {/* Day grid */}
-          <div className="mt-3 grid grid-cols-7 gap-1 text-center">
-            {['S','M','T','W','T','F','S'].map((d, i) => (
-              <div key={`${d}-${i}`} className="flex h-7 items-center justify-center text-[11px] font-semibold text-muted-foreground">
-                {d}
-              </div>
-            ))}
-            {cells.map((date, i) => {
-              const selected      = date ? isSameCalendarDay(selectedDate, date) : false
-              const isToday       = date ? isSameCalendarDay(today, date) : false
-              const isPastMinDate = date
-                ? Boolean(minDate && formatDateForInput(date) < formatDateForInput(minDate))
-                : false
-              return date ? (
-                <button
-                  key={date.toISOString()}
-                  type="button"
-                  disabled={isPastMinDate}
-                  className={cn(
-                    'flex h-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent',
-                    selected  && 'bg-primary text-primary-foreground hover:bg-primary',
-                    !selected && isToday && 'border border-primary/30 text-primary',
-                  )}
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => chooseDate(date)}
-                >
-                  {date.getDate()}
-                </button>
-              ) : (
-                <div key={`blank-${i}`} className="h-8" />
-              )
-            })}
-          </div>
-
-          {/* Footer */}
-          <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3">
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => { onChange(''); setOpen(false) }}
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-              onMouseDown={e => e.preventDefault()}
-              onClick={chooseToday}
-            >
-              Today
-            </button>
-          </div>
+          <DatePickerCalendar
+            monthLabel={monthLabel}
+            cells={cells}
+            selectedDate={selectedDate}
+            today={today}
+            minDate={minDate}
+            onShiftMonth={shiftMonth}
+            onChooseDate={chooseDate}
+            onClear={() => { onChange(''); setOpen(false) }}
+            onChooseToday={chooseToday}
+          />
         </div>,
         document.body,
       )}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, ChevronRight, Pencil, Settings2, TentTree, X } from 'lucide-react'
 import type { WatchJob } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
+import { FormErrorAlert } from '@/components/ui/FormErrorAlert'
 import { AutomationFields } from './AutomationFields'
 import { BookingInputsFields } from './BookingInputsFields'
 import { HuntSetupFields } from './HuntSetupFields'
@@ -263,9 +264,7 @@ export function JobFormWizard({
           {(isLastStep || mode === 'edit') ? (
             <>
               {error && (
-                <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                  {error}
-                </div>
+                <FormErrorAlert className="px-4 py-3">{error}</FormErrorAlert>
               )}
               <Button
                 className="w-full"

@@ -1,6 +1,7 @@
 import { Pencil, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { FormErrorAlert } from '@/components/ui/FormErrorAlert'
 import { AutomationFields } from './AutomationFields'
 import { BookingInputsFields } from './BookingInputsFields'
 import { FormSection } from './FormSection'
@@ -138,9 +139,7 @@ export function JobFormGrid({
 
           <FormSection>
             {error && (
-              <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                {error}
-              </div>
+              <FormErrorAlert className="px-4 py-3">{error}</FormErrorAlert>
             )}
 
             <Button
