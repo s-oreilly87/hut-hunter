@@ -97,9 +97,9 @@ export function JobGroupSection({
             <Table className="table-fixed">
               <TableHeader className="bg-secondary/60">
                 <TableRow className="border-border/80 hover:bg-secondary/60">
-                  <TableHead className="w-[52%] pl-4 text-muted-foreground">Hunt</TableHead>
-                  <TableHead className="w-[28%] text-muted-foreground">Status</TableHead>
-                  <TableHead className="w-[20%] pr-5 text-muted-foreground">Automation</TableHead>
+                  <TableHead className="min-w-0 pl-4 text-muted-foreground">Hunt</TableHead>
+                  <TableHead className="w-44 text-muted-foreground">Status</TableHead>
+                  <TableHead className="w-52 pr-5 text-muted-foreground">Automation</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

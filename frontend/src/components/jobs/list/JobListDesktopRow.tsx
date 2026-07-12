@@ -111,7 +111,7 @@ export function JobListDesktopRow({
     >
       <TableCell
         className={cn(
-          'relative w-[52%] min-w-0 py-4 pr-6 pl-4 align-middle whitespace-normal',
+          'relative min-w-0 py-4 pr-6 pl-4 align-middle whitespace-normal',
           isSelected
             && 'pl-7 before:absolute before:inset-y-3 before:left-2 before:w-1 before:rounded-full before:bg-primary',
         )}
@@ -123,14 +123,14 @@ export function JobListDesktopRow({
           hasOutdatedCampers={hasOutdatedCampers}
         />
       </TableCell>
-      <TableCell className="w-[28%] min-w-0 py-4 pr-5 align-middle whitespace-normal">
+      <TableCell className="w-44 min-w-0 py-4 pr-5 align-middle whitespace-normal">
         <JobStatusMeta
           job={job}
           displayStatus={displayStatus}
           showStatusBadge={showStatusBadge}
         />
       </TableCell>
-      <TableCell className="w-[20%] py-4 pr-5 align-middle">
+      <TableCell className="w-52 py-4 pr-5 align-middle">
         <JobAutomationMeta job={job} displayStatus={displayStatus} />
       </TableCell>
     </TableRow>
