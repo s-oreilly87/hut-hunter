@@ -54,7 +54,7 @@ function StatFilterTile({
               </span>
             )}
           </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-foreground">
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground tabular-nums">
             {stat.value}
           </p>
         </div>
@@ -67,7 +67,7 @@ function StatFilterTile({
       </div>
 
       {!compact && (
-        <p className="mt-2 text-xs leading-4 text-pretty text-muted-foreground">
+        <p className="mt-2 text-xs/4 text-pretty text-muted-foreground">
           {stat.description}
         </p>
       )}

@@ -112,7 +112,7 @@ export function MonitoringSection({
 
   return (
     <section>
-      <div className="rounded-[1.25rem] border border-border/70 bg-background/65 px-4 py-4">
+      <div className="rounded-[1.25rem] border border-border/70 bg-background/65 p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Activity className="size-4 text-primary" />

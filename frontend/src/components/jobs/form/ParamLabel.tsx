@@ -20,7 +20,7 @@ export function ParamLabel({
 
   return (
     <Label className="inline-flex items-center gap-2">
-      {Icon && createElement(Icon, { className: 'h-3.5 w-3.5 text-muted-foreground' })}
+      {Icon && createElement(Icon, { className: 'size-3.5 text-muted-foreground' })}
       <span>{children}</span>
       {required && <span className="ml-1 text-destructive">*</span>}
     </Label>

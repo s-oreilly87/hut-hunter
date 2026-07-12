@@ -105,7 +105,7 @@ export function OccupantsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[92vh] sm:max-w-3xl overflow-y-auto">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Campers</DialogTitle>
           </DialogHeader>
@@ -119,7 +119,7 @@ export function OccupantsDialog({
                   <p className="text-sm text-muted-foreground">Loading…</p>
                 )}
                 {!isLoading && occupants.length === 0 && editing.mode === 'none' && (
-                  <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 px-4 py-4">
+                  <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 p-4">
                     <p className="text-sm text-muted-foreground">
                       No campers saved yet. Add one to use in hunts.
                     </p>
@@ -138,7 +138,7 @@ export function OccupantsDialog({
 
               {editing.mode === 'none' && (
                 <Button variant="outline" size="sm" className="w-full" onClick={startNew} autoFocus>
-                  <Plus className="size-4 mr-1" /> Add Camper
+                  <Plus className="mr-1 size-4" /> Add Camper
                 </Button>
               )}
             </InsetPanel>
@@ -155,7 +155,7 @@ export function OccupantsDialog({
                         className="size-8 p-0"
                         onClick={cancelForm}
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="size-3.5" />
                       </Button>
                     </div>
                   </div>
@@ -185,7 +185,7 @@ export function OccupantsDialog({
                   <p className="text-base font-medium text-foreground">
                     Select a camper to edit it
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  <p className="mt-2 text-sm/6 text-muted-foreground">
                     Keeping the form pinned here avoids the roster list jumping around on smaller screens.
                   </p>
                 </div>

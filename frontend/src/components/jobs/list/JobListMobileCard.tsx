@@ -39,7 +39,7 @@ export function JobListMobileCard({
       tabIndex={0}
       data-job-id={job.id}
       ref={(node) => setRef(job.id, node)}
-      className="w-full cursor-pointer rounded-[1.35rem] border border-border/80 bg-background/75 px-4 py-4 text-left transition-colors hover:border-primary/20 hover:bg-background max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0"
+      className="w-full cursor-pointer rounded-[1.35rem] border border-border/80 bg-background/75 p-4 text-left transition-colors hover:border-primary/20 hover:bg-background max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0"
       onClick={() => onSelect(job.id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -75,7 +75,7 @@ export function JobListMobileCard({
               windowOpensPrecise={job.window_opens_precise}
             />
           )}
-          <p className="text-xs leading-4 text-muted-foreground/70">
+          <p className="text-xs/4 text-muted-foreground/70">
             {formatTimeAgo(job.last_checked_at)}
           </p>
         </div>

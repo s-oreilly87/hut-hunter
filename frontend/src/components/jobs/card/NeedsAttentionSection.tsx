@@ -36,11 +36,11 @@ export function NeedsAttentionSection({
           Open Live Browser
         </a>
       </div>
-      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 p-4">
         <p className="text-base font-medium tracking-tight text-foreground">
           We hit something unexpected placing this hold.
         </p>
-        <p className="mt-2 text-sm leading-5 text-muted-foreground">
+        <p className="mt-2 text-sm/5 text-muted-foreground">
           The browser is still open on the live site and waiting for you. Open the live
           browser to take over and finish or cancel the booking yourself before the
           cart expires.
@@ -50,7 +50,7 @@ export function NeedsAttentionSection({
       {holdArtifacts.length > 0 ? (
         <ArtifactGallery artifacts={holdArtifacts} />
       ) : (
-        <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
+        <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 p-4">
           <p className="text-sm text-muted-foreground">
             No cart-stage snapshots are available for this session yet.
           </p>

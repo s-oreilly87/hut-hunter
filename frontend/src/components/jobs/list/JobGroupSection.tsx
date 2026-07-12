@@ -72,7 +72,7 @@ export function JobGroupSection({
       </button>
 
       {isExpanded && (
-        <div className="px-0 py-0 sm:px-4 sm:py-3">
+        <div className="p-0 sm:px-4 sm:py-3">
           <div className="grid gap-3 lg:hidden">
             {group.jobs.map((job) => {
               const displayStatus = getDisplayStatus(job, pendingBookings)

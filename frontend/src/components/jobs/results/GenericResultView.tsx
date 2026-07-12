@@ -51,12 +51,12 @@ export function GenericResultView({
               {detailEntries.map(([key, value]) => (
                 <div
                   key={key}
-                  className="rounded-2xl border border-destructive/15 bg-background/70 px-3 py-3"
+                  className="rounded-2xl border border-destructive/15 bg-background/70 p-3"
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
                     {titleize(key)}
                   </p>
-                  <p className="mt-1 wrap-break-word text-sm text-foreground">
+                  <p className="mt-1 text-sm wrap-break-word text-foreground">
                     {formatResultValue(value)}
                   </p>
                 </div>

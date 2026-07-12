@@ -44,7 +44,7 @@ export function AutomationFields({
 }) {
   if (!selectedAdapter) {
     return (
-      <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 px-4 py-4">
+      <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 p-4">
         <p className="text-sm text-muted-foreground">
           Select a booking site first to reveal its inputs and automation settings.
         </p>

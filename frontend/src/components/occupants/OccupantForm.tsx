@@ -163,9 +163,9 @@ export function OccupantForm({
         </InsetPanel>
       ))}
 
-      {(localError || error) && <p className="text-destructive text-xs">{localError || error}</p>}
+      {(localError || error) && <p className="text-xs text-destructive">{localError || error}</p>}
 
-      <div className="flex gap-2 justify-end pt-1">
+      <div className="flex justify-end gap-2 pt-1">
         <Button variant="outline" size="sm" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>

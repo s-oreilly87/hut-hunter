@@ -44,7 +44,7 @@ export function NotificationsDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <InsetPanel className="px-4 py-4 text-xs text-muted-foreground">
+          <InsetPanel className="p-4 text-xs text-muted-foreground">
             Delivery targets are encrypted at rest and only decrypted when a hunt sends an alert.
           </InsetPanel>
 

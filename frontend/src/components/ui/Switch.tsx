@@ -28,7 +28,7 @@ function Switch({
         "data-[size=sm]:h-[18px] data-[size=sm]:w-8",
         // Track colours — unchecked gets a border so it reads clearly on light bg
         "data-checked:bg-primary",
-        "data-unchecked:bg-input data-unchecked:ring-1 data-unchecked:ring-inset data-unchecked:ring-border/80",
+        "data-unchecked:bg-input data-unchecked:ring-1 data-unchecked:ring-border/80 data-unchecked:ring-inset",
         // Disabled
         "data-disabled:cursor-not-allowed data-disabled:opacity-40",
         className
@@ -39,7 +39,7 @@ function Switch({
         data-slot="switch-thumb"
         className={cn(
           // Thumb — white pill with shadow so it pops off both checked and unchecked tracks
-          "pointer-events-none block rounded-full bg-white dark:bg-foreground shadow-sm ring-1 ring-black/10 dark:ring-white/10 transition-transform duration-200",
+          "pointer-events-none block rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform duration-200 dark:bg-foreground dark:ring-white/10",
           // Default size + travel
           "group-data-[size=default]/switch:size-5",
           "group-data-[size=default]/switch:data-unchecked:translate-x-0.5",

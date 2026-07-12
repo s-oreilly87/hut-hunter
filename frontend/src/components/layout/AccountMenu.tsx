@@ -46,11 +46,11 @@ export function AccountMenu({
     <div ref={ref} className={cn('relative', className)}>
       <button
         type="button"
-        className="flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-2 text-left ring-1 ring-black/5 dark:ring-white/5 transition hover:bg-secondary/60"
+        className="flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-2 text-left ring-1 ring-black/5 transition hover:bg-secondary/60 dark:ring-white/5"
         onClick={() => setOpen((current) => !current)}
       >
         <div className="min-w-0">
-          <p className="max-w-[11rem] truncate text-sm font-medium text-foreground">
+          <p className="max-w-44 truncate text-sm font-medium text-foreground">
             {userEmail}
           </p>
         </div>
@@ -58,9 +58,9 @@ export function AccountMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg ring-1 ring-black/5 dark:ring-white/5">
+        <div className="absolute top-full right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg ring-1 ring-black/5 dark:ring-white/5">
           <div className="border-b border-border/70 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+            <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground/70 uppercase">
               Account
             </p>
             <p className="mt-1 truncate text-sm font-medium text-foreground">

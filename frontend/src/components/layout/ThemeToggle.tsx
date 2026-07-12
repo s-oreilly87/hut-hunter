@@ -19,7 +19,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       title={`${label} — click to ${next}`}
       onClick={cycleNext}
       className={cn(
-        'flex size-9 items-center justify-center rounded-xl border border-border/50 bg-background/70 text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'flex size-9 items-center justify-center rounded-xl border border-border/50 bg-background/70 text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none',
         className,
       )}
     >

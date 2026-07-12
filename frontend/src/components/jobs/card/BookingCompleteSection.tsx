@@ -23,7 +23,7 @@ export function BookingCompleteSection({
           Booking Complete
         </h3>
       </div>
-      <div className="rounded-[1.25rem] border border-emerald-500/25 bg-emerald-500/8 px-4 py-4">
+      <div className="rounded-[1.25rem] border border-emerald-500/25 bg-emerald-500/8 p-4">
         <p className="text-sm text-muted-foreground">
           Booking flow completed at {formatDateTime(job.last_checked_at)}
         </p>
