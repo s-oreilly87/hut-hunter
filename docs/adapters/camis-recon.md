@@ -1,5 +1,7 @@
 # Camis platform recon — BC Parks & Ontario Parks
 
+> **SYNCED TO DOCS** — 2026-07-08. Covers M1–M5 build plus post-launch hardening (THR-122–133). Linear project overview synced same date.
+
 **Milestone:** M1 — Recon & documentation groundwork
 **Covers Linear issues:** HH-95 (BC recon), HH-96 (Ontario recon + diff), HH-97 (anti-bot / sessions / hold window)
 **Recon date:** 2026-07-05
@@ -224,3 +226,44 @@ Equipment (a tent/RV size) is a **real availability filter** and it's now a visi
 - **`numEquipment` does not gate the filter.** The fit-filter engages via `subEquipmentCategoryId` alone (`numEquipment=0` and `=1` return identical results for the RV case above), so the adapter keeps `numEquipment=0` — the exact shape Parks Canada was already confirmed on.
 - **Corrects THR-129's misdiagnosis.** THR-129 believed sending "Parks Canada's" equipment ids to BC's `/api/availability/map` 400'd, and gated the whole extended query shape behind a PC-only `_INCLUDE_UI_QUERY_EXTRAS` flag. The ids were never the problem (they're identical) — the real BC 400 was the malformed `peopleCapacityCategoryCounts` param (a Python list `httpx` serialized to a repr; see §8), which THR-131 fixed. THR-132 removes that flag: equipment now rides every adapter's query, driven by the Form field with the shared `-32768/-32768` default as the fallback. `peopleCapacityCategoryCounts` (party-size capacity) stays Parks-Canada-only — it's the one part of that shape only ever confirmed against `reservation.pc.gc.ca`.
 - **Verified end-to-end live (2026-07-08).** The real `_build_availability_query` output for the first catalog park on each site returns HTTP 200: BC (Akamina-Kishinena), Ontario (Aaron), Parks Canada Campsite + Accommodation + a large-RV form selection (Banff – Castle Mountain) — all 200.
+
+---
+
+## 10. Post-launch hardening (THR-122–133, THR-125)
+
+**Sync date:** 2026-07-08. These tickets shipped after the initial M1–M5 build; they changed the practical end state of the Camis adapters.
+
+### Booking-window gating (THR-124, THR-126, THR-127)
+
+- Hunts for dates outside the rolling window enter `awaiting_window` with a stored `window_opens_at`; the poll worker arms them at window open.
+- **Rolling windows are authoritative:** BC = 3 months before arrival @ 07:00 `America/Vancouver`; Ontario = 5 months @ 07:00 `America/Toronto`. These take priority over dateschedule season-range checks (season ranges describe operating season, not release window).
+- Poll worker re-gates before reporting AVAILABLE; hold funnel recognizes "Cannot Reserve — not yet allowed" modals and maps to `awaiting_window` instead of Hold Failed.
+- `/api/dateschedule` still supplies go-live dates for fixed-season launches and stay-pattern rules (§10.4).
+
+### Hold-flow robustness (THR-122, THR-125, THR-126)
+
+- **Cookie consent:** `_accept_cookie_consent` races consent banner vs `#email`, clicks the actual button (not the container), and verifies dismissal before login.
+- **noVNC prod fix (THR-125):** Caddy `/websockify` proxy uses bare `reverse_proxy` — manual `Connection`/`Upgrade` header overrides were removed.
+- **Manual takeover:** unexpected hold failures (consent stuck, unknown dialogs) raise `UnexpectedHoldFailure` → job enters `needs_attention`, browser parked for noVNC takeover with notification.
+- Login-phase failures must raise (not return clean `BookingResult`) so takeover fires.
+
+### Credential verification (THR-123, THR-126, THR-127)
+
+- `AdapterCredential.verification_status`: `verified | failed | inconclusive | pending | unverified`.
+- Verify-on-save runs on the hold worker queue; Sign-Ins dialog shows badge states.
+- Auto-book requires `verification_status == verified` (not just stored credentials).
+- Hold-time login rejection demotes credential to `failed`; infra failures do not demote.
+- Single "Save & Verify" action in credentials dialog (no race between edit and verify).
+
+### Booking-site links (THR-130)
+
+- `BaseCamisAdapter.results_url()` → date-prefilled `…/create-booking/results?…` deep link.
+- Surfaced on job info bar (`park_url`), availability tile "Go To Site", and email/Gotify notifications (booking-site link + Hut Hunter show-hunt link).
+- DOC parity decision: page-level ceiling only — see `docs/adapters/doc-links-parity.md`.
+
+### Restricted availability (THR-133)
+
+- New `AvailabilityStatus.RESTRICTED` for site code 3 (restriction, not sold out) and stay-pattern violations.
+- `check_stay_pattern()` pre-validates arrival/departure changeover days and min/max stay from `/api/dateschedule`.
+- Wizard warns at job creation when the requested stay pattern is non-compliant.
+- Distinct from `unavailable` (fully booked) — user sees "restricted" with actionable evidence.

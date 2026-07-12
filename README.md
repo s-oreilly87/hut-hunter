@@ -146,6 +146,18 @@ The current adapter registry includes:
 
 The three `camis_*` adapters are pure configuration over a shared `BaseCamisAdapter`, which owns the platform mechanics: JSON availability reads (with per-site drill-down so a stay only counts as available when a single site is free every night), login, the list-view reserve funnel, cart-badge hold verification, and the measured 15-minute hold window. Platform recon lives in [`docs/adapters/camis-recon.md`](docs/adapters/camis-recon.md); catalogs are produced by `backend/scripts/scrape_camis_catalog.py`.
 
+### Camis adapters — product behavior
+
+Beyond the shared mechanics above, the Camis path ships several platform-specific features:
+
+- **Rolling booking windows** — BC Parks opens exactly 3 months before arrival; Ontario Parks opens 5 months before arrival (both at 07:00 local time). Hunts for not-yet-released dates sit in `awaiting_window` and auto-arm when the window opens. The wizard explains this before save.
+- **Credential verification** — saving sign-in credentials triggers a login check; only `verified` credentials can enable auto-book. Failed verification blocks holds and surfaces in Sign-Ins + job notices.
+- **Equipment selection** — tent/RV size is a visible form field on all Camis adapters and drives the availability query (shared equipment enum across all three sites).
+- **Restricted availability** — stay-pattern violations (arrival/departure changeover rules, min/max stay) surface as `restricted` rather than bare "unavailable", with wizard warnings at job creation.
+- **Booking-site links** — prefilled results URLs appear on the job info bar, availability tile ("Go To Site"), and email/Gotify notifications, plus a link back to the hunt in Hut Hunter.
+- **noVNC manual takeover** — unexpected hold failures park the browser for user takeover via the existing noVNC viewer (`needs_attention` state).
+- **Parks Canada** — watch/notify only for campsites and accommodations (oTENTik/cabins/yurts); automated booking blocked until SSO session-linking ships (see Coming Soon).
+
 Each adapter publishes:
 
 - search parameter definitions for the frontend form
