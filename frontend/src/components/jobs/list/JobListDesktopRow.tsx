@@ -6,7 +6,11 @@ import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { AutoBookBadge } from '@/components/jobs/shared/AutoBookBadge'
 import { JobIdentity } from './JobIdentity'
-import { formatTimeAgo, isJobFinished } from './jobListHelpers'
+import {
+  formatTimeAgo,
+  formatWindowOpensLabel,
+  isJobFinished,
+} from './jobListHelpers'
 import { cn } from '@/lib/utils'
 
 function JobAutomationMeta({
@@ -36,13 +40,18 @@ function JobStatusMeta({
   showStatusBadge: boolean
 }) {
   const finished = isJobFinished(displayStatus)
+  const windowOpensLabel =
+    displayStatus === 'awaiting_window'
+      ? formatWindowOpensLabel(job.window_opens_at, job.window_opens_precise)
+      : null
   const checkedLabel = finished
     ? formatDateTime(job.last_checked_at)
     : formatTimeAgo(job.last_checked_at)
-  const checkedPrefix = finished ? '' : 'Last checked'
+  const metaLabel = windowOpensLabel
+    ?? (finished ? checkedLabel : `Last checked ${checkedLabel}`)
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         {showStatusBadge && (
           <StatusBadge
@@ -50,13 +59,11 @@ function JobStatusMeta({
             jobId={job.id}
             cartExpiresAt={job.cart_expires_at}
             artifactUrl={job.last_artifact_png}
-            windowOpensAt={job.window_opens_at}
-            windowOpensPrecise={job.window_opens_precise}
           />
         )}
       </div>
-      <p className="text-xs/4 text-muted-foreground/75">
-        {checkedPrefix} {checkedLabel}
+      <p className="text-base/5 text-muted-foreground/75 whitespace-normal sm:text-xs/4">
+        {metaLabel}
       </p>
     </div>
   )
@@ -64,8 +71,8 @@ function JobStatusMeta({
 
 /**
  * Desktop-layout (lg:block) row for a single job inside the JobList table.
- * Shows the job identity in column 1, the automation badges in column 2,
- * and the status + last-checked label in column 3.
+ * Shows the job identity in column 1, the status + opens/last-checked label
+ * in column 2, and the automation badges in column 3.
  *
  * The selection styling adds a coloured left rail to the identity cell so
  * the active row reads as visually distinct without competing with the
@@ -104,7 +111,7 @@ export function JobListDesktopRow({
     >
       <TableCell
         className={cn(
-          'relative w-[56%] py-4 pr-6 pl-4 align-middle whitespace-normal',
+          'relative w-[52%] min-w-0 py-4 pr-6 pl-4 align-middle whitespace-normal',
           isSelected
             && 'pl-7 before:absolute before:inset-y-3 before:left-2 before:w-1 before:rounded-full before:bg-primary',
         )}
@@ -116,15 +123,15 @@ export function JobListDesktopRow({
           hasOutdatedCampers={hasOutdatedCampers}
         />
       </TableCell>
-      <TableCell className="w-[22%] py-4 pr-5 align-middle">
-        <JobAutomationMeta job={job} displayStatus={displayStatus} />
-      </TableCell>
-      <TableCell className="py-4 pr-5 align-middle">
+      <TableCell className="w-[28%] min-w-0 py-4 pr-5 align-middle whitespace-normal">
         <JobStatusMeta
           job={job}
           displayStatus={displayStatus}
           showStatusBadge={showStatusBadge}
         />
+      </TableCell>
+      <TableCell className="w-[20%] py-4 pr-5 align-middle">
+        <JobAutomationMeta job={job} displayStatus={displayStatus} />
       </TableCell>
     </TableRow>
   )

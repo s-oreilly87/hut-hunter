@@ -3,17 +3,13 @@ import { Loader2 } from 'lucide-react'
 import { Badge } from '../ui/Badge'
 import { JOB_STATUS_LABEL } from '@/lib/api'
 import type { DisplayStatus } from '@/lib/availability'
-import { formatCountdown, formatDateTime } from '@/lib/time'
+import { formatCountdown } from '@/lib/time'
 
 interface Props {
   status: DisplayStatus
   jobId: string
   cartExpiresAt?: string | null
   artifactUrl?: string | null
-  // THR-124: when status is 'awaiting_window', renders "Awaiting Window ·
-  // Opens {date}" instead of the bare status label.
-  windowOpensAt?: string | null
-  windowOpensPrecise?: boolean
 }
 
 const DISPLAY_LABEL: Record<string, string> = {
@@ -61,8 +57,6 @@ export function StatusBadge({
   jobId,
   cartExpiresAt,
   artifactUrl,
-  windowOpensAt,
-  windowOpensPrecise = true,
 }: Props) {
   const [nowMs, setNowMs] = useState(() => Date.now())
 
@@ -80,9 +74,8 @@ export function StatusBadge({
   const countdownSeconds = isParkedStatus && cartExpiresAt
     ? Math.max(0, (new Date(cartExpiresAt).getTime() - nowMs) / 1000)
     : null
-  const baseLabel = status === 'awaiting_window' && windowOpensAt
-    ? `Awaiting Window · Opens ${formatDateTime(windowOpensAt)}${windowOpensPrecise ? '' : ' (approx.)'}`
-    : DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
+  const baseLabel =
+    DISPLAY_LABEL[status] ?? JOB_STATUS_LABEL[status as keyof typeof JOB_STATUS_LABEL] ?? status
   const label = countdownSeconds !== null ? (
     <>
       {baseLabel} <span className="tabular-nums">({formatCountdown(countdownSeconds)})</span>

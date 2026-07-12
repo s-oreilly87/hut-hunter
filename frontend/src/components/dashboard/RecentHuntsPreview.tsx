@@ -8,7 +8,7 @@ import { buildAdapterFieldMaps } from '@/components/jobs/jobParamDisplay'
 import { getDisplayStatus } from '@/lib/availability'
 import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { JobIdentity } from '@/components/jobs/list/JobIdentity'
-import { formatTimeAgo } from '@/components/jobs/list/jobListHelpers'
+import { formatTimeAgo, formatWindowOpensLabel } from '@/components/jobs/list/jobListHelpers'
 
 const PREVIEW_COUNT = 3
 
@@ -64,6 +64,10 @@ export function RecentHuntsPreview({
       <div className="divide-y divide-border/70">
         {recentJobs.map((job) => {
           const displayStatus = getDisplayStatus(job, pendingBookings)
+          const windowOpensLabel =
+            displayStatus === 'awaiting_window'
+              ? formatWindowOpensLabel(job.window_opens_at, job.window_opens_precise)
+              : null
           return (
             <div
               key={job.id}
@@ -87,18 +91,16 @@ export function RecentHuntsPreview({
                   hasOutdatedCampers={false}
                 />
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
+              <div className="flex min-w-0 shrink-0 flex-col items-end gap-1.5 text-right">
                 <StatusBadge
                   status={displayStatus}
                   jobId={job.id}
                   cartExpiresAt={job.cart_expires_at}
                   artifactUrl={job.last_artifact_png}
-                  windowOpensAt={job.window_opens_at}
-                  windowOpensPrecise={job.window_opens_precise}
                 />
-                <div className="flex items-center gap-1 text-xs/4 text-muted-foreground/70">
-                  {formatTimeAgo(job.last_checked_at)}
-                  <ChevronRight className="size-3.5 text-muted-foreground/50" />
+                <div className="flex max-w-[18ch] items-center gap-1 text-base/5 text-muted-foreground/70 whitespace-normal sm:text-xs/4">
+                  {windowOpensLabel ?? formatTimeAgo(job.last_checked_at)}
+                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/50" />
                 </div>
               </div>
             </div>

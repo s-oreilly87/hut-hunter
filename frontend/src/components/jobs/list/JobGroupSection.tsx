@@ -94,12 +94,12 @@ export function JobGroupSection({
           </div>
 
           <div className="hidden overflow-hidden rounded-[1.2rem] border border-border/70 lg:block">
-            <Table>
+            <Table className="table-fixed">
               <TableHeader className="bg-secondary/60">
                 <TableRow className="border-border/80 hover:bg-secondary/60">
-                  <TableHead className="w-[56%] pl-4 text-muted-foreground">Hunt</TableHead>
-                  <TableHead className="w-[22%] text-muted-foreground">Automation</TableHead>
-                  <TableHead className="pr-5 text-muted-foreground">Status</TableHead>
+                  <TableHead className="w-[52%] pl-4 text-muted-foreground">Hunt</TableHead>
+                  <TableHead className="w-[28%] text-muted-foreground">Status</TableHead>
+                  <TableHead className="w-[20%] pr-5 text-muted-foreground">Automation</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
