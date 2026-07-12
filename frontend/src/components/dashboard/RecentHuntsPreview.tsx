@@ -96,7 +96,7 @@ export function RecentHuntsPreview({
                   windowOpensAt={job.window_opens_at}
                   windowOpensPrecise={job.window_opens_precise}
                 />
-                <div className="flex items-center gap-1 text-xs leading-4 text-muted-foreground/70">
+                <div className="flex items-center gap-1 text-xs/4 text-muted-foreground/70">
                   {formatTimeAgo(job.last_checked_at)}
                   <ChevronRight className="size-3.5 text-muted-foreground/50" />
                 </div>

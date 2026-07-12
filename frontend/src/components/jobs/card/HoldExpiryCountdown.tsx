@@ -22,9 +22,9 @@ export function HoldExpiryCountdown({ cartExpiresAt }: { cartExpiresAt: string |
   const countdownSeconds = Math.max(0, (new Date(cartExpiresAt).getTime() - nowMs) / 1000)
 
   return (
-    <p className="mt-2 text-sm leading-5 text-muted-foreground">
+    <p className="mt-2 text-sm/5 text-muted-foreground">
       Time remaining to complete payment:{' '}
-      <span className="font-medium tabular-nums text-foreground">
+      <span className="font-medium text-foreground tabular-nums">
         {formatCountdown(countdownSeconds)}
       </span>
     </p>

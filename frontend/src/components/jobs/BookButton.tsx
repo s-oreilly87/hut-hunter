@@ -152,7 +152,7 @@ export function BookButton({
 
 export function PartialAvailabilityHelp() {
   return (
-    <p className="text-xs text-muted-foreground leading-relaxed">
+    <p className="text-xs/relaxed text-muted-foreground">
       Want to book what IS available?{' '}
       <span className="text-foreground">
         Create a new hunt scoped to just that site,

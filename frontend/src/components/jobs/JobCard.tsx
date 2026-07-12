@@ -39,7 +39,7 @@ import {
 } from '@/components/jobs/card/deriveJobCardView'
 import { cn } from '@/lib/utils'
 
-const MOBILE_FLAT_CARD_CLASSES = 'max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0 max-sm:border-b-0 max-sm:shadow-none max-sm:ring-0 max-sm:backdrop-blur-none'
+const MOBILE_FLAT_CARD_CLASSES = 'max-sm:rounded-none max-sm:border-0 max-sm:shadow-none max-sm:ring-0 max-sm:backdrop-blur-none'
 
 /**
  * Detail panel for a single job.
@@ -172,7 +172,7 @@ export function JobCard({
 
   return (
     <>
-      <Card className={cn('app-panel app-panel-frame gap-0 py-0 border-border/80', MOBILE_FLAT_CARD_CLASSES, className)}>
+      <Card className={cn('app-panel app-panel-frame gap-0 border-border/80 py-0', MOBILE_FLAT_CARD_CLASSES, className)}>
         <JobCardHeader
           job={job}
           isLocked={view.isLocked}
@@ -182,7 +182,7 @@ export function JobCard({
           actions={headerActions}
         />
 
-        <CardContent className="app-panel-body-scroll px-0 [-webkit-mask-image:none] [mask-image:none]">
+        <CardContent className="app-panel-body-scroll mask-none px-0 [-webkit-mask-image:none]">
           <div className="sticky top-0 z-10 border-b border-border/70 bg-muted/80 px-4 py-3 backdrop-blur-sm sm:px-6">
             <HeaderParamSummary
               params={job.params}
@@ -192,7 +192,7 @@ export function JobCard({
             />
           </div>
 
-          <div className="space-y-6 px-4 pt-6 pb-6 sm:px-6">
+          <div className="space-y-6 px-4 py-6 sm:px-6">
             {view.hasOutdatedCampers && (
               <OutdatedCampersNotice
                 onEditJob={() => handleEdit()}

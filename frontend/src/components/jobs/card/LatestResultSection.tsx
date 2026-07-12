@@ -52,7 +52,7 @@ export function LatestResultSection({
     return (
       <section className="space-y-3">
         {header}
-        <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
+        <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 p-4">
           <p className="text-sm text-muted-foreground">
             No automation result has been stored for this hunt yet.
           </p>

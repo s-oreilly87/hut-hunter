@@ -5,7 +5,7 @@ export function NavBrand({ onClick, className }: { onClick: () => void; classNam
     <button
       type="button"
       className={cn(
-        'flex items-center gap-2.5 rounded-2xl text-left transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'flex items-center gap-2.5 rounded-2xl text-left transition hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none',
         className,
       )}
       onClick={onClick}

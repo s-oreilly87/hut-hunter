@@ -37,7 +37,7 @@ export function OccupantRow({
           <p key={summary} className="text-xs text-muted-foreground">{summary}</p>
         ))}
       </div>
-      <div className="flex gap-1 shrink-0">
+      <div className="flex shrink-0 gap-1">
         <Button variant="ghost" size="sm" className="size-7 p-0" onClick={onEdit}>
           <Pencil className="size-3.5" />
         </Button>

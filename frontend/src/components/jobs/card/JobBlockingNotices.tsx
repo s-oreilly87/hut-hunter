@@ -12,7 +12,7 @@ export function MissingOccupantsNotice() {
   return (
     <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
       <p className="text-sm text-muted-foreground">
-        <BadgeInfo className="inline-block size-5 mr-2 text-gray-400" />
+        <BadgeInfo className="mr-2 inline-block size-5 text-gray-400" />
         Campers are required on this hunt before booking can start. Add them in Edit to enable auto-book and manual booking.
       </p>
     </div>
@@ -23,7 +23,7 @@ export function ManualBookingOnlyNotice({ siteName }: { siteName?: string }) {
   return (
     <div className="rounded-2xl border border-sky-500/25 bg-sky-500/8 px-4 py-3">
       <p className="text-sm text-muted-foreground">
-        <BadgeInfo className="inline-block size-5 mr-2 text-gray-400" />
+        <BadgeInfo className="mr-2 inline-block size-5 text-gray-400" />
         {siteName ?? 'This booking site'} signs in with a third-party account
         (e.g. Google or GCKey), which Hut Hunter can't automate — automated
         booking isn't available. You'll be notified when availability is found

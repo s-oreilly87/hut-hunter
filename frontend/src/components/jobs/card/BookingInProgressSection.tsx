@@ -27,14 +27,14 @@ export function BookingInProgressSection({
           Last Result
         </h3>
       </div>
-      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 p-4">
         <div className="flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
             <Loader2 className="size-5 animate-spin" />
           </div>
           <div>
             <p className="font-medium tracking-tight text-foreground">Booking in progress</p>
-            <p className="mt-1 text-sm leading-5 text-muted-foreground">
+            <p className="mt-1 text-sm/5 text-muted-foreground">
               Attempting to secure your hold…
             </p>
           </div>

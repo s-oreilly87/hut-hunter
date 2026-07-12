@@ -95,7 +95,7 @@ export function HeaderParamSummary({
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="hover:underline underline-offset-2 decoration-muted-foreground/40 hover:text-foreground"
+                          className="decoration-muted-foreground/40 underline-offset-2 hover:text-foreground hover:underline"
                         >
                           {field.value}
                         </a>

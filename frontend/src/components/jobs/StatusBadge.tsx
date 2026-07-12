@@ -29,29 +29,29 @@ const DISPLAY_LABEL: Record<string, string> = {
 
 const STATUS_CLASS: Record<string, string | undefined> = {
   paused:               undefined,
-  checking:             'bg-blue-600 hover:bg-blue-600 text-white',
-  booking:              'bg-blue-600 hover:bg-blue-600 text-white',
-  attempting_hold:      'bg-amber-500 hover:bg-amber-500 text-white',
-  hold_expired:         'bg-zinc-500 hover:bg-zinc-500 text-white',
-  waiting:              'bg-zinc-500 hover:bg-zinc-500 text-white',
-  hold_placed:          'bg-amber-500 hover:bg-amber-500 text-white',
+  checking:             'bg-blue-600 text-white hover:bg-blue-600',
+  booking:              'bg-blue-600 text-white hover:bg-blue-600',
+  attempting_hold:      'bg-amber-500 text-white hover:bg-amber-500',
+  hold_expired:         'bg-zinc-500 text-white hover:bg-zinc-500',
+  waiting:              'bg-zinc-500 text-white hover:bg-zinc-500',
+  hold_placed:          'bg-amber-500 text-white hover:bg-amber-500',
   // THR-122: distinct from hold_placed's amber — orange signals "this one
   // needs a human," not just "waiting on payment."
-  needs_attention:      'bg-orange-600 hover:bg-orange-600 text-white',
+  needs_attention:      'bg-orange-600 text-white hover:bg-orange-600',
   // THR-124: distinct from paused/waiting's neutral zinc — indigo signals
   // "this is deliberately parked and will arm itself," not just idle.
-  awaiting_window:      'bg-indigo-600 hover:bg-indigo-600 text-white',
-  booking_complete:     'bg-emerald-700 hover:bg-emerald-700 text-white',
+  awaiting_window:      'bg-indigo-600 text-white hover:bg-indigo-600',
+  booking_complete:     'bg-emerald-700 text-white hover:bg-emerald-700',
   cancelled:            undefined,
-  expired:              'bg-zinc-500 hover:bg-zinc-500 text-white',
-  result_available:     'bg-emerald-500 hover:bg-emerald-500 text-white',
-  result_partial:       'bg-amber-500 hover:bg-amber-500 text-white',
+  expired:              'bg-zinc-500 text-white hover:bg-zinc-500',
+  result_available:     'bg-emerald-500 text-white hover:bg-emerald-500',
+  result_partial:       'bg-amber-500 text-white hover:bg-amber-500',
   // THR-133: distinct from result_partial's amber-500 — reuses the
   // needs_attention orange-600 token so "restricted" doesn't visually
   // collide with "partially available".
-  result_restricted:    'bg-orange-600 hover:bg-orange-600 text-white',
-  result_unavailable:   'bg-rose-500 hover:bg-rose-500 text-white',
-  result_hold_failed:   'bg-rose-500 hover:bg-rose-500 text-white',
+  result_restricted:    'bg-orange-600 text-white hover:bg-orange-600',
+  result_unavailable:   'bg-rose-500 text-white hover:bg-rose-500',
+  result_hold_failed:   'bg-rose-500 text-white hover:bg-rose-500',
 }
 
 const SPINNER_STATUSES = new Set(['booking', 'attempting_hold'])

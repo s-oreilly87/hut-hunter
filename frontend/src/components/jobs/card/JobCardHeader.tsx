@@ -48,7 +48,7 @@ export function JobCardHeader({
 
   if (onBack) {
     return (
-      <div className="shrink-0 border-b border-border/70 px-4 py-4 sm:px-5">
+      <div className="shrink-0 border-b border-border/70 p-4 sm:px-5">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="min-w-0">
             <Button size="sm" variant="ghost" className="-ml-2 w-fit" onClick={onBack}>

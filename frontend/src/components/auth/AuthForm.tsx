@@ -45,7 +45,7 @@ export function AuthForm({ className }: { className?: string }) {
   }
 
   return (
-    <section className={cn('app-panel flex flex-col justify-center px-6 py-6 sm:px-8 sm:py-8', className)}>
+    <section className={cn('app-panel flex flex-col justify-center p-6 sm:p-8', className)}>
       <div className="flex justify-center">
         <div className="inline-flex w-fit rounded-full border border-border/80 bg-secondary/55 p-1">
           <button

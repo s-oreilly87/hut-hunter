@@ -27,11 +27,11 @@ export function HoldActiveSection({
         </div>
         <BookButton job={job} className="w-full sm:w-auto" size="default" />
       </div>
-      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 p-4">
         <p className="text-base font-medium tracking-tight text-foreground">
           The hold is active and waiting for payment.
         </p>
-        <p className="mt-2 text-sm leading-5 text-muted-foreground">
+        <p className="mt-2 text-sm/5 text-muted-foreground">
           Review the captured cart stages below if you want to confirm the itinerary before paying.
         </p>
         <HoldExpiryCountdown cartExpiresAt={job.cart_expires_at} />
@@ -39,7 +39,7 @@ export function HoldActiveSection({
       {holdArtifacts.length > 0 ? (
         <ArtifactGallery artifacts={holdArtifacts} />
       ) : (
-        <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 px-4 py-4">
+        <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/40 p-4">
           <p className="text-sm text-muted-foreground">
             No cart-stage snapshots are available for this hold yet.
           </p>

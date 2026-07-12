@@ -46,7 +46,7 @@ export function DesktopApp({
         onGoToDashboard={() => navigate({ name: 'dashboard' })}
       />
 
-      <div className="mx-auto flex w-full max-w-400 flex-1 min-h-0 flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-400 flex-1 flex-col px-4 pt-6 pb-8 sm:px-6 lg:px-8">
         <div className="dashboard-enter">
           <StatsGrid
             stats={stats}
@@ -82,7 +82,7 @@ export function DesktopApp({
               </div>
             </div>
             <div className="app-panel-body-scroll px-4 sm:px-6">
-              <div className="pt-6 pb-6">
+              <div className="py-6">
                 <JobList
                   statusFilters={statusFilters}
                   onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}

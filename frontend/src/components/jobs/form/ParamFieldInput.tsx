@@ -63,7 +63,7 @@ export function ParamFieldInput({
 
     return (
       <div className="space-y-1.5">
-        <div className="max-h-52 overflow-y-auto rounded-md border p-1 space-y-0.5">
+        <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-md border p-1">
           {opts.map((opt) => {
             const checked = selected.includes(opt)
             return (

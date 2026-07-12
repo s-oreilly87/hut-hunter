@@ -95,11 +95,11 @@ export function OccupantSelector({
               />
               <span className="min-w-0">
                 <span className="font-medium">{o.first_name} {o.last_name}</span>
-                <span className="block text-muted-foreground text-xs">
+                <span className="block text-xs text-muted-foreground">
                   {o.age}y · {o.gender} · {o.country}
                 </span>
                 {adapterSummary && (
-                  <span className="block text-muted-foreground text-xs">
+                  <span className="block text-xs text-muted-foreground">
                     {adapterSummary}
                   </span>
                 )}

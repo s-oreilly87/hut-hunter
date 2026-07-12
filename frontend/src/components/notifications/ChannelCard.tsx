@@ -64,7 +64,7 @@ export function ChannelEnableRow({
   return (
     <div
       className={cn(
-        'flex items-center justify-between rounded-2xl border border-border/70 bg-background/70 px-3 py-3',
+        'flex items-center justify-between rounded-2xl border border-border/70 bg-background/70 p-3',
         className,
       )}
     >

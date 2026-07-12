@@ -22,7 +22,7 @@ export function OccupantsTile({ onOpen, className }: { onOpen: () => void; class
           Add
         </button>
       </div>
-      <p className="mt-2.5 text-xs leading-4 text-pretty text-muted-foreground">
+      <p className="mt-2.5 text-xs/4 text-pretty text-muted-foreground">
         Add camper details to enable automated booking. Hut Hunter needs this info to complete checkout.
       </p>
     </article>
@@ -58,7 +58,7 @@ export function CredentialsTile({
           Add
         </button>
       </div>
-      <p className="mt-2.5 text-xs leading-4 text-pretty text-muted-foreground">
+      <p className="mt-2.5 text-xs/4 text-pretty text-muted-foreground">
         Save your booking site logins so Hut Hunter can seamlessly move from availability checks into the booking flow.
         {missingCount > 1 ? ` ${missingCount} sites still need a sign-in.` : ''}
       </p>
@@ -98,7 +98,7 @@ export function NoJobsTile({ onCreateJob, className }: { onCreateJob: () => void
 
 export function CreateMoreJobsTile({ onCreateJob, className }: { onCreateJob: () => void; className?: string }) {
   return (
-    <article className={cn('flex w-full min-h-28 flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4', className)}>
+    <article className={cn('flex min-h-28 w-full flex-col justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-card/50 px-6 py-4', className)}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm font-semibold tracking-tight text-foreground">

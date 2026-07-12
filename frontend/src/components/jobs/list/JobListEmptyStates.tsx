@@ -49,7 +49,7 @@ export function JobListEmptyState({
       <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
         {title}
       </h3>
-      <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground text-pretty">
+      <p className="mt-2 max-w-sm text-sm/6 text-pretty text-muted-foreground">
         {description}
       </p>
     </div>

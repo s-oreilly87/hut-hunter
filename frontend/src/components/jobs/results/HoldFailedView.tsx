@@ -22,7 +22,7 @@ export function HoldFailedView({
     : 'The hold attempt did not complete successfully.'
 
   return (
-    <div className="rounded-[1.25rem] border border-rose-500/30 bg-rose-500/5 px-4 py-4">
+    <div className="rounded-[1.25rem] border border-rose-500/30 bg-rose-500/5 p-4">
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600">
           <XCircle className="size-5" />
@@ -33,7 +33,7 @@ export function HoldFailedView({
               <p className="font-medium tracking-tight text-foreground">
                 Hold Failed
               </p>
-              <p className="text-sm leading-5 text-foreground/85">
+              <p className="text-sm/5 text-foreground/85">
                 {errorMsg}
               </p>
             </div>

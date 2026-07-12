@@ -50,8 +50,8 @@ export function MobileApp({
 
       <div
         className={cn(
-          'mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col gap-4 px-4 pb-4 pt-4',
-          'max-sm:gap-0 max-sm:px-0 max-sm:pb-0 max-sm:pt-0',
+          'mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 p-4',
+          'max-sm:gap-0 max-sm:p-0',
         )}
       >
         {route.name === 'dashboard' && (
@@ -81,7 +81,7 @@ export function MobileApp({
 
         {route.name === 'jobs' && (
           <section className="app-panel app-panel-frame flex-1">
-            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-5">
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 p-4 sm:px-5">
               <h2 className="text-base font-semibold tracking-tight text-foreground">
                 Hunts
               </h2>
@@ -98,7 +98,7 @@ export function MobileApp({
               </div>
             </div>
             <div className="app-panel-body-scroll px-4 sm:px-5">
-              <div className="pt-6 pb-6">
+              <div className="py-6">
                 <JobList
                   statusFilters={statusFilters}
                   onJobSelect={(jobId) => navigate({ name: 'job-detail', jobId })}

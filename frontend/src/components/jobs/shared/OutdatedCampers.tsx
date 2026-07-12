@@ -51,7 +51,7 @@ export function OutdatedCampersNotice({
 }) {
   return (
     <section>
-      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 px-4 py-4">
+      <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/8 p-4">
         <div className="flex items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700">
             <AlertTriangle className="size-5" />
@@ -60,14 +60,14 @@ export function OutdatedCampersNotice({
             <p className="text-base font-medium tracking-tight text-foreground">
               Camper Details Changed
             </p>
-            <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
+            <p className="mt-1.5 text-sm/5 text-muted-foreground">
               Campers attached to this hunt have been edited since this job was created. To use the current campers and ensure all required fields are still filled out, save this job again to update the camper details.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
                 size="sm"
                 variant="outline"
-                className="bg-amber-500/10 border-amber-500/30 text-amber-800 hover:bg-amber-500/20"
+                className="border-amber-500/30 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20"
                 onClick={onEditJob}
               >
                 <Settings2 className="mr-1.5 size-3.5" />
@@ -76,7 +76,7 @@ export function OutdatedCampersNotice({
               <Button
                 size="sm"
                 variant="outline"
-                className="bg-amber-500/10 border-amber-500/30 text-amber-800 hover:bg-amber-500/20"
+                className="border-amber-500/30 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20"
                 onClick={onEditCampers}
               >
                 <Users className="mr-1.5 size-3.5" />

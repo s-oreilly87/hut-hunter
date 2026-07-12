@@ -77,7 +77,7 @@ export function FilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 min-w-[196px] overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg ring-1 ring-black/5 dark:ring-white/5">
+        <div className="absolute top-full right-0 z-50 mt-2 min-w-[196px] overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg ring-1 ring-black/5 dark:ring-white/5">
           <div className="p-1.5">
             {JOB_FILTERS.map((filter) => {
               const count = filterCounts.get(filter.key) ?? 0

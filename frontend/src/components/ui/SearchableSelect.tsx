@@ -248,7 +248,7 @@ export function SearchableSelect({
               </div>
             ))
           ) : (
-            <p className="px-3 py-3 text-sm text-muted-foreground">No matches found.</p>
+            <p className="p-3 text-sm text-muted-foreground">No matches found.</p>
           )}
 
           {showTruncatedHint && (

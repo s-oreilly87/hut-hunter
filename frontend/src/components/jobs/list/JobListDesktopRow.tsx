@@ -55,7 +55,7 @@ function JobStatusMeta({
           />
         )}
       </div>
-      <p className="text-xs leading-4 text-muted-foreground/75">
+      <p className="text-xs/4 text-muted-foreground/75">
         {checkedPrefix} {checkedLabel}
       </p>
     </div>
@@ -104,9 +104,9 @@ export function JobListDesktopRow({
     >
       <TableCell
         className={cn(
-          'relative w-[56%] whitespace-normal py-4 pl-4 pr-6 align-middle',
+          'relative w-[56%] py-4 pr-6 pl-4 align-middle whitespace-normal',
           isSelected
-            && 'pl-7 before:absolute before:top-3 before:bottom-3 before:left-2 before:w-1 before:rounded-full before:bg-primary',
+            && 'pl-7 before:absolute before:inset-y-3 before:left-2 before:w-1 before:rounded-full before:bg-primary',
         )}
       >
         <JobIdentity
