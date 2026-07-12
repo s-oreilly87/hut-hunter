@@ -30,9 +30,9 @@ export function AppHeader({
   return (
     <div ref={headerRef} data-sticky-header="true" className={cn('sticky top-0 z-50 isolate', className)}>
       <div className="border-b border-border/30 bg-background/94 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[100rem] flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <NavBrand onClick={onGoToDashboard} />
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <ThemeToggle />
             <AccountMenu
               userEmail={userEmail}

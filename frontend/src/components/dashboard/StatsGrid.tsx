@@ -29,7 +29,7 @@ function StatFilterTile({
       role="button"
       tabIndex={0}
       className={cn(
-        'app-panel w-full overflow-hidden px-5 py-3.5 text-left sm:w-60',
+        'app-panel w-full overflow-hidden px-4 py-3 text-left sm:w-56 sm:px-5 sm:py-3',
         !compact && 'min-h-28',
         isActive && 'ring-2 ring-primary/25',
         className,
@@ -43,9 +43,9 @@ function StatFilterTile({
       }}
     >
       <div className="flex w-full items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-1">
-            <p className="text-sm font-medium text-muted-foreground">
+            <p className="text-base font-medium text-muted-foreground sm:text-sm">
               {stat.label}
             </p>
             {compact && (
@@ -54,20 +54,20 @@ function StatFilterTile({
               </span>
             )}
           </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground tabular-nums sm:mt-1 sm:text-xl">
             {stat.value}
           </p>
         </div>
         <div className={cn(
-          'flex size-10 shrink-0 items-center justify-center rounded-2xl',
+          'flex size-9 shrink-0 items-center justify-center rounded-2xl sm:size-9',
           isActive ? 'bg-primary/15 text-primary' : 'bg-primary/10 text-primary',
         )}>
-          <stat.icon className="size-5" />
+          <stat.icon className="size-4.5 sm:size-4" />
         </div>
       </div>
 
       {!compact && (
-        <p className="mt-2 text-xs/4 text-pretty text-muted-foreground">
+        <p className="mt-2 text-base/5 text-pretty text-muted-foreground sm:text-sm/5">
           {stat.description}
         </p>
       )}
@@ -112,7 +112,7 @@ export function StatsGrid({
   const showNoJobsTile = totalJobs === 0 && showNewHuntTile
 
   return (
-    <section className={cn('flex flex-wrap items-stretch justify-center xl:justify-start gap-3', className)}>
+    <section className={cn('flex flex-wrap items-stretch justify-center gap-3 xl:justify-start', className)}>
       {showOccupantsTile && (
         <OccupantsTile onOpen={onOpenOccupants} className="w-full sm:w-64" />
       )}
@@ -127,7 +127,7 @@ export function StatsGrid({
       )}
 
       {showNoJobsTile ? (
-        <NoJobsTile onCreateJob={onCreateJob} className="w-full sm:w-64" />
+        <NoJobsTile onCreateJob={onCreateJob} className="w-full sm:w-64 lg:min-w-80 lg:flex-1" />
       ) : (
         <>
           {visibleStats.map((stat) => (

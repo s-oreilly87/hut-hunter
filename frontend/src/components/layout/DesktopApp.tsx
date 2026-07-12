@@ -46,7 +46,7 @@ export function DesktopApp({
         onGoToDashboard={() => navigate({ name: 'dashboard' })}
       />
 
-      <div className="mx-auto flex min-h-0 w-full max-w-400 flex-1 flex-col px-4 pt-6 pb-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-[100rem] flex-1 flex-col px-4 pt-4 pb-5 sm:px-6 sm:pt-5 sm:pb-6 lg:px-8">
         <div className="dashboard-enter">
           <StatsGrid
             stats={stats}
@@ -63,13 +63,13 @@ export function DesktopApp({
           />
         </div>
 
-        <main className="dashboard-enter-delay mt-5 grid min-h-0 flex-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)] xl:grid-rows-[minmax(0,1fr)]">
-          <section className="app-panel app-panel-frame">
-            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 sm:px-6">
-              <h2 className="text-base font-semibold tracking-tight text-foreground">
+        <main className="dashboard-enter-delay mt-4 grid min-h-0 flex-1 gap-4 sm:mt-5 sm:gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(380px,0.95fr)] xl:grid-rows-[minmax(0,1fr)]">
+          <section className="app-panel app-panel-frame min-w-0">
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-3 sm:px-6 sm:py-3.5">
+              <h2 className="text-base font-semibold tracking-tight text-foreground sm:text-sm">
                 Hunts
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <FilterDropdown
                   filters={statusFilters}
                   onChange={onStatusFiltersChange}
@@ -91,7 +91,7 @@ export function DesktopApp({
             </div>
           </section>
 
-          <aside className="min-h-0">
+          <aside className="min-h-0 min-w-0">
             <JobCard
               className="h-full"
               onRequestEdit={(job, step) => navigate({ name: 'edit-job', jobId: job.id, step })}

@@ -130,7 +130,9 @@
   html,
   body,
   #root {
-    height: 100dvh;
+    /* min-height only — a fixed height: 100dvh clips the painted
+       background when page content (auth, tall forms) exceeds the
+       viewport and produces a visible band on scroll. */
     min-height: 100dvh;
   }
 
@@ -188,7 +190,9 @@
       linear-gradient(rgba(36, 61, 50, 0.04) 1px, transparent 1px),
       linear-gradient(90deg, rgba(36, 61, 50, 0.04) 1px, transparent 1px);
     background-size: 36px 36px;
-    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent 88%);
+    /* Soften toward the bottom without a hard fade line that reads
+       as a horizontal band when content taller than the viewport. */
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.18) 70%, rgba(0, 0, 0, 0.08));
     pointer-events: none;
   }
 

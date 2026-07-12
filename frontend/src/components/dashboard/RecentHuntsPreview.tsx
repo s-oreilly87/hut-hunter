@@ -57,7 +57,7 @@ export function RecentHuntsPreview({
   return (
     <section className="app-panel app-panel-frame">
       <div className="border-b border-border/70 px-4 py-3 sm:px-5">
-        <h2 className="text-sm font-semibold tracking-tight text-foreground">
+        <h2 className="text-base font-semibold tracking-tight text-foreground sm:text-sm">
           Recent Hunts
         </h2>
       </div>

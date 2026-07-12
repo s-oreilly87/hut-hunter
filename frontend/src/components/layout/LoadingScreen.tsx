@@ -11,7 +11,7 @@ export function LoadingScreen() {
           <h1 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
             Loading your workspace
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-base text-muted-foreground sm:text-sm">
             Checking your session and restoring your hunts.
           </p>
         </div>
