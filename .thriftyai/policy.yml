@@ -1,0 +1,76 @@
+version: 1
+project: hut-hunter
+scope:
+  default_mode: read_only
+  # Tighten to your source dirs (e.g. app/**, src/**); "**" allows all files.
+  edit_allowlist:
+  - '**'
+  edit_denylist:
+  - '**/.env'
+  - '**/*.lock'
+  - .git/**
+  - .thriftyai/**
+  max_files_per_task: 8
+  max_expansion: 3
+  max_diff_lines: 400
+  allow_new_files: true
+  allow_file_deletes: false
+permissions:
+  allow_shell: false
+  network: deny
+gates:
+  lint:
+    enabled: false
+    commands: {}
+  typecheck:
+    enabled: false
+    commands: {}
+  tests:
+    enabled: true
+    strategy: changed_first
+    commands:
+      py: pytest -q
+    must_pass: true
+  runner: docker
+  env_file: .env.testing
+  docker:
+    compose_file: docker-compose.yml
+    service: app
+    workdir: /var/www/html
+    mount_deps_from_main: vendor:ro,node_modules:rw
+budget:
+  per_task_usd: 0.15
+  daily_usd: 5.0
+  prefer_local: true
+  cloud_requires: escalation
+routing:
+  default_executor: qwen3.5
+  default_reviewer: claude
+  planner: claude
+  audit: claude
+  plan_local_fallback: qwen3.5
+  review_local_fallback: qwen2.5-coder:14b
+  escalation_cloud: openrouter:anthropic/claude-sonnet-4.5
+  rules:
+  - if: risk == high
+    then:
+      reviewer: claude
+  - if: scope == repo_wide
+    then:
+      planner: claude
+      executor: qwen3.5
+  - if: task_type == trivial_edit and files <= 2
+    then:
+      executor: qwen2.5-coder:7b
+      skip_planner: true
+logging:
+  path: logs/runs.jsonl
+  capture:
+  - model
+  - backend
+  - tokens_est
+  - cost_est
+  - files
+  - tests
+  - failures
+  - escalations
