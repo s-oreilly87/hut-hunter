@@ -45,13 +45,13 @@ export function AuthForm({ className }: { className?: string }) {
   }
 
   return (
-    <section className={cn('app-panel flex flex-col justify-center p-6 sm:p-8 lg:p-10', className)}>
+    <section className={cn('app-panel flex flex-col justify-center p-5 sm:p-6 lg:p-7', className)}>
       <div className="flex justify-center">
         <div className="inline-flex w-fit rounded-full border border-border/80 bg-secondary/55 p-1">
           <button
             type="button"
             className={cn(
-              'rounded-full px-5 py-2.5 text-base font-medium transition sm:py-2 sm:text-sm',
+              'rounded-full px-5 py-2.5 text-base font-medium transition sm:py-1.5 sm:text-sm',
               mode === 'login'
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
@@ -63,7 +63,7 @@ export function AuthForm({ className }: { className?: string }) {
           <button
             type="button"
             className={cn(
-              'rounded-full px-5 py-2.5 text-base font-medium transition sm:py-2 sm:text-sm',
+              'rounded-full px-5 py-2.5 text-base font-medium transition sm:py-1.5 sm:text-sm',
               mode === 'register'
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
@@ -75,12 +75,12 @@ export function AuthForm({ className }: { className?: string }) {
         </div>
       </div>
 
-      <div className="mt-6 flex items-center gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+      <div className="mt-5 flex items-center gap-3 sm:mt-6">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary sm:size-11">
           {mode === 'register' ? <UserPlus className="size-5" /> : <LockKeyhole className="size-5" />}
         </div>
         <div className="min-w-0">
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
             {mode === 'register' ? 'Create your account' : 'Welcome back'}
           </h2>
           <p className="text-base text-muted-foreground sm:text-sm">
@@ -91,7 +91,7 @@ export function AuthForm({ className }: { className?: string }) {
         </div>
       </div>
 
-      <div className="mt-8 space-y-4">
+      <div className="mt-6 space-y-3.5 sm:mt-7 sm:space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input

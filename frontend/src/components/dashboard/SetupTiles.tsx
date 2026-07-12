@@ -53,7 +53,7 @@ export function CredentialsTile({
         tabIndex={0}
         aria-label={`Add booking site sign-ins, ${missingCount} missing`}
         className={cn(
-          'app-panel w-full cursor-pointer overflow-hidden px-5 py-3.5 text-left transition-colors hover:bg-muted/40',
+          'app-panel w-full cursor-pointer overflow-hidden px-4 py-3 text-left transition-colors hover:bg-muted/40 sm:px-5 sm:py-3',
           className,
         )}
         onClick={onOpen}
@@ -74,14 +74,14 @@ export function CredentialsTile({
                 <InfoTooltip content={CREDENTIALS_TILE_DESCRIPTION} align="start" />
               </span>
             </div>
-            <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+            <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground sm:mt-1 sm:text-xl">
               <span className="tabular-nums">{missingCount}</span>
               {' '}
-              <span className="text-xl font-medium text-muted-foreground">missing</span>
+              <span className="text-lg font-medium text-muted-foreground sm:text-base">missing</span>
             </p>
           </div>
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-700">
-            <LockKeyhole className="size-5" />
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-700">
+            <LockKeyhole className="size-4.5 sm:size-4" />
           </div>
         </div>
       </article>
