@@ -44,31 +44,40 @@ export function CredentialsTile({
   compact?: boolean
   className?: string
 }) {
-  const addButton = (
-    <button
-      type="button"
-      className="flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/8 px-2 py-1 text-xs font-medium text-sky-800 ring-1 ring-sky-500/10 hover:bg-sky-500/14"
-      onClick={onOpen}
-    >
-      <Plus className="size-3" />
-      Add
-    </button>
-  )
-
   if (compact) {
+    // Mirror StatFilterTile: label + tooltip, large value, icon — the whole
+    // tile is the CTA so we don't need a separate Add button crowding the row.
     return (
-      <article className={cn('app-panel overflow-hidden px-5 py-3.5', className)}>
+      <article
+        role="button"
+        tabIndex={0}
+        aria-label={`Add booking site sign-ins, ${missingCount} missing`}
+        className={cn(
+          'app-panel w-full cursor-pointer overflow-hidden px-5 py-3.5 text-left transition-colors hover:bg-muted/40',
+          className,
+        )}
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
+      >
         <div className="flex w-full items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <p className="text-sm font-medium text-muted-foreground">
                 Sign-Ins
               </p>
-              <InfoTooltip content={CREDENTIALS_TILE_DESCRIPTION} align="start" />
-              {addButton}
+              <span onClick={(e) => e.stopPropagation()}>
+                <InfoTooltip content={CREDENTIALS_TILE_DESCRIPTION} align="start" />
+              </span>
             </div>
-            <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground tabular-nums">
-              {missingCount} missing
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+              <span className="tabular-nums">{missingCount}</span>
+              {' '}
+              <span className="text-xl font-medium text-muted-foreground">missing</span>
             </p>
           </div>
           <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-700">
@@ -90,7 +99,14 @@ export function CredentialsTile({
             Sign-Ins
           </p>
         </div>
-        {addButton}
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/8 px-2 py-1 text-xs font-medium text-sky-800 ring-1 ring-sky-500/10 hover:bg-sky-500/14"
+          onClick={onOpen}
+        >
+          <Plus className="size-3" />
+          Add
+        </button>
       </div>
       <p className="mt-2.5 text-xs/4 text-pretty text-muted-foreground">
         {CREDENTIALS_TILE_DESCRIPTION}
