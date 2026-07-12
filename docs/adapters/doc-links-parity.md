@@ -1,5 +1,7 @@
 # DOC booking-site link parity — decision (THR-130)
 
+> **SYNCED TO DOCS** — 2026-07-08.
+
 **Question:** Camis adapters expose a fully date/party-prefilled results URL
 (`…/create-booking/results?resourceLocationId=…&startDate=…&partySize=…`).
 Can the DOC booking site (`bookings.doc.govt.nz`) get the same, and if not,
