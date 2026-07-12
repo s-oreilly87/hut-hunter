@@ -121,7 +121,8 @@ export function StatsGrid({
         <CredentialsTile
           onOpen={onOpenCredentials}
           missingCount={missingCredentialCount}
-          className="w-full sm:w-64"
+          compact={compact}
+          className="w-full sm:w-60"
         />
       )}
 
