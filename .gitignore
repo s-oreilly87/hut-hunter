@@ -17,3 +17,5 @@ frontend/dist/
 .claude/
 .secrets/
 /backend/scripts/phase0_session_ttl.py
+/.agents/
+/.cursor/
