@@ -4,7 +4,11 @@ import { StatusBadge } from '@/components/jobs/StatusBadge'
 import { MonitoringBadge } from '@/components/jobs/MonitoringBadge'
 import { AutoBookBadge } from '@/components/jobs/shared/AutoBookBadge'
 import { JobIdentity } from './JobIdentity'
-import { formatTimeAgo, isJobFinished } from './jobListHelpers'
+import {
+  formatTimeAgo,
+  formatWindowOpensLabel,
+  isJobFinished,
+} from './jobListHelpers'
 
 /**
  * Mobile-layout (lg:hidden) card variant of a single job in the JobList.
@@ -32,6 +36,10 @@ export function JobListMobileCard({
 }) {
   const showStatusBadge = displayStatus !== 'checking'
   const showLiveBadges = !isJobFinished(displayStatus)
+  const windowOpensLabel =
+    displayStatus === 'awaiting_window'
+      ? formatWindowOpensLabel(job.window_opens_at, job.window_opens_precise)
+      : null
 
   return (
     <div
@@ -64,19 +72,17 @@ export function JobListMobileCard({
           )}
         </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5 text-right">
+        <div className="flex min-w-0 shrink-0 flex-col items-end gap-2 pt-0.5 text-right">
           {showStatusBadge && (
             <StatusBadge
               status={displayStatus}
               jobId={job.id}
               cartExpiresAt={job.cart_expires_at}
               artifactUrl={job.last_artifact_png}
-              windowOpensAt={job.window_opens_at}
-              windowOpensPrecise={job.window_opens_precise}
             />
           )}
-          <p className="text-xs/4 text-muted-foreground/70">
-            {formatTimeAgo(job.last_checked_at)}
+          <p className="max-w-[18ch] text-base/5 text-muted-foreground/70 whitespace-normal sm:text-xs/4">
+            {windowOpensLabel ?? formatTimeAgo(job.last_checked_at)}
           </p>
         </div>
       </div>

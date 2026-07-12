@@ -1,5 +1,9 @@
 import { Clock3, LockKeyhole, Plus, Users } from 'lucide-react'
+import { InfoTooltip } from '@/components/ui/SectionHeading'
 import { cn } from '@/lib/utils'
+
+const CREDENTIALS_TILE_DESCRIPTION =
+  'Save your booking site logins so Hut Hunter can seamlessly move from availability checks into the booking flow.'
 
 export function OccupantsTile({ onOpen, className }: { onOpen: () => void; className?: string }) {
   return (
@@ -32,12 +36,58 @@ export function OccupantsTile({ onOpen, className }: { onOpen: () => void; class
 export function CredentialsTile({
   onOpen,
   missingCount,
+  compact = false,
   className,
 }: {
   onOpen: () => void
   missingCount: number
+  compact?: boolean
   className?: string
 }) {
+  if (compact) {
+    // Mirror StatFilterTile: label + tooltip, large value, icon — the whole
+    // tile is the CTA so we don't need a separate Add button crowding the row.
+    return (
+      <article
+        role="button"
+        tabIndex={0}
+        aria-label={`Add booking site sign-ins, ${missingCount} missing`}
+        className={cn(
+          'app-panel w-full cursor-pointer overflow-hidden px-5 py-3.5 text-left transition-colors hover:bg-muted/40',
+          className,
+        )}
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
+      >
+        <div className="flex w-full items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-medium text-muted-foreground">
+                Sign-Ins
+              </p>
+              <span onClick={(e) => e.stopPropagation()}>
+                <InfoTooltip content={CREDENTIALS_TILE_DESCRIPTION} align="start" />
+              </span>
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+              <span className="tabular-nums">{missingCount}</span>
+              {' '}
+              <span className="text-xl font-medium text-muted-foreground">missing</span>
+            </p>
+          </div>
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-700">
+            <LockKeyhole className="size-5" />
+          </div>
+        </div>
+      </article>
+    )
+  }
+
   return (
     <article className={cn('app-panel flex min-h-28 flex-col px-5 py-3.5', className)}>
       <div className="flex items-center justify-between gap-3">
@@ -59,7 +109,7 @@ export function CredentialsTile({
         </button>
       </div>
       <p className="mt-2.5 text-xs/4 text-pretty text-muted-foreground">
-        Save your booking site logins so Hut Hunter can seamlessly move from availability checks into the booking flow.
+        {CREDENTIALS_TILE_DESCRIPTION}
         {missingCount > 1 ? ` ${missingCount} sites still need a sign-in.` : ''}
       </p>
     </article>
