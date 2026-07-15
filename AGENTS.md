@@ -3,27 +3,10 @@
 _Add your project-level guidelines here._
 
 <!-- thrifty:skills:begin (managed by thrifty; do not edit inside markers) -->
-## Agent Skills
+## Agent Skills (Thrifty)
 
-Project skills live in `.agents/skills/`. Thrifty injects them automatically into the execute context. When working manually with Claude Code or another agent, read the relevant `SKILL.md` before working in that domain.
+This repository may have been set up with **Thrifty**, a per-developer agent workflow harness. Thrifty installs its skills into your working copy and git-ignores them, so they are intentionally **not committed**.
 
-Installed skills:
-
-- `thrifty-agent-browser`
-- `thrifty-agent-captures`
-- `thrifty-complete-project`
-- `thrifty-consolidate-docs`
-- `thrifty-fastapi`
-- `thrifty-github-issue`
-- `thrifty-github-labels`
-- `thrifty-github-milestone`
-- `thrifty-github-pr-comment`
-- `thrifty-scope-project`
-- `thrifty-skill-authoring`
-- `thrifty-sync-docs`
-- `thrifty-tailwind`
-- `thrifty-typescript`
-- `thrifty-upstream-handoff`
-- `thrifty-verify-final-state`
-- `thrifty-workflow`
+- If `.agents/thrifty-skills.md` exists, read it and treat its contents as part of these instructions — it lists the skills installed in this working copy and when to use them.
+- If `.agents/thrifty-skills.md` does **not** exist at exactly that path, Thrifty is not installed here (or only partially). Continue the task normally **without** any Thrifty skills: do not look for the file elsewhere, do not try to install anything, and do not treat its absence as an error or a blocker.
 <!-- thrifty:skills:end -->
