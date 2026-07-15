@@ -19,3 +19,8 @@ frontend/dist/
 /backend/scripts/phase0_session_ttl.py
 /.agents/
 /.cursor/
+
+# Thrifty workflow harness (installed locally, not part of the repo)
+.agents/
+.cursor/
+.thriftyai/
