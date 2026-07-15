@@ -119,7 +119,7 @@ Status codes, decoded empirically in HH-102 by cross-checking the live BC API on
 
 > ⚠️ HH-99 shipped `1 = available` — **inverted** (it read a fully-booked park as AVAILABLE) — and read `mapLinkAvailabilities[resourceLocationId]`, which never matches on a park map. Corrected in `BaseCamisAdapter` under HH-102.
 
-Detection semantics: a stay is only bookable if a **single site** is free (code `0`) every night — day-wise aggregates can read "available every day" when no one site covers the whole stay. `detect_availability` therefore short-circuits to UNAVAILABLE when no loop shows an open day, and otherwise drills into the open loops (bounded) and classifies per site: ≥1 full-stay site → AVAILABLE; free nights but no full-stay site → PARTIALLY_AVAILABLE.
+Detection semantics: a stay is only bookable if a **single site** is free (code `0`) every night — day-wise aggregates can read "available every day" when no one site covers the whole stay. Aggregates **prioritize** which loops to drill first; they do **not** skip drill (THR-129 Finding A — Parks Canada nests three levels; Pukaskwa-style trees need every loop visited). `detect_availability` breadth-first drills every discovered `mapLinkAvailabilities` child (open-looking first), capped at `_MAX_DRILL_REQUESTS = 40`, then classifies per site: ≥1 full-stay site → AVAILABLE; free nights but no full-stay site → PARTIALLY_AVAILABLE. Evidence uses six site-state labels (Finding B); only code `0` is bookable (code `3` later surfaces as `RESTRICTED` — THR-133).
 
 Beyond-window dates can still show site-level `0` — the window gate lives in `/api/dateschedule`, not in the availability codes. Poll gating must use the season calendar (or `is_expired`), not availability alone.
 
@@ -187,7 +187,7 @@ Note: `/api/dateschedule/resourcelocationid` is the operating-**season** calenda
 ## 7. Open items (final status — project complete through M5)
 
 1. ~~Exact **cart hold / expiry duration**~~ — **RESOLVED (HH-103/105): 15 minutes**, measured on a live BC hold and stated verbatim on both provinces' cart pages (see §3). Not DOC's 25.
-2. ~~**Occupant fields**~~ — **RESOLVED (HH-100/103):** party/equipment at search + a single permit-holder at checkout; `occupant_fields()` exposes `permit_holder` and the funnel was driven to payment live on both provinces.
+2. ~~**Occupant fields**~~ — **RESOLVED (HH-100/103, refined THR-129):** party/equipment at search + a single permit-holder at checkout. `occupant_fields()` no longer declares a redundant `permit_holder` text field; Camis sets `uses_single_permit_holder = True` and derives the name via `resolve_permit_holder_name` (optional `permit_holder_occupant_id` + wizard `PermitHolderPicker` when multiple campers are selected). Funnel was driven to payment live on both provinces; checkout typing of the permit-holder field remains future work once holds need it.
 3. ~~**Login timing**~~ — **RESOLVED (HH-100):** dedicated `/login` route (consent gate + `#email`/`#password` + Enter → `POST /api/auth/login`), required before holding. **Caveat (HH-118):** Parks Canada has *no* native login — Google/Facebook/GCKey SSO only, so it's watch/notify-only (`supports_automated_booking = False`) pending session-linking (THR-119; Camis sessions verified to survive transfer into a fresh browser, unlike DOC's).
 4. ~~Exact query params for the availability endpoint~~ — **RESOLVED (HH-99):** `GET /api/availability/map` (see §3). `/api/dateschedule` turned out to be season metadata, not live availability.
 5. ~~Map-tree traversal to enumerate parks~~ — **RESOLVED (HH-101):** the visual `/api/maps` tree dead-ends; use the flat `GET /api/resourcelocation` instead.
@@ -260,6 +260,17 @@ Equipment (a tent/RV size) is a **real availability filter** and it's now a visi
 - `BaseCamisAdapter.results_url()` → date-prefilled `…/create-booking/results?…` deep link.
 - Surfaced on job info bar (`park_url`), availability tile "Go To Site", and email/Gotify notifications (booking-site link + Hut Hunter show-hunt link).
 - DOC parity decision: page-level ceiling only — see `docs/adapters/doc-links-parity.md`.
+
+### Availability correctness & product wiring (THR-129)
+
+Shipped before the 2026-07-08 docs pass but under-documented then; Finding C's
+equipment assumption was later corrected by THR-132 (§9).
+
+- **Finding A / B** — always drill nested loops (cap 40); six-state site labels in evidence (§3).
+- **Finding E** — `fill_form` navigates to the results deep link so artifacts show the queried park/dates, not the homepage (same `results_url` later reused by THR-130).
+- **Permit-holder derivation** — see §7 item 2 (`uses_single_permit_holder`, picker).
+- **Edit-triggered rechecks** — `update_job` compares semantic params; real edits clear `last_result`/artifacts and re-run the booking-window check; no-op wizard resaves do not. Mid-flight param changes in `poll_worker` discard the stale result and schedule an immediate recheck.
+- **Dashboard UX** — compact `StatsGrid` tooltips + mobile `RecentHuntsPreview` so the home surface is not blank.
 
 ### Restricted availability (THR-133)
 
