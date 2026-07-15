@@ -152,6 +152,9 @@ Beyond the shared mechanics above, the Camis path ships several platform-specifi
 
 - **Rolling booking windows** — BC Parks opens exactly 3 months before arrival; Ontario Parks opens 5 months before arrival (both at 07:00 local time). Hunts for not-yet-released dates sit in `awaiting_window` and auto-arm when the window opens. The wizard explains this before save.
 - **Credential verification** — saving sign-in credentials triggers a login check; only `verified` credentials can enable auto-book. Failed verification blocks holds and surfaces in Sign-Ins + job notices.
+- **Nested availability drill** — Parks Canada (and deep Camis trees) always drill every loop (bounded); closed-looking aggregates never skip children.
+- **Permit holder** — derived from selected campers on Camis adapters; wizard picker when more than one occupant is selected.
+- **Edit rechecks** — real param edits clear stale availability and recheck; no-op saves do not; mid-flight edits discard in-flight poll results.
 - **Equipment selection** — tent/RV size is a visible form field on all Camis adapters and drives the availability query (shared equipment enum across all three sites).
 - **Restricted availability** — stay-pattern violations (arrival/departure changeover rules, min/max stay) surface as `restricted` rather than bare "unavailable", with wizard warnings at job creation.
 - **Booking-site links** — prefilled results URLs appear on the job info bar, availability tile ("Go To Site"), and email/Gotify notifications, plus a link back to the hunt in Hut Hunter.
