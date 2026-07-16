@@ -1,0 +1,78 @@
+version: 1
+thrifty_version: 0.2.0
+captured_at: '2026-07-16T16:00:19Z'
+bundled:
+  thrifty-agent-browser:
+    version: 0.2.0
+    sha256: ccb0cb059d27bbf707f4532de85a3c8776c740e5f321718f998e8085b0754bde
+  thrifty-agent-captures:
+    version: 0.2.0
+    sha256: 973aa11160873f60d51fd8b3ca6045d97ebf53c806405c11b018fa534711ef11
+  thrifty-complete-project:
+    version: 0.2.0
+    sha256: cfc67656104a9fd01bff451f2dedc848d64793d122e93811a0ee0dcd8ced3292
+  thrifty-consolidate-docs:
+    version: 0.2.0
+    sha256: 65c07e92bb6eb53671a78c82be656faeb5501717a36449376823023f64c49420
+  thrifty-fastapi:
+    version: 0.2.0
+    sha256: dd11da4cb2db153f55b7c2031f4a121aca0c8707ce725ce78e1ffab4d7fb4c0d
+  thrifty-github-issue:
+    version: 0.2.0
+    sha256: bea9ef0e8e7e7314f68f4341e87ff4c99246989e7b11c972facc3be2fe800360
+  thrifty-github-labels:
+    version: 0.2.0
+    sha256: e47784dde81cef7137e76b4465eaabc787291558bcb13ad934ca4f12ca31e25d
+  thrifty-github-milestone:
+    version: 0.2.0
+    sha256: 41e0cf28695c7c757a67853307e744f903eda35c7686f74a1a5374b9f9885a23
+  thrifty-github-pr-comment:
+    version: 0.2.0
+    sha256: 1c0bdd01f2aacf25fea039049554f10dbbc6699144219c580e6d537c1bc08712
+  thrifty-nextjs:
+    version: 0.2.0
+    sha256: 3ec37066ac7def18ca5437ab7418bef73ce0585302700ec950be4f886827ac8a
+  thrifty-scope-project:
+    version: 0.2.0
+    sha256: 912c9dba9993ee88db670b9f13d8025439713697afbe83fa1653816a605abf34
+  thrifty-skill-authoring:
+    version: 0.2.0
+    sha256: 7f347b536173ebfdd819342957b8a1d0d4aff5b423c3c1e065efc2b29d06cdcb
+  thrifty-sync-docs:
+    version: 0.2.0
+    sha256: a478373bf3630eae4c1365ac8cca7f9df5f70f1dd61a5837cd0d840055c690cd
+  thrifty-tailwind:
+    version: 0.2.0
+    sha256: df0a0241b076a5fdf76efe885e0fe265838ea1ace715a2916fd5c580226bab06
+  thrifty-typescript:
+    version: 0.2.0
+    sha256: 3636356cc3cb8c44dd1dd5b878f723832349ad65678b9a44dca243bb4c7048a6
+  thrifty-upstream-handoff:
+    version: 0.2.0
+    sha256: 7f6d7317534ea5e469466d243596c6dc10202a06b6c0ff9b382566dfaa149a9e
+  thrifty-verify-final-state:
+    version: 0.2.0
+    sha256: 8dba963c44e0533cd9b5c100623dbb058443e995cdc0712ed028ef2a0dfb92c9
+  thrifty-workflow:
+    version: 0.2.0
+    sha256: 53ed8a9c6a544eb47758e05aab49788ebf0985064e36eda8e1b59ac2685e4968
+payload: {}
+licensed:
+  add-dark-mode:
+    installer: '@uidotsh/install'
+  brand-kit:
+    installer: '@uidotsh/install'
+  canonicalize-tailwind:
+    installer: '@uidotsh/install'
+  componentize:
+    installer: '@uidotsh/install'
+  dark-mode-image:
+    installer: '@uidotsh/install'
+  design:
+    installer: '@uidotsh/install'
+  ideas:
+    installer: '@uidotsh/install'
+  make-responsive:
+    installer: '@uidotsh/install'
+  markup-from-image:
+    installer: '@uidotsh/install'
