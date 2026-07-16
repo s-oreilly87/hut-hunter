@@ -23,4 +23,8 @@ frontend/dist/
 # Thrifty workflow harness (installed locally, not part of the repo)
 .agents/
 .cursor/
-.thriftyai/
+
+# Thrifty workflow harness (installed locally, not part of the repo)
+.thriftyai/*
+!.thriftyai/skills.lock
+!.thriftyai/skills/
