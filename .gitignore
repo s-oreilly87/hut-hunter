@@ -28,3 +28,6 @@ frontend/dist/
 .thriftyai/*
 !.thriftyai/skills.lock
 !.thriftyai/skills/
+
+# Thrifty workflow harness (installed locally, not part of the repo)
+.mcp.json
